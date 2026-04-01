@@ -1021,3 +1021,4 @@ GreenEnergy 是一家致力于提供可持续清洁能源解决方案的初创�
    - 展...
 2026-04-01 22:54:44.722 | INFO     | core.agent_loop:_react_act:669 - Executing tool: ask_user_question
 2026-04-01 22:54:44.722 | INFO     | core.agent_loop:_load_hitl_tools_on_demand:129 - ✓ Loaded HITL tools on-demand: ['ask_user_question', 'present_decision_for_approval', 'monitor_agent', 'human_intervention', 'escalate_to_human']
+2026-04-01 23:00:06.207 | INFO     | core.agent_loop:__init__:109 - NanoAgent initialized with Spec-Driven and Dynamic Tool Loading

@@ -559,9 +559,13 @@ JSON Schema:
             step = obs.get("step", 0)
             action = obs.get("action", {}).get("action", "unknown")
             result = str(obs.get("result", ""))[:200]  # 截断结果
-            
-            summary_parts.append(f"Step {step}: {action} -> {result}")
-        
+
+            # 特殊标记 HITL 工具的用户回答
+            if obs.get("user_provided_info"):
+                summary_parts.append(f"Step {step}: ✓ 用户已回答 ({action}): {result}")
+            else:
+                summary_parts.append(f"Step {step}: {action} -> {result}")
+
         return "\n".join(summary_parts)
     
     def _react_think(self, task: str, context: Dict = None) -> Dict:
@@ -750,12 +754,20 @@ JSON Schema:
         response = self.llm.chat(messages, temperature=0.7)
         
         # 记录观察（截断结果和分析）
-        self.state.observations.append({
+        obs_entry = {
             "step": self.state.step_count,
             "action": action,
             "result": tool_result_str,
             "analysis": response[:200]
-        })
+        }
+
+        # 特殊处理 HITL 工具的用户回答，标记为已获取信息
+        if action.get("action") == "tool_call" and action.get("tool") in ["ask_user_question", "collect_human_feedback"]:
+            obs_entry["user_provided_info"] = True
+            obs_entry["info_type"] = "user_answer"
+            logger.info(f"✓ Recorded user answer in observation for step {self.state.step_count}")
+
+        self.state.observations.append(obs_entry)
         
         return {"analysis": response}
     

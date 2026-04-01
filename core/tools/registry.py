@@ -59,7 +59,7 @@ class ToolRegistry:
                     "present_decision_for_approval": "PresentDecisionApprovalInput",
                     "monitor_agent": "MonitorInput",
                     "human_intervention": "InterveneInput",
-                    "collect_human_feedback": "FeedbackInput",
+                    "collect_human_feedback": "CollectFeedbackInput",
                     "escalate_to_human": "EscalateInput"
                 }
             }
