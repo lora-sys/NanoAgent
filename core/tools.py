@@ -81,6 +81,80 @@ def safe_list_directory(path: str = ".") -> str:
         logger.error(f"Error listing directory {path}: {e}")
         return f"Error: {str(e)}"
 
+# 用户交互输入模型
+class AskUserQuestionInput(BaseModel):
+    """向用户提问输入"""
+    question: str = Field(..., description="要向用户提出的问题")
+    options: Optional[list[str]] = Field(default=None, description="可选的答案选项（如果有）")
+
+def ask_user_question(question: str, options: Optional[list[str]] = None) -> str:
+    """向用户提问并获取回答"""
+    try:
+        print(f"\n{'='*60}")
+        print(f"🤔 Agent 需要你的帮助：")
+        print(f"{'='*60}")
+        print(f"\n问题：{question}\n")
+        
+        if options:
+            print("可选答案：")
+            for i, opt in enumerate(options, 1):
+                print(f"  {i}. {opt}")
+            print()
+        
+        print(f"{'='*60}\n")
+        
+        # 获取用户输入
+        answer = input("请输入你的回答：").strip()
+        
+        # 如果有选项，检查是否输入了选项编号
+        if options and answer.isdigit():
+            idx = int(answer) - 1
+            if 0 <= idx < len(options):
+                answer = options[idx]
+        
+        logger.info(f"User answered: {answer}")
+        return answer
+    except KeyboardInterrupt:
+        logger.warning("User interrupted the question")
+        return "用户中断了回答"
+    except Exception as e:
+        logger.error(f"Error asking user question: {e}")
+        return f"Error: {str(e)}"
+
+class PresentDecisionApprovalInput(BaseModel):
+    """决策审批输入"""
+    analysis: str = Field(..., description="Agent 分析结果（200字内）")
+    action: str = Field(..., description="建议行动（100字内）")
+    risk: str = Field(default="low", description="风险等级：low/medium/high")
+
+def present_decision_for_approval(
+    analysis: str,
+    action: str,
+    risk: str = "low"
+) -> str:
+    """向人类展示决策，等待审批（仅用于安全敏感操作）"""
+    try:
+        # 截断长文本
+        analysis_short = analysis[:200] + "..." if len(analysis) > 200 else analysis
+        action_short = action[:100] + "..." if len(action) > 100 else action
+        
+        print(f"\n{'='*50}")
+        print(f"⚠️  需要人类审批的决策")
+        print(f"{'='*50}")
+        print(f"\n分析：{analysis_short}")
+        print(f"\n建议：{action_short}")
+        print(f"风险：{risk}")
+        print(f"{'='*50}\n")
+        
+        choice = input("批准？: ").strip().lower()
+        result = "approved" if choice == 'y' else "rejected"
+        
+        logger.info(f"Decision {result}: {action_short}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in decision approval: {e}")
+        return "error"
+
 # 工具注册辅助函数
 def get_tool_registry() -> dict:
     """获取所有可用工具的注册信息"""
@@ -99,5 +173,10 @@ def get_tool_registry() -> dict:
             "function": safe_list_directory,
             "description": "列出目录内容（限制在 agent_workspace 目录）。路径是相对于 agent_workspace 的，例如：'.' 或 'src'，不要包含 'agent_workspace/' 前缀。",
             "schema": ListDirectoryInput.model_json_schema()
+        },
+        "ask_user_question": {
+            "function": ask_user_question,
+            "description": "向用户提问并获取回答。当 Agent 需要更多上下文信息或用户偏好时使用。可以提供可选答案选项让用户选择。",
+            "schema": AskUserQuestionInput.model_json_schema()
         }
     }

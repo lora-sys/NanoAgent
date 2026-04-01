@@ -1,0 +1,35 @@
+{
+  "project_name": "GreenEnergy",
+  "status": "active",
+  "current_stage": "stage_1",
+  "storage": {
+    "master": ".spec/master_spec.md",
+    "steps_dir": ".spec/steps/"
+  },
+  "pipeline": [
+    {
+      "id": "stage_1",
+      "name": "大纲规划",
+      "file": "01_outline.md",
+      "status": "active"
+    },
+    {
+      "id": "stage_2",
+      "name": "内容撰写",
+      "file": "02_content.md",
+      "status": "pending"
+    },
+    {
+      "id": "stage_3",
+      "name": "编辑润色",
+      "file": "03_edit.md",
+      "status": "pending"
+    },
+    {
+      "id": "stage_4",
+      "name": "发布准备",
+      "file": "04_publish.md",
+      "status": "pending"
+    }
+  ]
+}
