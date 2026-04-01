@@ -1,196 +1,60 @@
-# Chat Mode Usage Examples
+# Chat Task Specification
 
-聊天模式使用示例 - 展示如何使用 NanoLLMClient 进行对话交互
+## Objective
+{overall_goal}
 
-## 基础聊天
+## Task Type
+chat
 
-```python
-from core.llm_client import NanoLLMClient
+## Success Criteria (必须具体、可验证)
+{ success_criteria }
 
-# 初始化客户端
-client = NanoLLMClient(model="groq/llama-3.3-70b")
+## Progress Tracking
+- 当前进度：{current_progress}
+- 已完成步骤：{completed_steps}
+- 剩余步骤：{remaining_steps}
 
-# 单轮对话
-response = client.chat([
-    {"role": "user", "content": "你好，请介绍一下你自己"}
-])
-print(response)
-```
+## Process Requirements
+- 每一步记录 Thought → Action → Observation
+- 使用工具时说明理由
+- 所有输出必须引用 Spec 中的相关条款
+- 保持对话的上下文连贯性
+- 提供清晰、有用的回应
 
-## 多轮对话
+## Boundaries (Three-Tier)
+**Always（必须做）：**
+{always}
+- 理解用户意图和需求
+- 提供准确和相关的信息
+- 保持专业和友好的态度
+- 承认知识限制
+- 请求澄清当问题不明确时
 
-```python
-# 多轮对话（带历史记录）
-conversation = [
-    {"role": "user", "content": "什么是 Python？"},
-    {"role": "assistant", "content": "Python 是一种高级编程语言..."},
-    {"role": "user", "content": "Python 有哪些主要应用场景？"}
-]
+**Ask First（先询问）：**
+{ask_first}
+- 当需要访问外部资源或工具时
+- 当用户请求可能违反策略时
+- 当需要更多信息以提供准确回答时
+- 当涉及主观判断或个人建议时
 
-response = client.chat(conversation)
-print(response)
-```
+**Never（绝对禁止）：**
+{never}
+- 不得提供有害、危险或非法的建议
+- 不得生成歧视性或仇恨内容
+- 不得冒充特定个人或实体
+- 不得泄露敏感或个人信息
+- 不得做出无依据的断言
 
-## 获取 Token 使用统计
+## Self-Check Instructions
+{self_check_instructions}
+- 确认回应是否直接回答了问题
+- 检查信息是否准确和最新
+- 评估回应是否清晰易懂
+- 确认是否尊重了用户的意图
 
-```python
-# 获取使用统计信息
-result = client.chat(
-    messages=[{"role": "user", "content": "讲一个简短的故事"}],
-    return_usage=True
-)
-
-print(f"内容: {result['content']}")
-print(f"使用统计: {result['usage']}")
-# 输出: {'input_tokens': 18, 'output_tokens': 150, 'total_tokens': 168}
-```
-
-## 流式对话
-
-```python
-# 流式输出（实时显示）
-print("流式对话：")
-for event in client.stream_chat([
-    {"role": "user", "content": "详细解释机器学习的基本概念"}
-]):
-    if event["type"] == "delta":
-        print(event["content"], end="", flush=True)
-    elif event["type"] == "done":
-        print(f"\n\n完成！使用 tokens: {event['usage']['total_tokens']}")
-    elif event["type"] == "error":
-        print(f"\n错误: {event['content']}")
-```
-
-## 带系统提示词的对话
-
-```python
-# 设置系统角色
-messages = [
-    {
-        "role": "system",
-        "content": "你是一个专业的 Python 编程导师，善于用简单的语言解释复杂的概念"
-    },
-    {
-        "role": "user",
-        "content": "请解释什么是装饰器（decorator）？"
-    }
-]
-
-response = client.chat(messages, temperature=0.3)
-print(response)
-```
-
-## 简单响应（推荐用于单轮查询）
-
-```python
-# 最简单的使用方式
-answer = client.simple_response("什么是人工智能？")
-print(answer)
-
-# 带参数的简单响应
-answer = client.simple_response(
-    "用三句话总结量子计算",
-    temperature=0.5,
-    max_tokens=100
-)
-print(answer)
-```
-
-## 带上下文的生成
-
-```python
-# 上下文增强的生成
-system_prompt = "你是一个技术文档编写助手"
-user_prompt = "为以下代码添加注释"
-context = """
-def quicksort(arr):
-    if len(arr) <= 1:
-        return arr
-    pivot = arr[len(arr) // 2]
-    left = [x for x in arr if x < pivot]
-    middle = [x for x in arr if x == pivot]
-    right = [x for x in arr if x > pivot]
-    return quicksort(left) + middle + quicksort(right)
-"""
-
-response = client.generate_with_context(
-    system_prompt=system_prompt,
-    user_prompt=user_prompt,
-    context=context
-)
-print(response)
-```
-
-## 对话最佳实践
-
-1. **温度参数控制**
-   - `temperature=0.1-0.3`: 确定性输出（如事实回答）
-   - `temperature=0.5-0.7`: 平衡的创意和准确性
-   - `temperature=0.8-1.0`: 创意性输出（如故事生成）
-
-2. **管理对话历史**
-   ```python
-   # 保持对话历史的最佳方式
-   conversation_history = []
-   
-   def chat_with_history(user_input):
-       conversation_history.append({"role": "user", "content": user_input})
-       response = client.chat(conversation_history)
-       conversation_history.append({"role": "assistant", "content": response})
-       return response
-   ```
-
-3. **错误处理**
-   ```python
-   try:
-       response = client.chat(messages)
-   except Exception as e:
-       print(f"聊天失败: {e}")
-       # 重试或使用备用方案
-   ```
-
-## 完整示例：交互式聊天机器人
-
-```python
-from core.llm_client import NanoLLMClient
-
-class ChatBot:
-    def __init__(self):
-        self.client = NanoLLMClient()
-        self.history = []
-        self.system_prompt = {
-            "role": "system",
-            "content": "你是一个友好、专业的 AI 助手"
-        }
-    
-    def chat(self, user_input: str) -> str:
-        # 添加用户消息
-        self.history.append({"role": "user", "content": user_input})
-        
-        # 构建完整消息列表
-        messages = [self.system_prompt] + self.history
-        
-        # 获取响应
-        response = self.client.chat(messages, temperature=0.7)
-        
-        # 添加助手响应
-        self.history.append({"role": "assistant", "content": response})
-        
-        return response
-    
-    def clear_history(self):
-        """清空对话历史"""
-        self.history = []
-
-# 使用示例
-bot = ChatBot()
-print("聊天机器人已启动（输入 'quit' 退出）")
-
-while True:
-    user_input = input("\n你: ")
-    if user_input.lower() == 'quit':
-        break
-    
-    response = bot.chat(user_input)
-    print(f"助手: {response}")
-```
+## Chat Guidelines
+- 使用自然、对话式的语言
+- 适应对话的上下文和历史
+- 在适当时候提供示例
+- 保持简洁和重点突出
+- 使用格式（如列表、代码块）提高可读性

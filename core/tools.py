@@ -14,11 +14,11 @@ logger.info(f"Sandbox directory initialized: {SANDBOX_DIR}")
 
 class ReadFileInput(BaseModel):
     """读取文件输入"""
-    filepath: str = Field(..., description="文件路径（相对于 agent_workspace）")
+    filepath: str = Field(..., description="文件路径（相对于 agent_workspace，例如：'main.py' 或 'src/app.py'，不要包含 'agent_workspace/' 前缀）")
 
 class WriteFileInput(BaseModel):
     """写入文件输入"""
-    filepath: str = Field(..., description="文件路径（相对于 agent_workspace）")
+    filepath: str = Field(..., description="文件路径（相对于 agent_workspace，例如：'main.py' 或 'src/app.py'，不要包含 'agent_workspace/' 前缀）")
     content: str = Field(..., description="要写入的内容")
     mode: str = Field(default="w", description="写入模式：w=覆盖, a=追加")
 
@@ -87,17 +87,17 @@ def get_tool_registry() -> dict:
     return {
         "read_file": {
             "function": safe_read_file,
-            "description": "读取文件内容（限制在 agent_workspace 目录）",
+            "description": "读取文件内容（限制在 agent_workspace 目录）。路径是相对于 agent_workspace 的，例如：'main.py' 或 'src/app.py'，不要包含 'agent_workspace/' 前缀。",
             "schema": ReadFileInput.model_json_schema()
         },
         "write_file": {
             "function": safe_write_file,
-            "description": "写入文件内容（限制在 agent_workspace 目录，支持覆盖和追加模式）",
+            "description": "写入文件内容（限制在 agent_workspace 目录，支持覆盖和追加模式）。路径是相对于 agent_workspace 的，例如：'main.py' 或 'src/app.py'，不要包含 'agent_workspace/' 前缀。",
             "schema": WriteFileInput.model_json_schema()
         },
         "list_directory": {
             "function": safe_list_directory,
-            "description": "列出目录内容（限制在 agent_workspace 目录）",
+            "description": "列出目录内容（限制在 agent_workspace 目录）。路径是相对于 agent_workspace 的，例如：'.' 或 'src'，不要包含 'agent_workspace/' 前缀。",
             "schema": ListDirectoryInput.model_json_schema()
         }
     }

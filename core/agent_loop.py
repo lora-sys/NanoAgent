@@ -116,58 +116,140 @@ class NanoAgent:
         )
     
     def _generate_spec(self, task: str) -> TaskSpec:
-        """根据用户任务生成高质量 Spec"""
+        """根据用户任务生成高质量 Spec（使用模板系统）"""
         from identity.soul_loader import load_soul
-        
+        from identity.template_loader import load_template, fill_template
+        from pydantic import BaseModel, Field
+        from typing import List
+
+        # 创建临时模型来接收 LLM 响应
+        class SpecContent(BaseModel):
+            task_type: str
+            overall_goal: str
+            success_criteria: List[str] = Field(default_factory=list)
+            current_progress: str = ""
+            completed_steps: List[str] = Field(default_factory=list)
+            remaining: List[str] = Field(default_factory=list)
+            always: List[str] = Field(default_factory=list)
+            ask_first: List[str] = Field(default_factory=list)
+            never: List[str] = Field(default_factory=list)
+            self_check_instructions: List[str] = Field(default_factory=list)
+            process_requirements: List[str] = Field(default_factory=list)
+
+        # 步骤 1: 用 LLM 生成 task_type 和核心字段值
         soul_content = load_soul()
-        
-        prompt = f"""你是一个专业的 Spec 生成器。
+
+        prompt = f"""你是一个专业的 Spec 内容生成器。
+
 Agent 灵魂描述：
 {soul_content}
 
 当前用户任务：
 {task}
 
-请生成一个完整、结构化的 TaskSpec JSON 对象。
+请生成一个完整的 Spec 内容 JSON 对象。
 
 JSON Schema:
 {{
   "task_type": "string (chat/code/writing/analyze)",
   "overall_goal": "string - 核心目标",
   "success_criteria": ["string1", "string2", ...],
-  "progress_tracking": {{
-    "current_progress": "string",
-    "completed_steps": ["step1", "step2", ...],
-    "remaining": ["step3", "step4", ...]
-  }},
-  "process_requirements": ["string1", "string2", ...],
-  "boundaries": {{
-    "always": ["action1", "action2", ...],
-    "ask_first": ["action1", "action2", ...],
-    "never": ["action1", "action2", ...]
-  }},
+  "current_progress": "string",
+  "completed_steps": ["step1", "step2", ...],
+  "remaining": ["step3", "task4", ...],
+  "always": ["action1", "action2", ...],
+  "ask_first": ["action1", "action2", ...],
+  "never": ["action1", "action2", ...],
   "self_check_instructions": ["instruction1", "instruction2", ...],
-  "human_in_loop_points": ["point1", "point2", ...],
-  "additional_notes": "string"
+  "process_requirements": ["string1", "string2", ...]
 }}
 
 要求：
 - success_criteria 必须具体、可验证
-- progress_tracking 必须是字典格式，包含 current_progress, completed_steps, remaining 三个键
-- boundaries 必须是字典格式，包含 always, ask_first, never 三个键
-- 加入 progress_tracking 和 self_check_instructions
+- current_progress 描述当前阶段
+- completed_steps 和 remaining 是步骤列表
+- always/ask_first/never 是行为规则列表
 - 严格遵守 Three-Tier Boundaries
 
-重要：直接返回 JSON 对象，不要包裹在 "TaskSpec" 或其他键下。
-只返回合法的 JSON，不要任何额外文字。"""
+重要：只返回合法的 JSON，不要任何额外文字。"""
 
         messages = [
-            {"role": "system", "content": "你是一个严谨的 Spec 生成器，只输出 JSON。"},
+            {"role": "system", "content": "你是一个严谨的 Spec 内容生成器，只输出 JSON。"},
             {"role": "user", "content": prompt}
         ]
 
-        spec: TaskSpec = self.llm.structured_chat(messages, TaskSpec, temperature=0.3)
-        logger.info("Spec generated", task_type=spec.task_type, goal=spec.overall_goal)
+        spec_content: SpecContent = self.llm.structured_chat(messages, SpecContent, temperature=0.3)
+
+        # 步骤 2: 根据 task_type 加载对应的模板
+        template = load_template(spec_content.task_type)
+        if template is None:
+            logger.warning(f"Template not found for task_type: {spec_content.task_type}, using base template")
+            template = load_template("base")
+            if template is None:
+                logger.warning("No template available, creating spec directly from content")
+                # 如果没有模板，直接从内容创建 TaskSpec
+                return TaskSpec(
+                    task_type=spec_content.task_type,
+                    overall_goal=spec_content.overall_goal,
+                    success_criteria=spec_content.success_criteria,
+                    progress_tracking={
+                        "current_progress": spec_content.current_progress,
+                        "completed_steps": spec_content.completed_steps,
+                        "remaining": spec_content.remaining
+                    },
+                    process_requirements=spec_content.process_requirements,
+                    boundaries={
+                        "always": spec_content.always,
+                        "ask_first": spec_content.ask_first,
+                        "never": spec_content.never
+                    },
+                    self_check_instructions=spec_content.self_check_instructions,
+                    human_in_loop_points=[],
+                    additional_notes=""
+                )
+
+        # 步骤 3: 用 LLM 生成的值填充模板占位符
+        filled_template = fill_template(
+            template,
+            overall_goal=spec_content.overall_goal,
+            task_type=spec_content.task_type,
+            success_criteria="\n".join(f"- {c}" for c in spec_content.success_criteria),
+            current_progress=spec_content.current_progress,
+            completed_steps="\n".join(f"- {s}" for s in spec_content.completed_steps),
+            remaining_steps="\n".join(f"- {s}" for s in spec_content.remaining),
+            always="\n".join(f"- {a}" for a in spec_content.always),
+            ask_first="\n".join(f"- {a}" for a in spec_content.ask_first),
+            never="\n".join(f"- {n}" for n in spec_content.never),
+            self_check_instructions="\n".join(f"- {i}" for i in spec_content.self_check_instructions)
+        )
+
+        # 步骤 4: 将填充后的模板内容转换为 TaskSpec 对象
+        spec = TaskSpec(
+            task_type=spec_content.task_type,
+            overall_goal=spec_content.overall_goal,
+            success_criteria=spec_content.success_criteria,
+            progress_tracking={
+                "current_progress": spec_content.current_progress,
+                "completed_steps": spec_content.completed_steps,
+                "remaining": spec_content.remaining
+            },
+            process_requirements=spec_content.process_requirements,
+            boundaries={
+                "always": spec_content.always,
+                "ask_first": spec_content.ask_first,
+                "never": spec_content.never
+            },
+            self_check_instructions=spec_content.self_check_instructions,
+            human_in_loop_points=[],
+            additional_notes=filled_template  # 将填充后的模板保存在 additional_notes 中
+        )
+
+        logger.info(
+            "Spec generated with template",
+            task_type=spec.task_type,
+            goal=spec.overall_goal,
+            template_used=template is not None
+        )
         return spec
     
     def _planning_phase(self, task: str) -> AgentPlan:
@@ -175,11 +257,46 @@ JSON Schema:
         logger.info("=== Planning Phase ===")
         
         # 首先尝试用结构化输出
+        # 构建完整的 Spec 内容（包括模板）
+        full_spec_content = f"""【TaskSpec - {self.spec.task_type}】
+
+## 核心目标
+{self.spec.overall_goal}
+
+## 成功标准
+{chr(10).join(f'- {c}' for c in self.spec.success_criteria)}
+
+## 进度跟踪
+- 当前进度: {self.spec.progress_tracking.get('current_progress', '')}
+- 已完成步骤: {', '.join(self.spec.progress_tracking.get('completed_steps', []))}
+- 剩余步骤: {', '.join(self.spec.progress_tracking.get('remaining', []))}
+
+## 边界约束
+**必须做 (Always):**
+{chr(10).join(f'- {a}' for a in self.spec.boundaries.get('always', []))}
+
+**先询问 (Ask First):**
+{chr(10).join(f'- {a}' for a in self.spec.boundaries.get('ask_first', []))}
+
+**绝对禁止 (Never):**
+{chr(10).join(f'- {n}' for n in self.spec.boundaries.get('never', []))}
+
+## 自检指令
+{chr(10).join(f'- {i}' for i in self.spec.self_check_instructions)}
+
+## 过程要求
+{chr(10).join(f'- {r}' for r in self.spec.process_requirements)}
+
+---
+
+**JSON 格式:**
+{self.spec.model_dump_json(indent=2)}"""
+
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": PLANNING_PROMPT.format(
                 task_description=task,
-                task_spec=self.spec.model_dump_json(indent=2),
+                task_spec=full_spec_content,
                 current_context="",
                 available_tools=self.tools.get_tool_descriptions()
             )}
@@ -278,6 +395,12 @@ JSON Schema:
         ]
         
         response = self.llm.chat(messages, temperature=0.7)
+        
+        # 在终端显示完整的 think response（便于调试）
+        print(f"\n{'='*60}\n💭 Think Phase (Step {self.state.step_count + 1}):\n{'='*60}")
+        print(response)
+        print(f"{'='*60}\n")
+        
         logger.debug(f"Think response: {response[:200]}...")
         
         # 解析决策
@@ -418,18 +541,68 @@ JSON Schema:
         # Step 1: 生成 Spec
         self.spec = self._generate_spec(task)
         
-        # Step 2: 保存 Spec
-        spec_json = self.spec.model_dump_json(indent=2)
-        safe_write_file(f"agent_workspace/spec_{self.spec.task_type}_{hash(task) % 10000}.md", 
-                       f"# Generated Spec\n\n{spec_json}")
+        # Step 2: 展示 Spec 给用户
+        print(f"\n{'='*60}")
+        print(f"📋 Generated Spec (Task Type: {self.spec.task_type})")
+        print(f"{'='*60}\n")
         
-        # Step 3: 注入执行上下文
-        context = f"""【TaskSpec】
-{spec_json}
+        # 展示填充后的模板内容（如果存在）
+        if self.spec.additional_notes:
+            print(self.spec.additional_notes)
+            print()
+        
+        # 展示 JSON 格式的 Spec
+        print("--- JSON Format ---")
+        print(self.spec.model_dump_json(indent=2))
+        print(f"{'='*60}\n")
+        
+        # Step 3: 尝试保存 Spec（可选，如果权限允许）
+        try:
+            spec_json = self.spec.model_dump_json(indent=2)
+            spec_filename = f"{self.spec.task_type}_spec.md"
+            # 保存到当前目录，不需要 agent_workspace 前缀
+            with open(spec_filename, 'w', encoding='utf-8') as f:
+                f.write(f"# Generated Spec\n\n{self.spec.additional_notes}\n\n--- JSON Format ---\n\n{spec_json}")
+            logger.info(f"Spec saved to: {spec_filename}")
+        except Exception as e:
+            logger.warning(f"Could not save spec file: {e}")
+            logger.info("Continuing without saving spec file...")
+        
+        # Step 4: 注入执行上下文（包含完整的 Spec，包括模板内容）
+        spec_content = f"""【TaskSpec - {self.spec.task_type}】
 
-请严格按照 Spec 执行任务。"""
-        
-        self.state.add_message("system", context)
+## 核心目标
+{self.spec.overall_goal}
+
+## 成功标准
+{chr(10).join(f'- {c}' for c in self.spec.success_criteria)}
+
+## 进度跟踪
+- 当前进度: {self.spec.progress_tracking.get('current_progress', '')}
+- 已完成步骤: {', '.join(self.spec.progress_tracking.get('completed_steps', []))}
+- 剩余步骤: {', '.join(self.spec.progress_tracking.get('remaining', []))}
+
+## 边界约束
+**必须做 (Always):**
+{chr(10).join(f'- {a}' for a in self.spec.boundaries.get('always', []))}
+
+**先询问 (Ask First):**
+{chr(10).join(f'- {a}' for a in self.spec.boundaries.get('ask_first', []))}
+
+**绝对禁止 (Never):**
+{chr(10).join(f'- {n}' for n in self.spec.boundaries.get('never', []))}
+
+## 自检指令
+{chr(10).join(f'- {i}' for i in self.spec.self_check_instructions)}
+
+## 过程要求
+{chr(10).join(f'- {r}' for r in self.spec.process_requirements)}
+
+---
+
+**请严格按照以上 Spec 执行任务。**"""
+
+        self.state.add_message("system", spec_content)
         
         # Step 4: Planning 阶段
         plan = self._planning_phase(task)
