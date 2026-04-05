@@ -18,6 +18,8 @@ from spec.generator import SpecGenerator
 from .persistence import PersistenceManager
 from .container import DIContainer
 from .interfaces import ILLMClient, IRouter, IManifestManager, IContextLoader, ISpecGenerator, IPersistenceManager
+from core.cache import CacheManager
+from .executor import AgentExecutor
 
 class ToolRegistry:
     """工具注册表 - 使用动态加载架构"""
@@ -119,6 +121,7 @@ class NanoAgent:
             self.spec_generator = container.get(ISpecGenerator)
             self.persistence_manager = container.get(IPersistenceManager)
             self.tools = container.get(ToolRegistry)  # 使用本地的 ToolRegistry 类
+            self.cache_manager = container.get(CacheManager) if container.has(CacheManager) else None
             self.spec_initializer = SpecInitializer()
             logger.info("NanoAgent initialized with dependency injection")
         else:
@@ -131,7 +134,20 @@ class NanoAgent:
             self.spec_generator = SpecGenerator(self.llm)
             self.persistence_manager = PersistenceManager()
             self.tools = ToolRegistry()
+            self.cache_manager = None  # 传统方式不使用缓存
+            
             logger.info("NanoAgent initialized with Spec-Driven and Dynamic Tool Loading")
+
+        # 创建执行器
+        self.executor = AgentExecutor(
+            llm_client=self.llm,
+            router=self.router,
+            manifest_manager=self.manifest_manager,
+            context_loader=self.context_loader,
+            spec_generator=self.spec_generator,
+            cache=self.cache_manager,
+            max_steps=max_steps
+        )
 
         # 预加载文件工具（常用工具）
         self._preload_file_tools()
@@ -175,13 +191,7 @@ class NanoAgent:
         
         return False
     
-    def _dynamic_load_context(self) -> Dict:
-        """动态加载当前阶段的上下文（核心方法）"""
-        return self.context_loader.dynamic_load_context()
     
-    def _extract_constraints(self, spec_content: str) -> Dict:
-        """从 Spec 内容中提取约束"""
-        return self.context_loader.extract_constraints(spec_content)
     
     def _detect_requirement_change(self, new_input: str) -> bool:
         """检测需求变更"""
@@ -666,6 +676,8 @@ class NanoAgent:
     
             """执行完整的 Planning + ReAct 循环（集成 Spec-Driven 架构）"""
     
+    
+    
             # 初始化 CLI
     
             from cli_interface import get_cli
@@ -674,33 +686,39 @@ class NanoAgent:
     
             cli.display_header()
     
-            
+    
     
             logger.info("=== Starting new task ===", task=task[:100])
     
-            
+    
     
             # === 阶段 1：智能路由 ===
     
             cli.display_phase("任务分析")
     
-            routing_decision = self.router.route(task)
+            routing_decision = self.executor.route_task(task)
     
-            cli.display_result(f"任务类型: {routing_decision.task_type.value}", True)
+            cli.display_result(f"任务类型: {routing_decision['task_type']}", True)
     
-            cli.display_result(f"置信度: {routing_decision.confidence:.2%}", True)
+            cli.display_result(f"置信度: {routing_decision['confidence']:.2%}", True)
     
-            
+    
     
             # === 阶段 2：Spec 初始化（如果需要） ===
     
-            if self._should_init_spec(task, routing_decision):
+            if self.executor.should_init_spec(task, routing_decision):
     
                 cli.display_phase("Spec 初始化")
     
-                self.manifest = self.spec_initializer.init_spec(task, routing_decision)
+                # 创建简单的 routing_decision 对象
     
-                
+                from spec.models import RoutingDecision
+    
+                rd = RoutingDecision(**routing_decision)
+    
+                self.manifest = self.spec_initializer.init_spec(task, rd)
+    
+    
     
                 # 展示 Spec 概要
     
@@ -726,61 +744,57 @@ class NanoAgent:
     
                     cli.display_result(f"加载现有 Spec: {self.manifest.project_name}", True)
     
-            
+    
     
             # === 阶段 3：动态加载上下文 ===
     
-            context = self._dynamic_load_context()
+            context = self.executor.load_context()
     
-            
-    
-            # 构建系统提示（只包含当前阶段的约束）
-    
-            system_prompt = self._build_stage_system_prompt(context)
+            system_prompt = self.executor.build_system_prompt(context)
     
             self.state.add_message("system", system_prompt)
     
-            
+    
     
             # === 阶段 4：Planning 阶段 ===
     
             cli.display_phase("Planning Phase")
     
-            plan = self._planning_phase(task, context)
+            plan = self.executor.planning_phase(task, context)
     
-            
+    
     
             # === 阶段 5：ReAct 循环（带动态加载） ===
     
             cli.display_phase("Execution Phase")
     
-            
+    
     
             for step in range(self.max_steps):
     
                 self.state.step_count = step + 1
     
-                
+    
     
                 # 显示进度
     
                 cli.display_progress(step + 1, self.max_steps, f"步骤 {step + 1}")
     
-                
+    
     
                 # 每轮开始前重新加载上下文（动态）
     
-                context = self._dynamic_load_context()
+                context = self.executor.load_context()
     
-                
+    
     
                 # Think
     
                 cli.display_thinking("分析当前状态...")
     
-                think_result = self._react_think(task, context)
+                think_result = self.executor.think_phase(task, context, self.state.observations)
     
-                
+    
     
                 if think_result["action"] == "complete":
     
@@ -790,37 +804,21 @@ class NanoAgent:
     
                     break
     
-                elif think_result["action"] == "stage_complete":
     
-                    # 阶段完成，执行回填
-    
-                    cli.display_result(f"阶段完成: {think_result.get('stage_id')}", True)
-    
-                    self._on_stage_complete(
-    
-                        think_result.get("stage_id"),
-    
-                        think_result.get("decisions", []),
-    
-                        think_result.get("artifacts", [])
-    
-                    )
-    
-                    continue
-    
-                
     
                 # Act
     
-                action_result = self._react_act(think_result)
+                action_result = self.executor.act_phase(think_result)
     
-                
+    
     
                 # Observe
     
-                observation = self._react_observe(think_result, action_result)
+                observation = self.executor.observe_phase(think_result, action_result)
     
-                
+                self.state.observations.append(observation)
+    
+    
     
                 # 定期反思（每 5 步）
     
@@ -828,7 +826,7 @@ class NanoAgent:
     
                     cli.display_thinking("反思执行结果...")
     
-                    reflection = self._reflection_phase()
+                    reflection = self.executor.reflection_phase()
     
                     if reflection.get("task_completed"):
     
@@ -836,33 +834,15 @@ class NanoAgent:
     
                         logger.info("Reflection indicates task complete")
     
-                        
+    
     
                         # 提取决策和交付物
     
-                        decisions = self._extract_decisions()
+                        decisions = self.executor.extract_decisions(self.state.observations)
     
-                        artifacts = [obs.get("raw", "") for obs in self.state.observations 
+                        artifact_files = self.executor.extract_artifacts(self.state.observations)
     
-                                  if "Successfully wrote" in obs.get("raw", "")]
     
-                        
-    
-                        # 提取文件名
-    
-                        import re
-    
-                        artifact_files = []
-    
-                        for obs in self.state.observations:
-    
-                            match = re.search(r'Successfully wrote \d+ chars to (\S+)', obs.get("raw", ""))
-    
-                            if match:
-    
-                                artifact_files.append(match.group(1))
-    
-                        
     
                         # 触发阶段完成回填
     
@@ -872,21 +852,21 @@ class NanoAgent:
     
                             if current_stage:
     
-                                self._on_stage_complete(current_stage, decisions, artifact_files)
+                                self._on_stage_complete(current_stage.id, decisions, artifact_files)
     
-                        
+    
     
                         break
     
-            
+    
     
             # === 阶段 6：最终反思 ===
     
             cli.display_phase("Reflection Phase")
     
-            final_reflection = self._reflection_phase()
+            final_reflection = self.executor.reflection_phase()
     
-            
+    
     
             # 显示完成信息
     
@@ -894,7 +874,7 @@ class NanoAgent:
     
             cli.display_footer()
     
-            
+    
     
             return {
     

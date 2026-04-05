@@ -10,6 +10,7 @@ from spec.context import ContextLoader
 from spec.generator import SpecGenerator
 from core.persistence import PersistenceManager
 from core.tools.registry import ToolRegistry
+from core.cache import CacheManager
 
 # 导入接口（用于类型提示，实际注册具体实现）
 from core.interfaces import (
@@ -56,6 +57,10 @@ def setup_dependencies(container: DIContainer, model: str = "openai/qwen3.5-plus
     from core.agent_loop import ToolRegistry as AgentToolRegistry
     tool_registry = AgentToolRegistry()
     container.register_singleton(AgentToolRegistry, tool_registry)
+
+    # 8. 缓存管理器（单例）
+    cache_manager = CacheManager()
+    container.register_singleton(CacheManager, cache_manager)
 
 
 def initialize_container(model: str = "openai/qwen3.5-plus") -> DIContainer:

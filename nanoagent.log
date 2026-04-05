@@ -1822,3 +1822,47 @@ GreenEnergy 是一家专注于太阳能解决方案的初创公司，致力于�
 2026-04-05 16:26:22.395 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
 2026-04-05 16:26:22.395 | INFO     | core.agent_loop:__init__:134 - NanoAgent initialized with Spec-Driven and Dynamic Tool Loading
 2026-04-05 16:26:22.395 | INFO     | core.agent_loop:_preload_file_tools:148 - ✓ Preloaded file tools: ['safe_read_file', 'safe_write_file', 'safe_list_directory']
+2026-04-05 16:39:07.209 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:39:07.209 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:39:07.209 | INFO     | core.agent_loop:__init__:135 - NanoAgent initialized with Spec-Driven and Dynamic Tool Loading
+2026-04-05 16:39:07.210 | INFO     | core.agent_loop:_preload_file_tools:159 - ✓ Preloaded file tools: ['safe_read_file', 'safe_write_file', 'safe_list_directory']
+2026-04-05 16:39:07.212 | INFO     | core.executor:route_task:51 - === Phase 1: Task Routing ===
+2026-04-05 16:39:07.212 | INFO     | core.executor:route_task:51 - === Phase 1: Task Routing ===
+2026-04-05 16:39:19.942 | INFO     | core.llm_client:chat:115 - Chat completed - Input: 167, Output: 960, Total: 1127
+2026-04-05 16:39:19.942 | INFO     | core.llm_client:chat:115 - Chat completed - Input: 167, Output: 960, Total: 1127
+2026-04-05 16:39:19.942 | INFO     | core.executor:route_task:53 - Task routed
+2026-04-05 16:39:19.942 | INFO     | core.executor:route_task:53 - Task routed
+2026-04-05 16:39:19.943 | INFO     | core.executor:load_context:81 - === Phase 3: Dynamic Context Loading ===
+2026-04-05 16:39:19.943 | INFO     | core.executor:load_context:81 - === Phase 3: Dynamic Context Loading ===
+2026-04-05 16:39:19.943 | WARNING  | spec.context:dynamic_load_context:39 - No manifest found, skipping dynamic load
+2026-04-05 16:39:19.943 | WARNING  | spec.context:dynamic_load_context:39 - No manifest found, skipping dynamic load
+2026-04-05 16:39:19.943 | INFO     | core.executor:load_context:83 - Context loaded
+2026-04-05 16:39:19.943 | INFO     | core.executor:load_context:83 - Context loaded
+2026-04-05 16:39:19.943 | INFO     | core.container:reset_container:125 - ✓ Global DI container reset
+2026-04-05 16:39:19.943 | INFO     | core.container:reset_container:125 - ✓ Global DI container reset
+2026-04-05 16:39:19.943 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:39:19.943 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: ILLMClient -> NanoLLMClient
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: ILLMClient -> NanoLLMClient
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: IRouter -> HybridRouter
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: IRouter -> HybridRouter
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: IManifestManager -> ManifestManager
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: IManifestManager -> ManifestManager
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: IContextLoader -> ContextLoader
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: IContextLoader -> ContextLoader
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: ISpecGenerator -> SpecGenerator
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: ISpecGenerator -> SpecGenerator
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: IPersistenceManager -> PersistenceManager
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: IPersistenceManager -> PersistenceManager
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: ToolRegistry -> ToolRegistry
+2026-04-05 16:39:19.943 | INFO     | core.container:register_singleton:34 - ✓ Registered singleton: ToolRegistry -> ToolRegistry
+2026-04-05 16:39:19.944 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:39:19.944 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:39:19.944 | INFO     | core.agent_loop:__init__:124 - NanoAgent initialized with dependency injection
+2026-04-05 16:39:19.944 | INFO     | core.agent_loop:__init__:124 - NanoAgent initialized with dependency injection
+2026-04-05 16:39:19.944 | INFO     | core.agent_loop:_preload_file_tools:159 - ✓ Preloaded file tools: ['safe_read_file', 'safe_write_file', 'safe_list_directory']
+2026-04-05 16:39:19.944 | INFO     | core.agent_loop:_preload_file_tools:159 - ✓ Preloaded file tools: ['safe_read_file', 'safe_write_file', 'safe_list_directory']
+2026-04-05 17:03:55.169 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 17:03:55.169 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 17:03:55.169 | INFO     | core.agent_loop:__init__:139 - NanoAgent initialized with Spec-Driven and Dynamic Tool Loading
+2026-04-05 17:03:55.169 | INFO     | core.agent_loop:_preload_file_tools:164 - ✓ Preloaded file tools: ['safe_read_file', 'safe_write_file', 'safe_list_directory']
