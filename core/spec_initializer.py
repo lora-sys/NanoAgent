@@ -42,7 +42,7 @@ class SpecInitializer:
         project_name = self._generate_project_name(task)
 
         # 3. 加载并填充模板
-        self._load_and_fill_templates(task, routing_decision)
+        self._load_and_fill_templates(task, routing_decision, routing_decision.template_modules)
 
         # 4. 创建步骤文件
         pipeline = self._create_pipeline(routing_decision.task_type, task)
@@ -156,7 +156,7 @@ class SpecInitializer:
                 "decisions": []
             }
 
-    def _load_and_fill_templates(self, task: str, routing_decision):
+    def _load_and_fill_templates(self, task: str, routing_decision, template_modules: List[str] = None):
         """加载并填充模板（使用 LLM 生成内容）"""
         print(f"\n📄 加载并填充模板...")
 
@@ -202,9 +202,12 @@ class SpecInitializer:
                 f.write(content)
             print(f"  ✓ 创建: master_spec.md")
 
-        # 根据任务类型加载其他模板
-        task_type_templates = self._get_task_type_templates(routing_decision.task_type)
-        for template_name in task_type_templates:
+        # 使用 routing_decision.template_modules 或指定的 template_modules
+        if template_modules is None:
+            template_modules = routing_decision.template_modules
+        
+        # 加载其他模板
+        for template_name in template_modules:
             template_path = os.path.join(self.templates_dir, template_name)
             if os.path.exists(template_path):
                 print(f"  ✓ 参考: {template_name}")
@@ -254,8 +257,14 @@ class SpecInitializer:
         stages_data = pipeline_map.get(task_type.value, [])
         pipeline = []
 
-        for stage_data in stages_data:
+        for i, stage_data in enumerate(stages_data):
+            # 创建 PipelineStage 对象
             stage = PipelineStage(**stage_data)
+            
+            # 设置第一个阶段为 active
+            if i == 0:
+                stage.status = "active"
+            
             pipeline.append(stage)
 
             # 创建步骤文件（传递 task 参数）
@@ -263,10 +272,6 @@ class SpecInitializer:
             with open(step_file, 'w', encoding='utf-8') as f:
                 f.write(self._generate_step_content(stage, task))
             print(f"  ✓ 创建: steps/{stage_data['file']}")
-
-        # 设置第一个阶段为 active
-        if pipeline:
-            pipeline[0].status = "active"
 
         return pipeline
 
@@ -466,7 +471,7 @@ class SpecInitializer:
 
 # 使用示例
 if __name__ == "__main__":
-    from router import RoutingDecision, TaskType
+    from .router import RoutingDecision, TaskType
 
     initializer = SpecInitializer()
 

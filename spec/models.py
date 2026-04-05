@@ -141,11 +141,18 @@ class SpecContent(BaseModel):
     process_requirements: List[str] = Field(default_factory=list)
 
 
+class ArtifactSpec(BaseModel):
+    """交付物规范模型"""
+    name: str = Field(..., description="交付物名称")
+    format: str = Field(..., description="交付物格式（如：markdown, html, json, pdf等）")
+    acceptance_criteria: str = Field(..., description="验收标准")
+
+
 class TemplateSpecContent(BaseModel):
     """模板 Spec 内容模型（用于模板填充）"""
     must_constraints: List[str] = Field(default_factory=list)
     must_not_constraints: List[str] = Field(default_factory=list)
-    artifacts: List[Dict] = Field(default_factory=list)
+    artifacts: List[ArtifactSpec] = Field(default_factory=list)
     decisions: List[str] = Field(default_factory=list)
 
 

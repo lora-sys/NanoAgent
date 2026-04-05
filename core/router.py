@@ -73,6 +73,7 @@ class RuleBasedRouter:
 
     def _calculate_match_score(self, user_input: str, rules: Dict) -> float:
         """计算匹配分数"""
+        import re
         score = 0
 
         # 关键词匹配
@@ -98,6 +99,16 @@ class RuleBasedRouter:
         for analysis_type in analysis_types:
             if analysis_type.lower() in user_input:
                 score += 0.2
+
+        # 模式匹配（正则表达式）
+        patterns = rules.get("patterns", [])
+        for pattern in patterns:
+            try:
+                if re.search(pattern, user_input, re.IGNORECASE):
+                    score += 0.3
+            except re.error:
+                # 如果正则表达式无效，跳过该模式
+                continue
 
         # 归一化分数到 0-1
         return min(score, 1.0)

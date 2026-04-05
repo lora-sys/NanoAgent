@@ -13,6 +13,11 @@ from .router import HybridRouter, RoutingDecision
 from .spec_initializer import SpecInitializer
 from .manifest_manager import ManifestManager
 from .tools import get_tool_registry, CATEGORIES
+from spec.context import ContextLoader
+from spec.generator import SpecGenerator
+from .persistence import PersistenceManager
+from .container import DIContainer
+from .interfaces import ILLMClient, IRouter, IManifestManager, IContextLoader, ISpecGenerator, IPersistenceManager
 
 class ToolRegistry:
     """工具注册表 - 使用动态加载架构"""
@@ -87,26 +92,51 @@ class ToolRegistry:
 class NanoAgent:
     """基于 Planning + ReAct 范式的 AI Agent"""
     
-    def __init__(self, model: str = "openai/qwen3.5-plus", max_steps: int = 20, max_context_tokens: int = 3500):
-        self.llm = NanoLLMClient(model)
+    def __init__(self, model: str = "openai/qwen3.5-plus", max_steps: int = 20, max_context_tokens: int = 3500, container: Optional[DIContainer] = None):
+        """
+        初始化 NanoAgent
+
+        Args:
+            model: LLM 模型名称
+            max_steps: 最大执行步数
+            max_context_tokens: 最大上下文 token 数
+            container: 依赖注入容器（可选），如果不提供则使用传统初始化方式
+        """
         self.max_steps = max_steps
         self.max_context_tokens = max_context_tokens  # 最大上下文 token 限制（留有余量）
         self.state = AgentState()
-        self.tools = ToolRegistry()
         self.spec: Optional[TaskSpec] = None
-        
-        # 新增：路由器和 Spec 管理器
-        self.router = HybridRouter(self.llm)
-        self.spec_initializer = SpecInitializer()
-        self.manifest_manager = ManifestManager()
         self.manifest = None
         self.current_stage_context = {}
-        
+
+        # 使用依赖注入或传统初始化方式
+        if container is not None:
+            # 使用依赖注入
+            self.llm = container.get(ILLMClient)
+            self.router = container.get(IRouter)
+            self.manifest_manager = container.get(IManifestManager)
+            self.context_loader = container.get(IContextLoader)
+            self.spec_generator = container.get(ISpecGenerator)
+            self.persistence_manager = container.get(IPersistenceManager)
+            self.tools = container.get(ToolRegistry)  # 使用本地的 ToolRegistry 类
+            self.spec_initializer = SpecInitializer()
+            logger.info("NanoAgent initialized with dependency injection")
+        else:
+            # 传统初始化方式（向后兼容）
+            self.llm = NanoLLMClient(model)
+            self.router = HybridRouter(self.llm)
+            self.spec_initializer = SpecInitializer()
+            self.manifest_manager = ManifestManager()
+            self.context_loader = ContextLoader(self.manifest_manager)
+            self.spec_generator = SpecGenerator(self.llm)
+            self.persistence_manager = PersistenceManager()
+            self.tools = ToolRegistry()
+            logger.info("NanoAgent initialized with Spec-Driven and Dynamic Tool Loading")
+
         # 预加载文件工具（常用工具）
         self._preload_file_tools()
-        
+
         logger.add("nanoagent.log", rotation="10 MB")
-        logger.info("NanoAgent initialized with Spec-Driven and Dynamic Tool Loading")
     
     def _preload_file_tools(self):
         """预加载文件操作工具（常用）"""
@@ -147,68 +177,11 @@ class NanoAgent:
     
     def _dynamic_load_context(self) -> Dict:
         """动态加载当前阶段的上下文（核心方法）"""
-        context = {
-            "master_spec": "",
-            "current_stage_spec": "",
-            "constraints": []
-        }
-        
-        try:
-            # 1. 加载 manifest
-            manifest = self.manifest_manager.load_manifest()
-            if not manifest:
-                logger.warning("No manifest found, skipping dynamic load")
-                return context
-            
-            # 2. 加载 master_spec（保持方向）
-            master_spec = self.manifest_manager.load_master_spec()
-            if master_spec:
-                context["master_spec"] = master_spec
-                logger.info("✓ Loaded master_spec for direction alignment")
-            
-            # 3. 加载当前阶段 spec（确保细节）
-            current_stage_spec = self.manifest_manager.load_current_stage_spec()
-            if current_stage_spec:
-                context["current_stage_spec"] = current_stage_spec
-                logger.info(f"✓ Loaded current stage spec: {manifest.current_stage}")
-            
-            # 4. 提取约束
-            if master_spec:
-                constraints = self._extract_constraints(master_spec)
-                context["constraints"] = constraints
-            
-            self.current_stage_context = context
-            return context
-            
-        except Exception as e:
-            logger.error(f"Dynamic load failed: {e}")
-            return context
+        return self.context_loader.dynamic_load_context()
     
     def _extract_constraints(self, spec_content: str) -> Dict:
         """从 Spec 内容中提取约束"""
-        constraints = {
-            "always": [],
-            "ask_first": [],
-            "never": []
-        }
-        
-        lines = spec_content.split('\n')
-        current_section = None
-        
-        for line in lines:
-            line = line.strip()
-            if "**必须做" in line or "Always" in line:
-                current_section = "always"
-            elif "**先询问" in line or "Ask First" in line:
-                current_section = "ask_first"
-            elif "**绝对禁止" in line or "Never" in line:
-                current_section = "never"
-            elif line.startswith("-") and current_section:
-                constraint = line[1:].strip()
-                if constraint:
-                    constraints[current_section].append(constraint)
-        
-        return constraints
+        return self.context_loader.extract_constraints(spec_content)
     
     def _detect_requirement_change(self, new_input: str) -> bool:
         """检测需求变更"""
@@ -325,140 +298,7 @@ class NanoAgent:
     
     def _generate_spec(self, task: str) -> TaskSpec:
         """根据用户任务生成高质量 Spec（使用模板系统）"""
-        from identity.soul_loader import load_soul
-        from identity.template_loader import load_template, fill_template
-        from pydantic import BaseModel, Field
-        from typing import List
-
-        # 创建临时模型来接收 LLM 响应
-        class SpecContent(BaseModel):
-            task_type: str
-            overall_goal: str
-            success_criteria: List[str] = Field(default_factory=list)
-            current_progress: str = ""
-            completed_steps: List[str] = Field(default_factory=list)
-            remaining: List[str] = Field(default_factory=list)
-            always: List[str] = Field(default_factory=list)
-            ask_first: List[str] = Field(default_factory=list)
-            never: List[str] = Field(default_factory=list)
-            self_check_instructions: List[str] = Field(default_factory=list)
-            process_requirements: List[str] = Field(default_factory=list)
-
-        # 步骤 1: 用 LLM 生成 task_type 和核心字段值
-        soul_content = load_soul()
-
-        prompt = f"""你是一个专业的 Spec 内容生成器。
-
-Agent 灵魂描述：
-{soul_content}
-
-当前用户任务：
-{task}
-
-请生成一个完整的 Spec 内容 JSON 对象。
-
-JSON Schema:
-{{
-  "task_type": "string (chat/code/writing/analyze)",
-  "overall_goal": "string - 核心目标",
-  "success_criteria": ["string1", "string2", ...],
-  "current_progress": "string",
-  "completed_steps": ["step1", "step2", ...],
-  "remaining": ["step3", "task4", ...],
-  "always": ["action1", "action2", ...],
-  "ask_first": ["action1", "action2", ...],
-  "never": ["action1", "action2", ...],
-  "self_check_instructions": ["instruction1", "instruction2", ...],
-  "process_requirements": ["string1", "string2", ...]
-}}
-
-要求：
-- success_criteria 必须具体、可验证
-- current_progress 描述当前阶段
-- completed_steps 和 remaining 是步骤列表
-- always/ask_first/never 是行为规则列表
-- 严格遵守 Three-Tier Boundaries
-
-重要：只返回合法的 JSON，不要任何额外文字。"""
-
-        messages = [
-            {"role": "system", "content": "你是一个严谨的 Spec 内容生成器，只输出 JSON。"},
-            {"role": "user", "content": prompt}
-        ]
-
-        spec_content: SpecContent = self.llm.structured_chat(messages, SpecContent, temperature=0.3)
-
-        # 步骤 2: 根据 task_type 加载对应的模板
-        template = load_template(spec_content.task_type)
-        if template is None:
-            logger.warning(f"Template not found for task_type: {spec_content.task_type}, using base template")
-            template = load_template("base")
-            if template is None:
-                logger.warning("No template available, creating spec directly from content")
-                # 如果没有模板，直接从内容创建 TaskSpec
-                return TaskSpec(
-                    task_type=spec_content.task_type,
-                    overall_goal=spec_content.overall_goal,
-                    success_criteria=spec_content.success_criteria,
-                    progress_tracking={
-                        "current_progress": spec_content.current_progress,
-                        "completed_steps": spec_content.completed_steps,
-                        "remaining": spec_content.remaining
-                    },
-                    process_requirements=spec_content.process_requirements,
-                    boundaries={
-                        "always": spec_content.always,
-                        "ask_first": spec_content.ask_first,
-                        "never": spec_content.never
-                    },
-                    self_check_instructions=spec_content.self_check_instructions,
-                    human_in_loop_points=[],
-                    additional_notes=""
-                )
-
-        # 步骤 3: 用 LLM 生成的值填充模板占位符
-        filled_template = fill_template(
-            template,
-            overall_goal=spec_content.overall_goal,
-            task_type=spec_content.task_type,
-            success_criteria="\n".join(f"- {c}" for c in spec_content.success_criteria),
-            current_progress=spec_content.current_progress,
-            completed_steps="\n".join(f"- {s}" for s in spec_content.completed_steps),
-            remaining_steps="\n".join(f"- {s}" for s in spec_content.remaining),
-            always="\n".join(f"- {a}" for a in spec_content.always),
-            ask_first="\n".join(f"- {a}" for a in spec_content.ask_first),
-            never="\n".join(f"- {n}" for n in spec_content.never),
-            self_check_instructions="\n".join(f"- {i}" for i in spec_content.self_check_instructions)
-        )
-
-        # 步骤 4: 将填充后的模板内容转换为 TaskSpec 对象
-        spec = TaskSpec(
-            task_type=spec_content.task_type,
-            overall_goal=spec_content.overall_goal,
-            success_criteria=spec_content.success_criteria,
-            progress_tracking={
-                "current_progress": spec_content.current_progress,
-                "completed_steps": spec_content.completed_steps,
-                "remaining": spec_content.remaining
-            },
-            process_requirements=spec_content.process_requirements,
-            boundaries={
-                "always": spec_content.always,
-                "ask_first": spec_content.ask_first,
-                "never": spec_content.never
-            },
-            self_check_instructions=spec_content.self_check_instructions,
-            human_in_loop_points=[],
-            additional_notes=filled_template  # 将填充后的模板保存在 additional_notes 中
-        )
-
-        logger.info(
-            "Spec generated with template",
-            task_type=spec.task_type,
-            goal=spec.overall_goal,
-            template_used=template is not None
-        )
-        return spec
+        return self.spec_generator.generate_spec(task)
     
     def _planning_phase(self, task: str, context: Dict = None) -> AgentPlan:
         """规划阶段：生成执行计划（带动态上下文）"""
