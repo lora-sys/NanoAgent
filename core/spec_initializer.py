@@ -7,28 +7,8 @@ import os
 import json
 from typing import Dict, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from spec.models import PipelineStage, Manifest, TemplateSpecContent
 from .llm_client import NanoLLMClient
-
-
-class PipelineStage(BaseModel):
-    """Pipeline 阶段"""
-    id: str
-    name: str
-    file: str
-    status: str = "pending"  # pending, active, completed
-
-
-class Manifest(BaseModel):
-    """Manifest 配置 - 符合原始格式"""
-    project_name: str
-    status: str = "initializing"
-    current_stage: str = ""
-    storage: Dict = Field(default_factory=lambda: {
-        "master": ".spec/master_spec.md",
-        "steps_dir": ".spec/steps/"
-    })
-    pipeline: List[PipelineStage] = Field(default_factory=list)
 
 
 class SpecInitializer:
@@ -160,15 +140,9 @@ class SpecInitializer:
             from pydantic import BaseModel, Field
             from typing import List
             
-            class SpecContent(BaseModel):
-                must_constraints: List[str] = Field(default_factory=list)
-                must_not_constraints: List[str] = Field(default_factory=list)
-                artifacts: List[Dict] = Field(default_factory=list)
-                decisions: List[str] = Field(default_factory=list)
-            
             spec_content = self.llm.structured_chat(
                 [{"role": "user", "content": prompt}],
-                SpecContent,
+                TemplateSpecContent,
                 temperature=0.5
             )
             print(f"  ✓ LLM 生成 Spec 内容: {len(spec_content.artifacts)} 个交付物")

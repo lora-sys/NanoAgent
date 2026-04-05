@@ -1,6 +1,6 @@
 from pathlib import Path
 from loguru import logger
-from core.tools import safe_read_file, safe_write_file   # 使用你之前的安全文件 Tool
+from core.tools.file import safe_read_file, safe_write_file
 
 class SpecLoader:
     def __init__(self, specs_dir: str = "specs"):

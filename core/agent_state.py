@@ -1,21 +1,5 @@
 from typing import Any, List, Dict, Optional
-from pydantic import BaseModel
-
-class PlanStep(BaseModel):
-    """计划步骤"""
-    step_id: int
-    goal: str
-    suggested_tools: List[str] = []
-    depends_on: List[int] = []
-    success_criteria: str = ""
-    risk_assessment: str = ""
-
-class AgentPlan(BaseModel):
-    """执行计划"""
-    steps: List[PlanStep] = []
-    overall_goal: str = ""
-    estimated_steps: int = 0
-    critical_path: List[int] = []
+from spec.models import PlanStep, AgentPlan
 
 class AgentState:
     """Agent 状态管理 - 支持 Planning + ReAct 循环"""

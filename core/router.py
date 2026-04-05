@@ -5,24 +5,7 @@
 import json
 import os
 from typing import Dict, List, Optional, Tuple
-from pydantic import BaseModel
-from enum import Enum
-
-
-class TaskType(str, Enum):
-    """任务类型枚举"""
-    CODE = "code"
-    WRITING = "writing"
-    ANALYZE = "analyze"
-    CHAT = "chat"
-
-
-class RoutingDecision(BaseModel):
-    """路由决策结果"""
-    task_type: TaskType
-    confidence: float
-    template_modules: List[str]
-    reasoning: str
+from spec.models import TaskType, RoutingDecision
 
 
 class RuleBasedRouter:

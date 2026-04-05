@@ -2,6 +2,7 @@
 模板加载器 - 根据 task_type 加载对应的 Spec 模板
 """
 import os
+import re
 from typing import Optional
 
 
@@ -23,7 +24,10 @@ def load_template(task_type: str) -> Optional[str]:
         base_template = os.path.join(template_dir, 'base.md')
         if os.path.exists(base_template):
             with open(base_template, 'r', encoding='utf-8') as f:
-                return f.read()
+                template = f.read()
+            # 应用相同的占位符规范化
+            template = re.sub(r'\{\s+(\w+)\s+\}', r'{\1}', template)
+            return template
         return None
 
     with open(template_file, 'r', encoding='utf-8') as f:
@@ -31,7 +35,6 @@ def load_template(task_type: str) -> Optional[str]:
 
     # 标准化占位符：移除占位符内部的多余空格
     # 例如：{ success_criteria } -> {success_criteria}
-    import re
     template = re.sub(r'\{\s+(\w+)\s+\}', r'{\1}', template)
 
     return template

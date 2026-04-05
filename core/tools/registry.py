@@ -123,6 +123,55 @@ class ToolRegistry:
         """获取工具名称列表"""
         tools = self.get_all_tools(category)
         return list(tools.keys())
+    
+    def execute(self, name: str, arguments: Dict) -> Any:
+        """执行工具"""
+        tool = self.get_tool(name)
+        if not tool:
+            raise ValueError(f"Tool not found: {name}")
+        
+        try:
+            result = tool["function"](**arguments)
+            logger.info(f"Executed tool {name}: {result[:100] if isinstance(result, str) else 'OK'}")
+            return result
+        except Exception as e:
+            logger.error(f"Tool execution error {name}: {e}")
+            return f"Error: {str(e)}"
+    
+    def get_tool_schemas(self) -> list:
+        """获取工具的 OpenAI 格式 schema（所有可用工具）"""
+        tools = self.get_all_tools()
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": tool["description"],
+                    "parameters": tool["schema"]
+                }
+            }
+            for name, tool in tools.items()
+        ]
+    
+    def get_tool_descriptions(self) -> str:
+        """获取工具描述文本（类别索引 + 所有工具详情）"""
+        # 第一层：类别索引
+        category_desc = "\n".join(
+            f"- {cat}: {desc}"
+            for cat, desc in CATEGORIES.items()
+        )
+        
+        # 第二层：所有工具的详情
+        tool_details = []
+        tools = self.get_all_tools()
+        for name, tool in tools.items():
+            desc = f"  • {name}: {tool['description']}"
+            tool_details.append(desc)
+        
+        if tool_details:
+            return f"工具类别：\n{category_desc}\n\n可用工具：\n" + "\n".join(tool_details)
+        else:
+            return f"工具类别：\n{category_desc}"
 
 
 # 全局工具注册表实例
