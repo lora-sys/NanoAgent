@@ -1812,3 +1812,13 @@ GreenEnergy 是一家专注于太阳能解决方案的初创公司，致力于�
   "issues_fou...
 2026-04-04 20:16:37.491 | INFO     | core.llm_client:structured_chat:223 - Structured chat completed - Total tokens: 1461
 2026-04-04 20:16:37.491 | INFO     | core.agent_loop:_reflection_phase:831 - Reflection: 完成
+2026-04-05 16:10:10.029 | INFO     | core.agent_loop:__init__:117 - NanoAgent initialized with Spec-Driven and Dynamic Tool Loading
+2026-04-05 16:10:10.029 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:10:10.029 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:10:10.029 | INFO     | core.agent_loop:_preload_file_tools:126 - ✓ Preloaded file tools: ['safe_read_file', 'safe_write_file', 'safe_list_directory']
+2026-04-05 16:10:10.032 | INFO     | core.agent_loop:__init__:117 - NanoAgent initialized with Spec-Driven and Dynamic Tool Loading
+2026-04-05 16:10:10.032 | INFO     | core.agent_loop:__init__:117 - NanoAgent initialized with Spec-Driven and Dynamic Tool Loading
+2026-04-05 16:26:22.395 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:26:22.395 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
+2026-04-05 16:26:22.395 | INFO     | core.agent_loop:__init__:134 - NanoAgent initialized with Spec-Driven and Dynamic Tool Loading
+2026-04-05 16:26:22.395 | INFO     | core.agent_loop:_preload_file_tools:148 - ✓ Preloaded file tools: ['safe_read_file', 'safe_write_file', 'safe_list_directory']
