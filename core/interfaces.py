@@ -98,7 +98,7 @@ class IRouter(ABC):
     """路由器接口"""
 
     @abstractmethod
-    def route(self, user_input: str) -> Optional[RoutingDecision]:
+    def route(self, user_input: str) -> RoutingDecision:
         """
         基于规则进行路由
 
@@ -106,7 +106,7 @@ class IRouter(ABC):
             user_input: 用户输入
 
         Returns:
-            路由决策结果
+            路由决策，总是返回有效的 RoutingDecision
         """
         pass
 
@@ -151,6 +151,23 @@ class IManifestManager(ABC):
 
         Returns:
             Spec 内容，如果不存在则返回 None
+        """
+        pass
+
+    def sync_and_backfill(
+        self,
+        stage_id: str,
+        decisions: List[Dict[str, Any]],
+        completed_artifacts: List[str],
+        next_stage: bool = True
+    ) -> None:
+        """同步和回填
+
+        Args:
+            stage_id: 当前阶段 ID
+            decisions: 决策列表
+            completed_artifacts: 完成的产出物列表
+            next_stage: 是否切换到下一个阶段
         """
         pass
 

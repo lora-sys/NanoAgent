@@ -287,14 +287,14 @@ class NanoAgent:
             return
         
         # 调用 Manifest 管理器进行回填
-        success = self.manifest_manager.sync_and_backfill(
-            stage_id=stage_id,
-            decisions=decisions,
-            completed_artifacts=artifacts,
-            next_stage=True
-        )
-        
-        if success:
+        try:
+            manifest = self.manifest_manager.sync_and_backfill(
+                stage_id=stage_id,
+                decisions=decisions,
+                completed_artifacts=artifacts,
+                next_stage=True
+            )
+            
             # 显示进度条
             progress = self.manifest_manager.get_progress_bar()
             print(f"📊 进度: {progress}\n")
@@ -303,8 +303,8 @@ class NanoAgent:
             next_stage = self.manifest_manager.get_current_stage()
             if next_stage:
                 print(f"➡️  下一阶段: {next_stage}\n")
-        else:
-            logger.error("Stage complete failed")
+        except ValueError as e:
+            logger.error(f"Stage complete failed: {e}", exc_info=True)
     
     def _generate_spec(self, task: str) -> TaskSpec:
         """根据用户任务生成高质量 Spec（使用模板系统）"""
@@ -490,8 +490,9 @@ class NanoAgent:
                     stage_data = json.loads(response[start:end])
                     decisions = stage_data.get("decisions", [])
                     artifacts = stage_data.get("artifacts", [])
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Failed to parse STAGE_COMPLETE JSON: {e}", exc_info=True)
+                logger.debug(f"Response substring: {response[max(0, start-50):min(len(response), end+50)] if start != -1 else response[:100]}")
             
             return {
                 "action": "stage_complete",
@@ -527,10 +528,7 @@ class NanoAgent:
             arguments = action.get("arguments", {}).copy()
             
             # 检查是否为 HITL 工具
-            hitl_tools = ["present_decision_for_approval", "escalate_to_human", "collect_human_feedback", 
-                          "monitor_agent", "human_intervention", "ask_user_question"]
-            
-            if tool_name in hitl_tools:
+            if tool_name in HITL_TOOL_NAMES:
                 # HITL 工具显示
                 cli.display_action("tool_call", f"HITL 工具: {tool_name}")
                 self._load_hitl_tools_on_demand()
@@ -669,7 +667,8 @@ class NanoAgent:
                 reflection = json.loads(response)
                 logger.info(f"Reflection: {reflection.get('next_action', 'unknown')}")
                 return reflection
-            except:
+            except Exception as e:
+                logger.warning(f"Structured reflection failed, falling back to continue: {e}")
                 return {"task_completed": False, "next_action": "continue"}
     
     def run(self, task: str) -> Dict:

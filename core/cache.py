@@ -101,8 +101,7 @@ class CacheManager:
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(cache_data, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            # 缓存写入失败，不影响主流程
-            pass
+            logger.exception(f"Cache write failed for {cache_file}")
     
     def clear(self) -> None:
         """清空所有缓存"""
@@ -112,8 +111,8 @@ class CacheManager:
                     cache_file = os.path.join(self.cache_dir, filename)
                     try:
                         os.remove(cache_file)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.exception(f"Failed to remove cache file {cache_file}")
     
     def get_stats(self) -> Dict:
         """获取缓存统计信息"""

@@ -2,7 +2,7 @@
 依赖注入配置 - NanoAgent
 配置所有组件的依赖关系
 """
-from core.container import DIContainer, configure_container
+from core.container import DIContainer
 from core.llm_client import NanoLLMClient
 from core.router import HybridRouter
 from core.manifest_manager import ManifestManager

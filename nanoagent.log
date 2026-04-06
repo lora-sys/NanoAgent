@@ -1866,3 +1866,4 @@ GreenEnergy 是一家专注于太阳能解决方案的初创公司，致力于�
 2026-04-05 17:03:55.169 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: openai/qwen3.5-plus
 2026-04-05 17:03:55.169 | INFO     | core.agent_loop:__init__:139 - NanoAgent initialized with Spec-Driven and Dynamic Tool Loading
 2026-04-05 17:03:55.169 | INFO     | core.agent_loop:_preload_file_tools:164 - ✓ Preloaded file tools: ['safe_read_file', 'safe_write_file', 'safe_list_directory']
+2026-04-05 19:08:44.008 | INFO     | core.llm_client:__init__:26 - Initialized LLM client with model: groq/llama-3.3-70b

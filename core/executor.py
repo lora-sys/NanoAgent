@@ -96,6 +96,21 @@ class AgentExecutor:
             系统提示
         """
         if context.get("master_spec") and context.get("current_stage_spec"):
+            # 规范化约束：支持 list 或 dict 格式
+            constraints = context.get("constraints", {})
+            if isinstance(constraints, list):
+                # 如果是 list，视为 always 约束
+                always_constraints = constraints
+                never_constraints = []
+            elif isinstance(constraints, dict):
+                # 如果是 dict，提取 always 和 never
+                always_constraints = constraints.get("always", [])
+                never_constraints = constraints.get("never", [])
+            else:
+                # 无效格式，使用默认值
+                always_constraints = []
+                never_constraints = []
+            
             return f"""【当前任务阶段】
 
 ## 核心目标（来自 Master Spec）
@@ -105,10 +120,10 @@ class AgentExecutor:
 {context['current_stage_spec']}
 
 ## 必须遵守的规则
-{chr(10).join(f'- {c}' for c in context.get('constraints', {}).get('always', []))}
+{chr(10).join(f'- {c}' for c in always_constraints)}
 
 ## 禁止的操作
-{chr(10).join(f'- {c}' for c in context.get('constraints', {}).get('never', []))}
+{chr(10).join(f'- {c}' for c in never_constraints)}
 """
         else:
             return "No spec context available"
@@ -221,7 +236,6 @@ class AgentExecutor:
         Returns:
             交付物文件列表
         """
-        import re
         artifact_files = []
         for obs in observations:
             raw = obs.get("raw", "")

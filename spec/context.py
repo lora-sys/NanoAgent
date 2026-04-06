@@ -29,7 +29,7 @@ class ContextLoader:
         context = {
             "master_spec": "",
             "current_stage_spec": "",
-            "constraints": []
+            "constraints": {}  # 修复：初始化为 dict 而不是 list
         }
 
         try:
@@ -107,5 +107,5 @@ class ContextLoader:
         return self.current_stage_context or {
             "master_spec": "",
             "current_stage_spec": "",
-            "constraints": []
+            "constraints": {}
         }

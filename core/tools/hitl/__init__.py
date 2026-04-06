@@ -6,6 +6,16 @@ from .intervene import InterveneInput, human_intervention
 from .feedback import CollectFeedbackInput, collect_human_feedback
 from .escalate import EscalateInput, escalate_to_human
 
+# HITL 工具名称常量
+HITL_TOOL_NAMES = [
+    "present_decision_for_approval",
+    "escalate_to_human",
+    "collect_human_feedback",
+    "monitor_agent",
+    "human_intervention",
+    "ask_user_question"
+]
+
 __all__ = [
     # 基础交互
     'AskUserQuestionInput',
@@ -23,5 +33,7 @@ __all__ = [
     'collect_human_feedback',
     # 升级策略
     'EscalateInput',
-    'escalate_to_human'
+    'escalate_to_human',
+    # 常量
+    'HITL_TOOL_NAMES'
 ]
