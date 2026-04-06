@@ -1,0 +1,28 @@
+# 缓存配置
+
+[storage]
+# 存储配置
+cache_dir = ".cache"
+default_ttl_hours = 24
+max_cache_size_mb = 1000
+
+[llm_cache]
+# LLM 调用缓存
+enabled = true
+include_model_name = true
+include_temperature = true
+key_hash_algorithm = "md5"
+
+[file_cache]
+# 文件缓存
+enabled = true
+max_entries = 1000
+cleanup_interval_hours = 24
+
+[redis]
+# Redis 缓存（可选）
+enabled = false
+host = "localhost"
+port = 6379
+db = 0
+password = ""

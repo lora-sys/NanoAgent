@@ -1,0 +1,27 @@
+# 核心模块配置
+
+[agent]
+# Agent 行为配置
+max_steps = 100
+timeout = 120
+step_timeout = 30
+
+[execution]
+# 执行配置
+retry_attempts = 3
+retry_delay = 1.0
+max_concurrent_actions = 5
+
+[logging]
+# 日志配置
+file = "nanoagent.log"
+rotation = "10 MB"
+level = "INFO"
+format = "{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
+colorize = true
+
+[performance]
+# 性能配置
+enable_caching = true
+enable_async = true
+max_workers = 4
