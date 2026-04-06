@@ -176,6 +176,15 @@ class IManifestManager(ABC):
         pass
 
     @abstractmethod
+    def get_progress_bar(self) -> Any:
+        """获取进度条对象
+
+        Returns:
+            进度条对象，具体类型取决于实现
+        """
+        pass
+
+    @abstractmethod
     def load_master_spec(self) -> Optional[str]:
         """
         加载 master spec

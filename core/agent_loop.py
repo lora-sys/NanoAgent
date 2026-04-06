@@ -153,7 +153,9 @@ class NanoAgent:
         # 预加载文件工具（常用工具）
         self._preload_file_tools()
 
-        logger.add("nanoagent.log", rotation="10 MB")
+        # 一次性保护：确保logger只添加一次
+if not logger._core.handlers:
+    logger.add("nanoagent.log", rotation="10 MB")
     
     def _preload_file_tools(self):
         """预加载文件操作工具（常用）"""
@@ -183,14 +185,11 @@ class NanoAgent:
         if routing_decision.task_type.value in ["code", "writing", "analyze"]:
             # 2. 检查是否已存在 manifest
             manifest = self.manifest_manager.load_manifest()
-            if manifest is None:
-                return True
-            
-            # 3. 检查任务类型是否匹配
-            # 简化：暂时总是返回 True，让用户决定
-            return True
+            if manifest is not None:
+                return False  # 已存在 manifest，不需要重新初始化
+            return True  # 不存在 manifest，需要初始化
         
-        return False
+        return False  # 非复杂任务，不需要初始化
     
     
     
@@ -250,7 +249,7 @@ class NanoAgent:
         
         return prompt
     
-    def _extract_decisions(self) -> List[str]:
+    def _extract_decisions(self) -> List[Dict[str, Any]]:
         """从执行历史中提取关键决策"""
         decisions = []
         
@@ -261,7 +260,11 @@ class NanoAgent:
                 import re
                 match = re.search(r'Successfully wrote \d+ chars to (\S+)', obs.get("raw", ""))
                 if match:
-                    decisions.append(f"创建文件: {match.group(1)}")
+                    decisions.append({
+                        "text": f"创建文件: {match.group(1)}",
+                        "source": "observation",
+                        "type": "file_creation"
+                    })
         
         # 从最近的思考中提取关键信息
         if self.state.observations:
@@ -271,11 +274,15 @@ class NanoAgent:
             # 简单提取：查找包含关键决策的行
             for line in last_think.split('\n'):
                 if any(keyword in line.lower() for keyword in ['决定', '选择', '确定', '选定', '使用', '采用']):
-                    decisions.append(line.strip())
+                    decisions.append({
+                        "text": line.strip(),
+                        "source": "thought",
+                        "type": "decision"
+                    })
                     if len(decisions) >= 5:  # 最多保留 5 个决策
                         break
         
-        return decisions[:5] if decisions else ["任务完成，关键信息已记录"]
+        return decisions[:5] if decisions else [{"text": "任务完成，关键信息已记录", "source": "default", "type": "completion"}]
     
     def _on_stage_complete(self, stage_id: str, decisions: List[str], artifacts: List[str]):
         """处理阶段完成（回填和切换）"""
@@ -561,9 +568,10 @@ class NanoAgent:
             result = self.tools.execute(tool_name, arguments)
             
             # 显示结果
-            if "Successfully" in str(result) or result.startswith("✅"):
+            result_str = str(result)
+            if "Successfully" in result_str or result_str.startswith("✅"):
                 cli.display_result(str(result)[:100], True)
-            elif "Error" in str(result) or result.startswith("❌"):
+            elif "Error" in result_str or result_str.startswith("❌"):
                 cli.display_error(str(result)[:100])
             else:
                 cli.display_result(str(result)[:100], True)
@@ -607,7 +615,8 @@ class NanoAgent:
             "step": self.state.step_count,
             "action": action,
             "result": tool_result_str,
-            "analysis": response[:200]
+            "analysis": response[:200],
+            "raw": response  # 添加原始响应用于决策提取
         }
 
         # 特殊处理 HITL 工具的用户回答，标记为已获取信息
@@ -722,7 +731,7 @@ class NanoAgent:
     
                 # 展示 Spec 概要
     
-                print(f"\n📋 Spec 概要")
+                print("\n📋 Spec 概要")
     
                 print(f"{'='*60}")
     

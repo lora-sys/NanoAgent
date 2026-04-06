@@ -13,7 +13,7 @@ from loguru import logger
 class CacheManager:
     """缓存管理器"""
     
-    def __init__(self, cache_dir: str = None, ttl_hours: int = 24):
+    def __init__(self, cache_dir: Optional[str] = None, ttl_hours: int = 24):
         """
         初始化缓存管理器
         
