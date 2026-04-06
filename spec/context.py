@@ -37,6 +37,8 @@ class ContextLoader:
             manifest = self.manifest_manager.load_manifest()
             if not manifest:
                 logger.warning("No manifest found, skipping dynamic load")
+                # 清除缓存的上下文以防止泄漏
+                self.current_stage_context = context
                 return context
 
             # 2. 加载 master_spec（保持方向）
@@ -61,6 +63,8 @@ class ContextLoader:
 
         except Exception as e:
             logger.error(f"Dynamic load failed: {e}")
+            # 清除缓存的上下文以防止泄漏
+            self.current_stage_context = context
             return context
 
     def extract_constraints(self, spec_content: str) -> Dict:

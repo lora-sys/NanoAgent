@@ -13,6 +13,7 @@ from .router import HybridRouter, RoutingDecision
 from .spec_initializer import SpecInitializer
 from .manifest_manager import ManifestManager
 from .tools import get_tool_registry, CATEGORIES
+from .tools.hitl import HITL_TOOL_NAMES
 from spec.context import ContextLoader
 from spec.generator import SpecGenerator
 from .persistence import PersistenceManager
@@ -847,7 +848,7 @@ class NanoAgent:
     
                         if self.manifest:
     
-                            current_stage = self.manifest.get_current_stage()
+                            current_stage = self.manifest_manager.get_current_stage()
     
                             if current_stage:
     

@@ -154,13 +154,14 @@ class IManifestManager(ABC):
         """
         pass
 
+    @abstractmethod
     def sync_and_backfill(
         self,
         stage_id: str,
         decisions: List[Dict[str, Any]],
         completed_artifacts: List[str],
         next_stage: bool = True
-    ) -> None:
+    ) -> Optional["Manifest"]:
         """同步和回填
 
         Args:
@@ -168,6 +169,9 @@ class IManifestManager(ABC):
             decisions: 决策列表
             completed_artifacts: 完成的产出物列表
             next_stage: 是否切换到下一个阶段
+            
+        Returns:
+            更新后的 manifest，如果失败则返回 None
         """
         pass
 

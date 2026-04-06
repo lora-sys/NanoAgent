@@ -5,8 +5,6 @@ from typing import Optional
 from enum import Enum
 import json
 from datetime import datetime
-import sys
-sys.path.insert(0, "/home/lora/repos/nanoagent")
 from cli_interface import get_cli
 
 class FeedbackType(str, Enum):

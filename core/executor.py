@@ -2,6 +2,7 @@
 执行器 - NanoAgent
 管理执行流程的各个阶段
 """
+import re
 from typing import Dict, Any, Optional
 from loguru import logger
 from spec.models import AgentPlan, TaskSpec
@@ -70,8 +71,14 @@ class AgentExecutor:
         Returns:
             是否需要初始化
         """
-        # 简化逻辑：总是需要初始化
-        return True
+        # 检查是否已存在 manifest
+        manifest = self.manifest_manager.load_manifest()
+        if manifest is None:
+            # 没有 manifest，需要初始化
+            return True
+        
+        # manifest 已存在，不需要重新初始化，支持恢复逻辑
+        return False
 
     def load_context(self) -> Dict:
         """

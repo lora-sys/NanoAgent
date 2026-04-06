@@ -4,8 +4,6 @@ from loguru import logger
 from typing import Optional
 import json
 from datetime import datetime
-import sys
-sys.path.insert(0, "/home/lora/repos/nanoagent")
 from cli_interface import get_cli
 
 class MonitorInput(BaseModel):

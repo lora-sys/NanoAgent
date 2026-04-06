@@ -3,8 +3,6 @@ from pydantic import BaseModel, Field
 from loguru import logger
 from typing import Optional
 from enum import Enum
-import sys
-sys.path.insert(0, "/home/lora/repos/nanoagent")
 from cli_interface import get_cli
 
 class EscalationLevel(str, Enum):

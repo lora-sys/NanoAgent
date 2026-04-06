@@ -8,6 +8,7 @@ import os
 from typing import Any, Optional, Dict
 from datetime import datetime, timedelta
 import time
+from loguru import logger
 
 class CacheManager:
     """缓存管理器"""
