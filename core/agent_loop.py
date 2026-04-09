@@ -1,6 +1,7 @@
 from loguru import logger
 from typing import Dict, List, Any, Optional
 import json
+from .config import get_config_manager
 from .llm_client import NanoLLMClient
 from .agent_state import AgentState, AgentPlan, PlanStep
 from .prompt import (
