@@ -1,5 +1,6 @@
 from typing import Any, List, Dict, Optional
 from spec.models import PlanStep, AgentPlan
+from loguru import logger
 
 class AgentState:
     """Agent 状态管理 - 支持 Planning + ReAct 循环"""
@@ -21,8 +22,14 @@ class AgentState:
         self.completed_steps: List[int] = []
         self.current_context: Dict = {}
         
-        # 从配置中读取参数
-        core_config = self.config.get("core", {})
+        # 从配置中读取参数（支持完整config或core_config）
+        if config and "core" in config:
+            # 传入的是完整配置
+            core_config = config.get("core", {})
+        else:
+            # 传入的是core_config本身
+            core_config = config or {}
+        
         memory_config = core_config.get("memory", {})
         
         self.enable_cache = memory_config.get("enable_cache", True)

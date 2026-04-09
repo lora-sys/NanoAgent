@@ -5,7 +5,7 @@
 import os
 import toml
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from loguru import logger
 
 
@@ -55,7 +55,7 @@ class ConfigManager:
         加载 TOML 文件
         
         Args:
-            file_path: 文件路径（可以是相对于config_dir的相对路径）
+            file_path: 文件路径(可以是相对于config_dir的相对路径)
             
         Returns:
             配置字典

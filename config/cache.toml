@@ -11,8 +11,3 @@ enabled = true
 include_model_name = true
 include_temperature = true
 key_hash_algorithm = "sha256"
-
-[optimization]
-# 缓存优化
-max_entries = 1000
-compress_large_data = false

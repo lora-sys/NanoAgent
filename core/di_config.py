@@ -79,7 +79,10 @@ def setup_dependencies(container: DIContainer, config: dict = None, model: str =
 
     # 9. 缓存管理器（单例）
     cache_config = config_manager.get_module_config("cache")
-    cache_manager = CacheManager(config=cache_config)
+    storage_config = cache_config.get("storage", {})
+    cache_dir = storage_config.get("cache_dir", ".cache")
+    ttl_hours = storage_config.get("default_ttl_hours", 24)
+    cache_manager = CacheManager(cache_dir=cache_dir, ttl_hours=ttl_hours)
     container.register(CacheManager, instance=cache_manager)
 
     # 10. 状态管理器（单例）
@@ -142,4 +145,4 @@ class MockConfigManager:
     
     def get_main_config(self) -> dict:
         """获取主配置"""
-        return self.config.get("main", {})
+        return self.config.get("main", self.config)

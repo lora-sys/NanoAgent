@@ -53,6 +53,9 @@ class NanoAgent:
         Returns:
             执行结果
         """
+        # 重置状态，避免重用之前的数据
+        self.state.reset()
+        
         # 初始化CLI
         from cli_interface import get_cli
         cli = get_cli()
@@ -90,6 +93,9 @@ class NanoAgent:
         cli.display_phase("Planning Phase")
         plan = self.executor.planning_phase(task, context)
         
+        # 保存plan到state
+        self.state.current_plan = plan
+        
         # === 阶段5: ReAct主循环 ===
         return self._main_react_loop(task, plan, cli, context)
     
@@ -110,12 +116,27 @@ class NanoAgent:
             # Think -> Act -> Observe
             think_result = self.executor.think_phase(task, context, self.state.observations, step)
             
-            if think_result["action"] == "complete":
-                return self._finalize_execution(cli, plan, "任务完成")
+            # 处理不同的动作类型
+            action = think_result.get("action", "")
             
-            action_result = self.executor.act_phase(think_result)
-            observation = self.executor.observe_phase(think_result, action_result)
-            self.state.observations.append(observation)
+            if action == "complete":
+                return self._finalize_execution(cli, plan, "任务完成")
+            elif action == "wait":
+                # 等待用户输入
+                cli.display_result("等待用户输入...", True)
+                return self._finalize_execution(cli, plan, "需要用户输入")
+            elif action == "stage_complete":
+                # 阶段完成
+                cli.display_result("阶段完成", True)
+                # 提取决策和交付物
+                decisions = think_result.get("decisions", [])
+                artifacts = think_result.get("artifacts", [])
+                return self._finalize_execution(cli, plan, "阶段完成")
+            else:
+                # 继续执行动作
+                action_result = self.executor.act_phase(think_result)
+                observation = self.executor.observe_phase(think_result, action_result)
+                self.state.observations.append(observation)
             
             # 定期反思
             if (step + 1) % reflection_interval == 0:

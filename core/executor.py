@@ -193,6 +193,14 @@ class AgentExecutor:
         if context is None:
             context = {}
         
+        # 标准化constraints格式
+        constraints = context.get("constraints")
+        if constraints is None:
+            constraints = {"always": [], "never": []}
+        elif isinstance(constraints, list):
+            # 如果是list，视为always约束
+            constraints = {"always": constraints, "never": []}
+        
         # 构建动态 Spec 内容（基于当前阶段）
         if context.get("master_spec") and context.get("current_stage_spec"):
             full_spec_content = f"""【当前任务阶段】
@@ -204,10 +212,10 @@ class AgentExecutor:
 {context['current_stage_spec']}
 
 ## 必须遵守的规则
-{chr(10).join(f'- {c}' for c in context.get('constraints', {}).get('always', []))}
+{chr(10).join(f'- {c}' for c in constraints.get('always', []))}
 
 ## 禁止的操作
-{chr(10).join(f'- {c}' for c in context.get('constraints', {}).get('never', []))}
+{chr(10).join(f'- {c}' for c in constraints.get('never', []))}
 """
         else:
             # 回退到旧方式
@@ -303,6 +311,13 @@ class AgentExecutor:
         
         if context.get("constraints"):
             constraints = context["constraints"]
+            # 标准化constraints格式
+            if isinstance(constraints, list):
+                # 如果是list，转换为dict格式
+                constraints = {"always": constraints, "never": []}
+            elif not isinstance(constraints, dict):
+                constraints = {}
+            
             if constraints.get("never"):
                 prompt += "\n【禁止操作】\n"
                 for c in constraints["never"]:
@@ -618,7 +633,15 @@ class AgentExecutor:
                     "artifacts": artifacts,
                     "timestamp": self._get_timestamp()
                 }
-                # 这里可以根据需要实现具体的保存逻辑
+                
+                # 检查persistence_manager是否有save方法
+                if hasattr(self.persistence_manager, 'save'):
+                    self.persistence_manager.save(result)
+                elif hasattr(self.persistence_manager, 'persist'):
+                    self.persistence_manager.persist(result)
+                else:
+                    logger.warning("PersistenceManager has no save/persist method")
+                
                 logger.info(f"Saved execution result: {len(decisions)} decisions, {len(artifacts)} artifacts")
             except Exception as e:
                 logger.error(f"Failed to save execution result: {e}")
