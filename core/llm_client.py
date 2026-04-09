@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import json
 import litellm
 from loguru import logger
+from .config import get_config_manager
 
 load_dotenv()
 
@@ -17,13 +18,52 @@ class NanoLLMClient:
     
     支持 OpenAI Responses API 和 Chat Completions API
     自动从环境变量读取 API 配置
+    支持从 TOML 配置文件读取参数
     """
     
-    def __init__(self, model: str = "groq/llama-3.3-70b", temperature: float = 0.7, max_tokens: int = 4096):
+    def __init__(self, model: str = None, temperature: float = None, max_tokens: int = None):
+        # 从配置文件读取参数
+        config = get_config_manager()
+        llm_config = config.get_module_config("llm")
+        
+        # 优先使用传入参数，其次使用配置文件，最后使用默认值
+        if model is None:
+            provider_config = llm_config.get("provider", {})
+            clients_config = llm_config.get("clients", {})
+            provider_name = provider_config.get("name", "openai")
+            client_config = clients_config.get(provider_name, {})
+            model = client_config.get("model", "groq/llama-3.3-70b")
+        
+        if temperature is None:
+            clients_config = llm_config.get("clients", {})
+            provider_name = model.split("/")[0] if "/" in model else "openai"
+            client_config = clients_config.get(provider_name, {})
+            temperature = client_config.get("temperature", 0.7)
+        
+        if max_tokens is None:
+            clients_config = llm_config.get("clients", {})
+            provider_name = model.split("/")[0] if "/" in model else "openai"
+            client_config = clients_config.get(provider_name, {})
+            max_tokens = client_config.get("max_tokens", 4096)
+        
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        logger.info(f"Initialized LLM client with model: {model}")
+        
+        # 读取重试配置
+        retry_config = llm_config.get("retry", {})
+        self.max_attempts = retry_config.get("max_attempts", 3)
+        self.backoff_factor = retry_config.get("backoff_factor", 2.0)
+        self.initial_delay = retry_config.get("initial_delay", 1.0)
+        
+        # 读取日志配置
+        logging_config = llm_config.get("logging", {})
+        self.enable_trace = logging_config.get("enable_trace", True)
+        self.log_requests = logging_config.get("log_requests", True)
+        self.log_responses = logging_config.get("log_responses", False)
+        self.log_latency = logging_config.get("log_latency", True)
+        
+        logger.info(f"Initialized LLM client with model: {model}, temperature: {temperature}, max_tokens: {max_tokens}")
     
     def _is_gpt5_model(self) -> bool:
         """检查是否是 gpt-5 模型"""

@@ -1,6 +1,7 @@
 from loguru import logger
 from typing import Dict, List, Any, Optional
 import json
+from .config import get_config_manager
 from .llm_client import NanoLLMClient
 from .agent_state import AgentState, AgentPlan, PlanStep
 from .prompt import (
@@ -682,189 +683,115 @@ if not logger._core.handlers:
                 return {"task_completed": False, "next_action": "continue"}
     
     def run(self, task: str) -> Dict:
-    
             """执行完整的 Planning + ReAct 循环（集成 Spec-Driven 架构）"""
     
-    
-    
             # 初始化 CLI
-    
             from cli_interface import get_cli
-    
             cli = get_cli()
-    
             cli.display_header()
-    
-    
-    
             logger.info("=== Starting new task ===", task=task[:100])
     
     
     
             # === 阶段 1：智能路由 ===
-    
             cli.display_phase("任务分析")
-    
             routing_decision = self.executor.route_task(task)
-    
             cli.display_result(f"任务类型: {routing_decision['task_type']}", True)
-    
             cli.display_result(f"置信度: {routing_decision['confidence']:.2%}", True)
     
     
     
             # === 阶段 2：Spec 初始化（如果需要） ===
-    
             if self.executor.should_init_spec(task, routing_decision):
-    
                 cli.display_phase("Spec 初始化")
-    
                 # 创建简单的 routing_decision 对象
-    
                 from spec.models import RoutingDecision
-    
                 rd = RoutingDecision(**routing_decision)
-    
                 self.manifest = self.spec_initializer.init_spec(task, rd)
     
-    
-    
                 # 展示 Spec 概要
-    
                 print("\n📋 Spec 概要")
-    
                 print(f"{'='*60}")
-    
                 print(f"项目名称: {self.manifest.project_name}")
-    
                 print(f"当前阶段: {self.manifest.current_stage}")
-    
                 print(f"总阶段数: {len(self.manifest.pipeline)}")
-    
                 print(f"{'='*60}\n")
     
             else:
-    
                 # 加载现有 manifest
-    
                 self.manifest = self.manifest_manager.load_manifest()
-    
                 if self.manifest:
-    
                     cli.display_result(f"加载现有 Spec: {self.manifest.project_name}", True)
     
     
     
             # === 阶段 3：动态加载上下文 ===
-    
             context = self.executor.load_context()
-    
             system_prompt = self.executor.build_system_prompt(context)
-    
             self.state.add_message("system", system_prompt)
     
     
     
             # === 阶段 4：Planning 阶段 ===
-    
             cli.display_phase("Planning Phase")
-    
             plan = self.executor.planning_phase(task, context)
     
     
     
             # === 阶段 5：ReAct 循环（带动态加载） ===
-    
             cli.display_phase("Execution Phase")
     
     
     
             for step in range(self.max_steps):
-    
                 self.state.step_count = step + 1
-    
-    
-    
-                # 显示进度
-    
+
+                # 显示进度    
                 cli.display_progress(step + 1, self.max_steps, f"步骤 {step + 1}")
     
     
     
-                # 每轮开始前重新加载上下文（动态）
-    
+                # 每轮开始前重新加载上下文（动态）   
                 context = self.executor.load_context()
-    
-    
-    
+
                 # Think
-    
-                cli.display_thinking("分析当前状态...")
-    
+                cli.display_thinking("分析当前状态...") 
                 think_result = self.executor.think_phase(task, context, self.state.observations)
-    
-    
-    
+
                 if think_result["action"] == "complete":
-    
                     cli.display_result("任务完成", True)
-    
                     logger.info("Task marked as complete")
     
                     break
-    
-    
-    
+
                 # Act
-    
                 action_result = self.executor.act_phase(think_result)
-    
-    
-    
+
                 # Observe
-    
                 observation = self.executor.observe_phase(think_result, action_result)
-    
                 self.state.observations.append(observation)
-    
-    
-    
+
                 # 定期反思（每 5 步）
-    
                 if (step + 1) % 5 == 0:
-    
                     cli.display_thinking("反思执行结果...")
-    
                     reflection = self.executor.reflection_phase()
-    
                     if reflection.get("task_completed"):
-    
                         cli.display_result("反思确认任务完成", True)
-    
                         logger.info("Reflection indicates task complete")
     
     
     
                         # 提取决策和交付物
-    
                         decisions = self.executor.extract_decisions(self.state.observations)
-    
                         artifact_files = self.executor.extract_artifacts(self.state.observations)
     
     
     
                         # 触发阶段完成回填
-    
                         if self.manifest:
-    
                             current_stage = self.manifest_manager.get_current_stage()
-    
                             if current_stage:
-    
                                 self._on_stage_complete(current_stage.id, decisions, artifact_files)
-    
-    
-    
                         break
     
     

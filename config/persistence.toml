@@ -1,0 +1,28 @@
+# 持久化配置
+
+[manifest]
+# Manifest 配置
+directory = ".spec"
+auto_save = true
+backup_enabled = true
+backup_count = 5
+
+[sessions]
+# 会话配置
+directory = ".sessions"
+session_subdir_pattern = "{session_id}"  # 每个会话目录的命名模式
+worktree_enabled = false  # 是否启用git-worktree隔离（未来功能）
+auto_resume = true
+session_timeout_minutes = 60
+
+[state]
+# 状态配置
+save_interval_steps = 5
+compress_state = true
+max_state_size_mb = 10
+
+[artifacts]
+# 产出物配置
+directory = "artifacts"
+auto_cleanup = false
+max_artifacts = 100

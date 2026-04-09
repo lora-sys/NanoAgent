@@ -1,0 +1,17 @@
+# NanoAgent 主配置文件
+# 版本 1.0.0
+
+[general]
+version = "1.0.0"
+environment = "development"
+debug = false
+
+[modules]
+# 模块配置文件路径
+core = "config/core.toml"
+llm = "config/llm.toml"
+tools = "config/tools.toml"
+cache = "config/cache.toml"
+persistence = "config/persistence.toml"
+theme = "config/theme.toml"
+executor = "config/executor.toml"

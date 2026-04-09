@@ -1,0 +1,33 @@
+# 执行器配置
+
+[phases]
+# 各阶段配置
+[phases.planning]
+enabled = true
+timeout = 60
+max_iterations = 3
+
+[phases.thinking]
+enabled = true
+timeout = 30
+max_iterations = 5
+
+[phases.acting]
+enabled = true
+timeout = 120
+max_concurrent_actions = 3
+
+[phases.observing]
+enabled = true
+timeout = 30
+
+[phases.reflection]
+enabled = true
+timeout = 30
+reflection_interval = 5
+
+[completion]
+# 完成检测配置
+auto_detection = true
+user_confirmation = false
+completion_threshold = 0.9
