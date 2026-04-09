@@ -5,7 +5,7 @@
 import os
 import toml
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from loguru import logger
 
 
@@ -17,7 +17,7 @@ class ConfigManager:
         初始化配置管理器
         
         Args:
-            config_dir: 配置文件目录
+            config_dir: 配置目录
             main_config: 主配置文件路径
         """
         self.config_dir = Path(config_dir)
@@ -34,9 +34,6 @@ class ConfigManager:
             # 加载主配置
             self.main_config = self._load_toml_file(self.main_config_path)
             logger.info(f"✓ 加载主配置: {self.main_config_path}")
-            
-            # 清空现有模块配置缓存，确保移除的模块被丢弃
-            self.module_configs.clear()
             
             # 加载模块配置
             modules = self.main_config.get("modules", {})
@@ -58,7 +55,7 @@ class ConfigManager:
         加载 TOML 文件
         
         Args:
-            file_path: 文件路径
+            file_path: 文件路径（可以是相对于config_dir的相对路径）
             
         Returns:
             配置字典
@@ -67,7 +64,6 @@ class ConfigManager:
         
         # 解析相对路径：如果不是绝对路径，则相对于 config_dir
         if not path.is_absolute():
-            # 优先使用 config_dir，如果未设置则使用主配置文件的父目录
             base_dir = self.config_dir if self.config_dir else self.main_config_path.parent
             path = base_dir / file_path
         
@@ -169,17 +165,17 @@ class ConfigManager:
         Returns:
             配置是否有效
         """
-        # 检查必需的模块（确保模块存在且配置非空）
+        # 检查必需的模块
         required_modules = ["core", "llm", "cache"]
         for module in required_modules:
             if module not in self.module_configs or not self.module_configs[module]:
                 logger.warning(f"缺少必需的模块配置或配置为空: {module}")
                 return False
         
-        # 检查必需的配置项（确保 llm_config 非空）
+        # 检查必需的配置项
         llm_config = self.get_module_config("llm")
-        if not llm_config or "clients" not in llm_config or not llm_config["clients"]:
-            logger.error("LLM 配置缺少客户端配置或配置为空")
+        if not llm_config or "default" not in llm_config:
+            logger.error("LLM 配置缺少 default 配置")
             return False
         
         return True
@@ -189,10 +185,10 @@ class ConfigManager:
 
 
 # 全局配置管理器实例
-_global_config_manager: Optional[ConfigManager] = None
+_global_config_manager: Optional["ConfigManager"] = None
 
 
-def get_config_manager(config_dir: str = "config", main_config: str = "nanoagent.toml") -> ConfigManager:
+def get_config_manager(config_dir: str = "config", main_config: str = "nanoagent.toml") -> "ConfigManager":
     """
     获取全局配置管理器实例（单例模式）
     
