@@ -15,3 +15,12 @@ include_thread = false
 # 性能配置
 enable_async = false
 buffer_size = 8192
+
+[agent_log]
+# Agent执行日志配置
+enabled = true
+directory = "agent_logs"
+file_prefix = "agent_execution"
+format = "detailed"  # detailed 或 simple
+include_tool_calls = true
+include_user_interactions = true

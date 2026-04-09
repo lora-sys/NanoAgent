@@ -62,15 +62,40 @@ class ConfigManager:
         """
         path = Path(file_path)
         
-        # 解析相对路径：如果不是绝对路径，则相对于 config_dir
-        if not path.is_absolute():
-            base_dir = self.config_dir if self.config_dir else self.main_config_path.parent
-            path = base_dir / file_path
-        
-        if not path.exists():
+        # 智能路径解析：先检查是否直接存在
+        if path.exists():
+            pass  # 文件存在，直接使用
+        elif not path.is_absolute():
+            # 尝试多个基础路径
+            possible_paths = []
+            
+            # 1. 相对于config_dir
+            if self.config_dir:
+                possible_paths.append(self.config_dir / file_path)
+            
+            # 2. 相对于主配置文件所在目录
+            if self.main_config_path:
+                possible_paths.append(self.main_config_path.parent / file_path)
+            
+            # 3. 当前工作目录
+            possible_paths.append(Path.cwd() / file_path)
+            
+            # 找到第一个存在的路径
+            for possible_path in possible_paths:
+                if possible_path.exists():
+                    path = possible_path
+                    break
+            
+            if not path.exists():
+                # 所有路径都不存在
+                logger.warning(f"配置文件不存在: {file_path} (尝试路径: {[str(p) for p in possible_paths]})")
+                return {}
+        else:
+            # 绝对路径不存在
             logger.warning(f"配置文件不存在: {path}")
             return {}
         
+        # 加载文件
         with open(path, 'r', encoding='utf-8') as f:
             config = toml.load(f)
         

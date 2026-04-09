@@ -412,9 +412,8 @@ class AgentExecutor:
             # 检查是否为 HITL 工具
             from core.tools.hitl import HITL_TOOL_NAMES
             if tool_name in HITL_TOOL_NAMES:
-                # HITL 工具需要动态加载
-                if self.tool_registry:
-                    self.tool_registry.load_hitl_tools_on_demand()
+                # HITL 工具会自动在get_tool时动态加载，无需手动加载
+                pass
             
             # 参数映射：处理常见的参数名差异
             # 为 write_file 映射参数
