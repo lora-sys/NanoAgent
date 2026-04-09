@@ -59,7 +59,7 @@ class NanoAgent:
         self.state.reset()
         
         # 记录任务开始
-        self._log_agent_event("TASK_START", task=task[:100], timestamp=datetime.now().isoformat())
+        logger.info(f"开始任务: {task[:100]}")
         
         # 初始化CLI
         from cli_interface import get_cli
@@ -69,18 +69,18 @@ class NanoAgent:
         
         # === 阶段1: 路由 ===
         cli.display_phase("任务分析")
-        self._log_agent_event("PHASE_START", phase="routing")
+        logger.info("开始任务路由分析")
         routing_decision = self.executor.route_task(task)
-        self._log_agent_event("ROUTING_RESULT", task_type=routing_decision['task_type'], confidence=f"{routing_decision['confidence']:.2%}")
+        logger.info(f"路由结果: {routing_decision['task_type']}, 置信度: {routing_decision['confidence']:.2%}")
         cli.display_result(f"任务类型: {routing_decision['task_type']}", True)
         cli.display_result(f"置信度: {routing_decision['confidence']:.2%}", True)
         
         # === 阶段2: Spec管理 ===
         if self.executor.should_init_spec(task, routing_decision):
-            self._log_agent_event("PHASE_START", phase="spec_initialization")
+            logger.info("开始Spec初始化")
             self.manifest = self.executor.init_spec(task, routing_decision, self.spec_initializer)
             if self.manifest:
-                self._log_agent_event("SPEC_INITIALIZED", project_name=self.manifest.project_name, current_stage=self.manifest.current_stage, total_stages=len(self.manifest.pipeline))
+                logger.info(f"Spec初始化完成: {self.manifest.project_name}, 阶段: {self.manifest.current_stage}")
                 cli.display_phase("Spec 初始化")
                 print("\n📋 Spec 概要")
                 print(f"{'='*60}")
