@@ -1,25 +1,18 @@
-# 工具系统配置
-
-[general]
-enabled = true
-auto_discovery = true
-categories = ["file", "hitl", "system"]
-
 [file_tools]
 # 文件工具配置
-base_path = "."  # 允许的文件操作基础路径
+base_path = "."
 max_file_size_mb = 10
 allowed_extensions = [".py", ".md", ".txt", ".json", ".toml", ".yaml", ".yml"]
 read_only_extensions = [".git", ".env"]
 
 [hitl_tools]
-# HITL 工具配置
+# HITL工具配置
 enabled = true
-timeout = 300  # 5分钟超时
+timeout = 300
 auto_confirm = false
 
-[system_tools]
-# 系统工具配置
-enabled = true
+[security]
+# 安全配置
 allow_shell_commands = false
 allow_network_access = false
+max_execution_time = 60

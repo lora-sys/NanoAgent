@@ -23,11 +23,24 @@ CATEGORY_MODULES = {
 }
 
 class ToolRegistry:
-    """工具注册表 - 支持动态加载"""
+    """工具注册表 - 支持动态加载和安全检查"""
     
-    def __init__(self):
+    def __init__(self, config: Dict[str, Any] = None):
+        """
+        初始化工具注册表
+        
+        Args:
+            config: 工具配置字典，包含安全设置
+        """
         self._loaded_categories: set = set()
         self._tool_cache: Dict[str, Dict[str, Any]] = {}
+        self.config = config or {}
+        
+        # 从配置中读取安全设置
+        self.security_config = self.config.get("security", {})
+        self.allow_shell_commands = self.security_config.get("allow_shell_commands", False)
+        self.allow_network_access = self.security_config.get("allow_network_access", False)
+        self.max_execution_time = self.security_config.get("max_execution_time", 60)
     
     def get_categories(self) -> Dict[str, str]:
         """获取类别索引（始终加载，无额外开销）"""
@@ -125,10 +138,15 @@ class ToolRegistry:
         return list(tools.keys())
     
     def execute(self, name: str, arguments: Dict) -> Any:
-        """执行工具"""
+        """执行工具（带安全检查）"""
         tool = self.get_tool(name)
         if not tool:
             raise ValueError(f"Tool not found: {name}")
+        
+        # 安全检查
+        if not self._is_tool_allowed(name, arguments):
+            logger.error(f"Tool execution blocked by security policy: {name}")
+            return f"Error: Tool execution blocked by security policy"
         
         try:
             result = tool["function"](**arguments)
@@ -137,6 +155,45 @@ class ToolRegistry:
         except Exception as e:
             logger.error(f"Tool execution error {name}: {e}")
             return f"Error: {str(e)}"
+    
+    def _is_tool_allowed(self, name: str, arguments: Dict) -> bool:
+        """
+        检查工具是否允许执行（安全策略）
+        
+        Args:
+            name: 工具名称
+            arguments: 工具参数
+            
+        Returns:
+            是否允许执行
+        """
+        # 检查Shell命令权限
+        if not self.allow_shell_commands:
+            if "shell" in name.lower() or "command" in name.lower():
+                return False
+        
+        # 检查网络访问权限
+        if not self.allow_network_access:
+            if "fetch" in name.lower() or "download" in name.lower() or "http" in name.lower():
+                return False
+        
+        # 检查文件操作权限
+        if "file" in name.lower() or "path" in name.lower():
+            file_path = arguments.get("path", arguments.get("file_path", arguments.get("filepath", "")))
+            if file_path:
+                # 检查是否在允许的扩展名列表中
+                file_tools_config = self.config.get("file_tools", {})
+                allowed_extensions = file_tools_config.get("allowed_extensions", [])
+                read_only_extensions = file_tools_config.get("read_only_extensions", [])
+                
+                if allowed_extensions:
+                    from pathlib import Path
+                    ext = Path(file_path).suffix
+                    if ext not in allowed_extensions and ext not in read_only_extensions:
+                        logger.warning(f"File extension not allowed: {ext}")
+                        return False
+        
+        return True
     
     def get_tool_schemas(self) -> list:
         """获取工具的 OpenAI 格式 schema（所有可用工具）"""
