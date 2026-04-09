@@ -1,0 +1,17 @@
+[output]
+# 日志输出配置
+file = "nanoagent.log"
+rotation = "10 MB"
+level = "INFO"
+colorize = true
+
+[format]
+# 日志格式
+include_timestamp = true
+include_level = true
+include_thread = false
+
+[performance]
+# 性能配置
+enable_async = false
+buffer_size = 8192
