@@ -4,8 +4,7 @@ Spec 初始化器 - NanoAgent
 基于原始 templates/manifest.json 格式
 """
 import os
-import json
-from typing import Dict, List, Optional
+from typing import Dict, List
 from datetime import datetime
 from spec.models import PipelineStage, Manifest, TemplateSpecContent
 from .llm_client import NanoLLMClient
@@ -32,7 +31,7 @@ class SpecInitializer:
             Manifest: 生成的 manifest 对象
         """
         print(f"\n{'='*60}")
-        print(f"🚀 初始化 Spec 系统")
+        print("🚀 初始化 Spec 系统")
         print(f"{'='*60}\n")
 
         # 1. 创建目录结构
@@ -50,7 +49,7 @@ class SpecInitializer:
         # 5. 生成 manifest.json
         manifest = self._create_manifest(project_name, pipeline)
 
-        print(f"\n✅ Spec 初始化完成！")
+        print("\n✅ Spec 初始化完成！")
         print(f"📁 Spec 目录: {self.spec_workspace_dir}")
         print(f"📋 当前阶段: {manifest.current_stage}")
         print(f"📊 总步骤数: {len(manifest.pipeline)}\n")
@@ -137,8 +136,6 @@ class SpecInitializer:
 只返回合法的 JSON，不要其他内容。"""
 
         try:
-            from pydantic import BaseModel, Field
-            from typing import List
             
             spec_content = self.llm.structured_chat(
                 [{"role": "user", "content": prompt}],
@@ -158,7 +155,7 @@ class SpecInitializer:
 
     def _load_and_fill_templates(self, task: str, routing_decision, template_modules: List[str] = None):
         """加载并填充模板（使用 LLM 生成内容）"""
-        print(f"\n📄 加载并填充模板...")
+        print("\n📄 加载并填充模板...")
 
         # 生成 Spec 内容
         spec_content = self._generate_spec_content(task, routing_decision.task_type.value)
@@ -200,7 +197,7 @@ class SpecInitializer:
             master_spec_path = os.path.join(self.spec_workspace_dir, "master_spec.md")
             with open(master_spec_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            print(f"  ✓ 创建: master_spec.md")
+            print("  ✓ 创建: master_spec.md")
 
         # 使用 routing_decision.template_modules 或指定的 template_modules
         if template_modules is None:
@@ -224,7 +221,7 @@ class SpecInitializer:
 
     def _create_pipeline(self, task_type, task: str = "") -> List[PipelineStage]:
         """创建 pipeline"""
-        print(f"\n📋 创建 pipeline...")
+        print("\n📋 创建 pipeline...")
 
         # 根据任务类型定义 pipeline
         pipeline_map = {
@@ -442,7 +439,7 @@ class SpecInitializer:
 
     def _create_manifest(self, project_name: str, pipeline: List[PipelineStage]) -> Manifest:
         """创建 manifest.json"""
-        print(f"\n📊 生成 manifest.json...")
+        print("\n📊 生成 manifest.json...")
 
         # 获取当前阶段
         current_stage = ""
@@ -490,6 +487,6 @@ if __name__ == "__main__":
     )
 
     print(f"\n{'='*60}")
-    print(f"📋 Manifest 预览")
+    print("📋 Manifest 预览")
     print(f"{'='*60}")
     print(manifest.model_dump_json(indent=2))

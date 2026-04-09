@@ -4,7 +4,7 @@
 """
 import os
 import json
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List
 from datetime import datetime
 from loguru import logger
 from pathlib import Path

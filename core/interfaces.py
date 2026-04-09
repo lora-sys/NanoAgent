@@ -4,7 +4,7 @@
 """
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any
-from spec.models import TaskSpec, AgentPlan, RoutingDecision, Manifest
+from spec.models import TaskSpec, RoutingDecision, Manifest
 
 
 class ILLMClient(ABC):

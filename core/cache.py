@@ -7,7 +7,6 @@ import json
 import os
 from typing import Any, Optional, Dict
 from datetime import datetime, timedelta
-import time
 from loguru import logger
 from .config import get_config_manager
 
@@ -93,7 +92,7 @@ class CacheManager:
             with open(cache_file, 'r', encoding='utf-8') as f:
                 cache_data = json.load(f)
                 return cache_data.get("result")
-        except Exception as e:
+        except Exception:
             # 缓存文件损坏，返回 None
             return None
     
@@ -119,7 +118,7 @@ class CacheManager:
         try:
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(cache_data, f, indent=2, ensure_ascii=False)
-        except Exception as e:
+        except Exception:
             logger.exception(f"Cache write failed for {cache_file}")
     
     def clear(self) -> None:
@@ -130,7 +129,7 @@ class CacheManager:
                     cache_file = os.path.join(self.cache_dir, filename)
                     try:
                         os.remove(cache_file)
-                    except Exception as e:
+                    except Exception:
                         logger.exception(f"Failed to remove cache file {cache_file}")
     
     def get_stats(self) -> Dict:

@@ -4,7 +4,7 @@
 """
 import json
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from spec.models import TaskType, RoutingDecision
 
 
@@ -212,7 +212,7 @@ class HybridRouter:
             return rule_decision
 
         # 第二层：LLM 路由
-        print(f"⚡ 使用 LLM 路由进行精细分析...")
+        print("⚡ 使用 LLM 路由进行精细分析...")
         llm_decision = self.llm_router.route(user_input)
 
         return llm_decision

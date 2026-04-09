@@ -9,7 +9,6 @@ NanoAgent CLI 界面 - 全局实时编排器
 - 资源节省（最小化 UI 开销）
 - 模块化设计
 """
-import sys
 import threading
 from loguru import logger
 from typing import Optional, Callable
@@ -112,7 +111,7 @@ class CLIInterface:
     def display_question(self, question: str, options: Optional[list] = None) -> str:
         """显示问题并获取用户回答"""
         print(f"\n{'='*60}")
-        print(f"🤔 Agent 需要你的帮助：")
+        print("🤔 Agent 需要你的帮助：")
         print(f"{'='*60}")
         print(f"\n问题：{question}\n")
         
@@ -143,7 +142,7 @@ class CLIInterface:
         action_short = action[:100] + "..." if len(action) > 100 else action
         
         print(f"\n{'='*50}")
-        print(f"⚠️  需要人类审批的决策")
+        print("⚠️  需要人类审批的决策")
         print(f"{'='*50}")
         print(f"\n分析：{analysis_short}")
         print(f"\n建议：{action_short}")
@@ -159,13 +158,13 @@ class CLIInterface:
     def display_intervention(self, reason: str, current_state: str, options: Optional[list] = None) -> str:
         """显示干预请求界面"""
         print(f"\n{'='*60}")
-        print(f"🚨 需要人类干预")
+        print("🚨 需要人类干预")
         print(f"{'='*60}")
         print(f"\n原因：{reason}")
         print(f"\n当前状态：\n{current_state[:500]}")
         
         if options:
-            print(f"\n可能的解决方案：")
+            print("\n可能的解决方案：")
             for i, opt in enumerate(options, 1):
                 print(f"  {i}. {opt}")
         
@@ -208,7 +207,7 @@ class CLIInterface:
         """显示任务完成界面"""
         elapsed = self.stop_timing()
         print(f"\n{'='*60}")
-        print(f"🎉 任务完成")
+        print("🎉 任务完成")
         print(f"{'='*60}")
         print(f"\n{summary}")
         print(f"\n⏱️ 总耗时：{elapsed:.1f}秒")

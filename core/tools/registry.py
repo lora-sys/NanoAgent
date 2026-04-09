@@ -146,7 +146,7 @@ class ToolRegistry:
         # 安全检查
         if not self._is_tool_allowed(name, arguments):
             logger.error(f"Tool execution blocked by security policy: {name}")
-            return f"Error: Tool execution blocked by security policy"
+            return "Error: Tool execution blocked by security policy"
         
         try:
             result = tool["function"](**arguments)

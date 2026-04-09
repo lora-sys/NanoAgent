@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 from loguru import logger
 from typing import Optional
 from enum import Enum
-import hashlib
 import json
 from datetime import datetime
 from cli_interface import get_cli

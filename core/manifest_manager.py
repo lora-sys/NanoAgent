@@ -6,8 +6,6 @@ Manifest 管理器 - NanoAgent
 import os
 import json
 from typing import Dict, List, Optional
-from datetime import datetime
-from pydantic import BaseModel
 
 from .spec_initializer import Manifest, PipelineStage
 
@@ -117,13 +115,13 @@ class ManifestManager:
             if next_stage_config:
                 print(f"  ✓ 切换到下一个阶段: {next_stage_config.id} - {next_stage_config.name}")
             else:
-                print(f"  ✓ 所有阶段已完成！")
+                print("  ✓ 所有阶段已完成！")
                 manifest.status = "completed"
 
         # 4. 保存 manifest
         self.save_manifest(manifest)
 
-        print(f"\n✅ 同步和回填完成！")
+        print("\n✅ 同步和回填完成！")
         self._print_progress_bar(manifest)
 
         return manifest
@@ -259,6 +257,6 @@ if __name__ == "__main__":
     )
 
     print(f"\n{'='*60}")
-    print(f"📋 更新后的 Manifest")
+    print("📋 更新后的 Manifest")
     print(f"{'='*60}")
     print(manifest.model_dump_json(indent=2))
