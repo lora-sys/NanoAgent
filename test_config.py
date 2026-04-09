@@ -89,14 +89,12 @@ def test_validation():
     
     config = get_config_manager()
     
-    # 验证配置
+    # 验证配置并断言结果
     is_valid = config.validate()
     
     # 由于我们有完整的配置，应该通过验证
-    if is_valid:
-        print("✅ 配置验证测试通过")
-    else:
-        print("⚠️  配置验证未通过，但这可能是预期的（取决于配置完整性）")
+    assert is_valid, "配置验证失败：配置不完整或无效"
+    print("✅ 配置验证测试通过")
 
 def test_singleton():
     """测试单例模式"""

@@ -11,7 +11,7 @@ max_cache_size_mb = 1000
 enabled = true
 include_model_name = true
 include_temperature = true
-key_hash_algorithm = "md5"
+key_hash_algorithm = "sha256"
 
 [file_cache]
 # 文件缓存

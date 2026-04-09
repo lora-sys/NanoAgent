@@ -49,9 +49,15 @@ def example_env_vars():
     llm_config = config.get_module_config("llm")
     api_key = llm_config["clients"]["openai"]["api_key"]
     
-    print(f"🔑 API Key: {api_key}")
+    # 掩码显示 API 密钥（只显示最后4个字符）
+    if api_key and len(api_key) > 4:
+        masked_key = "••••" + api_key[-4:]
+    else:
+        masked_key = "[REDACTED]"
+    
+    print(f"🔑 API Key: {masked_key}")
     print(f"📝 如果设置了 OPENAI_API_KEY 环境变量，会被替换")
-    print(f"📝 否则保持原始值: {api_key}")
+    print(f"📝 否则保持原始值（已掩码显示）")
     print()
 
 def example_validation():

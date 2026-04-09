@@ -35,6 +35,9 @@ class ConfigManager:
             self.main_config = self._load_toml_file(self.main_config_path)
             logger.info(f"✓ 加载主配置: {self.main_config_path}")
             
+            # 清空现有模块配置缓存，确保移除的模块被丢弃
+            self.module_configs.clear()
+            
             # 加载模块配置
             modules = self.main_config.get("modules", {})
             for module_name, config_path in modules.items():
@@ -61,8 +64,15 @@ class ConfigManager:
             配置字典
         """
         path = Path(file_path)
+        
+        # 解析相对路径：如果不是绝对路径，则相对于 config_dir
+        if not path.is_absolute():
+            # 优先使用 config_dir，如果未设置则使用主配置文件的父目录
+            base_dir = self.config_dir if self.config_dir else self.main_config_path.parent
+            path = base_dir / file_path
+        
         if not path.exists():
-            logger.warning(f"配置文件不存在: {file_path}")
+            logger.warning(f"配置文件不存在: {path}")
             return {}
         
         with open(path, 'r', encoding='utf-8') as f:
@@ -159,17 +169,17 @@ class ConfigManager:
         Returns:
             配置是否有效
         """
-        # 检查必需的模块
+        # 检查必需的模块（确保模块存在且配置非空）
         required_modules = ["core", "llm", "cache"]
         for module in required_modules:
-            if module not in self.module_configs:
-                logger.warning(f"缺少必需的模块配置: {module}")
+            if module not in self.module_configs or not self.module_configs[module]:
+                logger.warning(f"缺少必需的模块配置或配置为空: {module}")
                 return False
         
-        # 检查必需的配置项
+        # 检查必需的配置项（确保 llm_config 非空）
         llm_config = self.get_module_config("llm")
-        if "clients" not in llm_config or not llm_config["clients"]:
-            logger.error("LLM 配置缺少客户端配置")
+        if not llm_config or "clients" not in llm_config or not llm_config["clients"]:
+            logger.error("LLM 配置缺少客户端配置或配置为空")
             return False
         
         return True

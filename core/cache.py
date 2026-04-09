@@ -9,11 +9,12 @@ from typing import Any, Optional, Dict
 from datetime import datetime, timedelta
 import time
 from loguru import logger
+from .config import get_config_manager
 
 class CacheManager:
     """缓存管理器"""
     
-    def __init__(self, cache_dir: Optional[str] = None, ttl_hours: int = 24):
+    def __init__(self, cache_dir: Optional[str] = None, ttl_hours: int = None):
         """
         初始化缓存管理器
         
@@ -21,13 +22,30 @@ class CacheManager:
             cache_dir: 缓存目录
             ttl_hours: 缓存过期时间（小时）
         """
+        # 从配置文件读取参数
+        config = get_config_manager()
+        cache_config = config.get_module_config("cache")
+        
+        # 优先使用传入参数，其次使用配置文件，最后使用默认值
         if cache_dir is None:
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            cache_dir = os.path.join(base_dir, ".cache")
+            cache_dir = cache_config.get("storage", {}).get("cache_dir", None)
+            if cache_dir is None:
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                cache_dir = os.path.join(base_dir, ".cache")
+        
+        if ttl_hours is None:
+            ttl_hours = cache_config.get("storage", {}).get("default_ttl_hours", 24)
         
         self.cache_dir = cache_dir
         self.ttl_hours = ttl_hours
+        
+        # 读取缓存配置
+        self.llm_cache_enabled = cache_config.get("llm_cache", {}).get("enabled", True)
+        self.include_model_name = cache_config.get("llm_cache", {}).get("include_model_name", True)
+        self.key_hash_algorithm = cache_config.get("llm_cache", {}).get("key_hash_algorithm", "sha256")
+        
         os.makedirs(cache_dir, exist_ok=True)
+        logger.info(f"Initialized CacheManager with dir: {cache_dir}, ttl: {ttl_hours}h, hash: {self.key_hash_algorithm}")
     
     def _get_cache_key(self, messages: list, **kwargs) -> str:
         """生成缓存键"""
