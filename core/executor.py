@@ -3,9 +3,9 @@
 管理执行流程的各个阶段
 """
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from loguru import logger
-from spec.models import AgentPlan, TaskSpec
+from spec.models import AgentPlan
 from core.interfaces import ILLMClient, IRouter, IManifestManager, IContextLoader, ISpecGenerator
 
 
@@ -172,8 +172,16 @@ class AgentExecutor:
         recent = observations[-max_items:]
         summary = []
         for i, obs in enumerate(recent, 1):
-            raw = obs.get("raw", "")
-            summary.append(f"Step {i}: {raw[:100]}...")
+            obs_type = obs.get("type", "")
+            
+            if obs_type == "user_answer":
+                # 用户回答：显示用户的回答内容
+                user_answer = obs.get("user_answer", obs.get("raw", ""))
+                summary.append(f"Step {i}: 用户回答了：{user_answer[:500]}")
+            else:
+                # 其他观察：显示标准摘要
+                raw = obs.get("raw", "")
+                summary.append(f"Step {i}: {raw[:150]}...")
         
         return "\n".join(summary)
     
@@ -420,19 +428,19 @@ class AgentExecutor:
             if tool_name == "write_file":
                 if "path" in arguments and "filepath" not in arguments:
                     arguments["filepath"] = arguments.pop("path")
-                    logger.info(f"Mapped 'path' to 'filepath' for write_file")
+                    logger.info("Mapped 'path' to 'filepath' for write_file")
                 elif "file_path" in arguments and "filepath" not in arguments:
                     arguments["filepath"] = arguments.pop("file_path")
-                    logger.info(f"Mapped 'file_path' to 'filepath' for write_file")
+                    logger.info("Mapped 'file_path' to 'filepath' for write_file")
             
             # 为 read_file 映射参数
             elif tool_name == "read_file":
                 if "path" in arguments and "filepath" not in arguments:
                     arguments["filepath"] = arguments.pop("path")
-                    logger.info(f"Mapped 'path' to 'filepath' for read_file")
+                    logger.info("Mapped 'path' to 'filepath' for read_file")
                 elif "file_path" in arguments and "filepath" not in arguments:
                     arguments["filepath"] = arguments.pop("file_path")
-                    logger.info(f"Mapped 'file_path' to 'filepath' for read_file")
+                    logger.info("Mapped 'file_path' to 'filepath' for read_file")
             
             result = self.tool_registry.execute(tool_name, arguments) if self.tool_registry else f"Tool registry not available: {tool_name}"
             
@@ -455,41 +463,54 @@ class AgentExecutor:
         """
         logger.info("=== Observe Phase ===")
         
-        # 截断工具结果以减少 token 使用
-        tool_result_str = str(result)[:500]
+        # 截断工具结果以减少 token 使用（对于用户回答，限制1000字符）
+        tool_result_str = str(result)[:1000]
         
+        # 检查是否为 HITL 工具
+        from core.tools.hitl import HITL_TOOL_NAMES
+        is_hitl_tool = action.get("tool") in HITL_TOOL_NAMES
+        
+        if is_hitl_tool and tool_result_str:
+            # HITL 工具：直接存储用户回答，不调用 LLM 分析
+            logger.info(f"User answer captured: {tool_result_str[:100]}...")
+            return {
+                "raw": tool_result_str,
+                "summary": f"User answered: {tool_result_str[:200]}",
+                "type": "user_answer",
+                "user_answer": tool_result_str,
+                "timestamp": self._get_timestamp()
+            }
+        
+        # 其他工具：调用 LLM 分析
         from core.prompt import SYSTEM_PROMPT, REACT_OBSERVE_PROMPT
         import json
+        
+        # 对非 HITL 工具的结果，截断到 500 字符
+        tool_result_str_for_analysis = str(result)[:500]
         
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": REACT_OBSERVE_PROMPT.format(
                 last_action=json.dumps(action, indent=2),
-                tool_result=tool_result_str,
+                tool_result=tool_result_str_for_analysis,
             )}
         ]
         
         try:
             response = self.llm_client.chat(messages, temperature=0.7)
             
-            # 检查是否为 HITL 交互
-            if "user_answer" in response.lower() or "user input" in response.lower():
-                return {
-                    "raw": response,
-                    "summary": "User interaction needed",
-                    "user_answer": response
-                }
-            
             return {
                 "raw": response,
-                "summary": response[:200] if len(response) > 200 else response
+                "summary": response[:200] if len(response) > 200 else response,
+                "type": "tool_observation"
             }
             
         except Exception as e:
             logger.error(f"Observe phase error: {e}")
             return {
                 "raw": f"Error during observation: {str(e)}",
-                "summary": "Observation failed"
+                "summary": "Observation failed",
+                "type": "error"
             }
 
     def reflection_phase(self, observations: list, spec: Any = None) -> Dict:
