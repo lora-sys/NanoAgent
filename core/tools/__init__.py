@@ -7,16 +7,7 @@
 3. 模块化：按功能分组（file/, hitl/ 等）
 4. 延迟导入：节省内存和启动时间
 """
-from .registry import (
-    ToolRegistry,
-    get_tool_registry,
-    get_available_tools,
-    CATEGORIES
-)
 
-__all__ = [
-    'ToolRegistry',
-    'get_tool_registry',
-    'get_available_tools',
-    'CATEGORIES'
-]
+from .registry import ToolRegistry, get_tool_registry, get_available_tools, CATEGORIES
+
+__all__ = ["ToolRegistry", "get_tool_registry", "get_available_tools", "CATEGORIES"]

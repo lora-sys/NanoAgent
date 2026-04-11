@@ -2,6 +2,7 @@
 持久化层 - NanoAgent
 负责管理所有文件的读写操作，提供统一的持久化接口
 """
+
 import os
 import json
 from typing import Optional, Dict, List
@@ -22,8 +23,7 @@ class PersistenceManager:
         """
         if base_dir is None:
             base_dir = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                ".spec"
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".spec"
             )
         self.base_dir = Path(base_dir)
         self.ensure_directories()
@@ -33,7 +33,7 @@ class PersistenceManager:
         directories = [
             self.base_dir,
             self.base_dir / "steps",
-            self.base_dir / "context"
+            self.base_dir / "context",
         ]
 
         for directory in directories:
@@ -54,7 +54,7 @@ class PersistenceManager:
             return None
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.error(f"Failed to read JSON file {file_path}: {e}")
@@ -71,7 +71,7 @@ class PersistenceManager:
         """
         file_path = self.base_dir / relative_path
         try:
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=indent)
             logger.info(f"✓ Wrote JSON: {relative_path}")
         except Exception as e:
@@ -92,7 +92,7 @@ class PersistenceManager:
             return None
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
             logger.error(f"Failed to read text file {file_path}: {e}")
@@ -110,7 +110,7 @@ class PersistenceManager:
         try:
             # 确保父目录存在
             file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             logger.info(f"✓ Wrote text: {relative_path}")
         except Exception as e:
@@ -126,7 +126,7 @@ class PersistenceManager:
         """
         file_path = self.base_dir / relative_path
         try:
-            with open(file_path, 'a', encoding='utf-8') as f:
+            with open(file_path, "a", encoding="utf-8") as f:
                 f.write(content)
             logger.info(f"✓ Appended to: {relative_path}")
         except Exception as e:
@@ -200,6 +200,7 @@ class PersistenceManager:
         backup_path = file_path.with_suffix(f"{file_path.suffix}.bak_{backup_suffix}")
         try:
             import shutil
+
             shutil.copy2(file_path, backup_path)
             logger.info(f"✓ Backed up: {relative_path} -> {backup_path.name}")
         except Exception as e:
@@ -222,6 +223,7 @@ class PersistenceManager:
 
         try:
             import shutil
+
             shutil.copy2(backup_path, file_path)
             logger.info(f"✓ Restored: {relative_path} from {backup_path.name}")
         except Exception as e:

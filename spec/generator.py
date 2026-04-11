@@ -2,6 +2,7 @@
 Spec 生成器 - NanoAgent
 负责根据用户任务生成高质量 Spec（使用模板系统）
 """
+
 from loguru import logger
 from spec.models import TaskSpec, SpecContent
 
@@ -69,19 +70,28 @@ JSON Schema:
 重要：只返回合法的 JSON，不要任何额外文字。"""
 
         messages = [
-            {"role": "system", "content": "你是一个严谨的 Spec 内容生成器，只输出 JSON。"},
-            {"role": "user", "content": prompt}
+            {
+                "role": "system",
+                "content": "你是一个严谨的 Spec 内容生成器，只输出 JSON。",
+            },
+            {"role": "user", "content": prompt},
         ]
 
-        spec_content: SpecContent = self.llm.structured_chat(messages, SpecContent, temperature=0.3)
+        spec_content: SpecContent = self.llm.structured_chat(
+            messages, SpecContent, temperature=0.3
+        )
 
         # 步骤 2: 根据 task_type 加载对应的模板
         template = load_template(spec_content.task_type)
         if template is None:
-            logger.warning(f"Template not found for task_type: {spec_content.task_type}, using base template")
+            logger.warning(
+                f"Template not found for task_type: {spec_content.task_type}, using base template"
+            )
             template = load_template("base")
             if template is None:
-                logger.warning("No template available, creating spec directly from content")
+                logger.warning(
+                    "No template available, creating spec directly from content"
+                )
                 # 如果没有模板，直接从内容创建 TaskSpec
                 return TaskSpec(
                     task_type=spec_content.task_type,
@@ -90,17 +100,17 @@ JSON Schema:
                     progress_tracking={
                         "current_progress": spec_content.current_progress,
                         "completed_steps": spec_content.completed_steps,
-                        "remaining": spec_content.remaining
+                        "remaining": spec_content.remaining,
                     },
                     process_requirements=spec_content.process_requirements,
                     boundaries={
                         "always": spec_content.always,
                         "ask_first": spec_content.ask_first,
-                        "never": spec_content.never
+                        "never": spec_content.never,
                     },
                     self_check_instructions=spec_content.self_check_instructions,
                     human_in_loop_points=[],
-                    additional_notes=""
+                    additional_notes="",
                 )
 
         # 步骤 3: 用 LLM 生成的值填充模板占位符
@@ -115,7 +125,9 @@ JSON Schema:
             always="\n".join(f"- {a}" for a in spec_content.always),
             ask_first="\n".join(f"- {a}" for a in spec_content.ask_first),
             never="\n".join(f"- {n}" for n in spec_content.never),
-            self_check_instructions="\n".join(f"- {i}" for i in spec_content.self_check_instructions)
+            self_check_instructions="\n".join(
+                f"- {i}" for i in spec_content.self_check_instructions
+            ),
         )
 
         # 步骤 4: 将填充后的模板内容转换为 TaskSpec 对象
@@ -126,23 +138,23 @@ JSON Schema:
             progress_tracking={
                 "current_progress": spec_content.current_progress,
                 "completed_steps": spec_content.completed_steps,
-                "remaining": spec_content.remaining
+                "remaining": spec_content.remaining,
             },
             process_requirements=spec_content.process_requirements,
             boundaries={
                 "always": spec_content.always,
                 "ask_first": spec_content.ask_first,
-                "never": spec_content.never
+                "never": spec_content.never,
             },
             self_check_instructions=spec_content.self_check_instructions,
             human_in_loop_points=[],
-            additional_notes=filled_template  # 将填充后的模板保存在 additional_notes 中
+            additional_notes=filled_template,  # 将填充后的模板保存在 additional_notes 中
         )
 
         logger.info(
             "Spec generated with template",
             task_type=spec.task_type,
             goal=spec.overall_goal,
-            template_used=template is not None
+            template_used=template is not None,
         )
         return spec

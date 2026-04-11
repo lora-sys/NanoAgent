@@ -2,6 +2,7 @@
 核心接口定义 - NanoAgent
 定义系统中所有关键组件的接口契约
 """
+
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any
 from spec.models import TaskSpec, RoutingDecision, Manifest
@@ -25,7 +26,9 @@ class ILLMClient(ABC):
         pass
 
     @abstractmethod
-    def structured_chat(self, messages: List[Dict], response_model: Any, temperature: float = 0.7) -> Any:
+    def structured_chat(
+        self, messages: List[Dict], response_model: Any, temperature: float = 0.7
+    ) -> Any:
         """
         结构化聊天对话
 
@@ -160,7 +163,7 @@ class IManifestManager(ABC):
         stage_id: str,
         decisions: List[Dict[str, Any]],
         completed_artifacts: List[str],
-        next_stage: bool = True
+        next_stage: bool = True,
     ) -> Optional["Manifest"]:
         """同步和回填
 
@@ -169,7 +172,7 @@ class IManifestManager(ABC):
             decisions: 决策列表
             completed_artifacts: 完成的产出物列表
             next_stage: 是否切换到下一个阶段
-            
+
         Returns:
             更新后的 manifest，如果失败则返回 None
         """

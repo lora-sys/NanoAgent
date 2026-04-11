@@ -3,6 +3,7 @@ Manifest 管理器 - NanoAgent
 负责管理 manifest 的更新、状态切换和上下文回填
 基于原始 templates/manifest.json 格式
 """
+
 import os
 import json
 from typing import Dict, List, Optional
@@ -15,8 +16,7 @@ class ManifestManager:
 
     def __init__(self, spec_workspace_dir: str = None):
         base_dir = spec_workspace_dir or os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            ".spec"
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".spec"
         )
         self.manifest_path = os.path.join(base_dir, "manifest.json")
         self.master_spec_path = os.path.join(base_dir, "master_spec.md")
@@ -27,13 +27,13 @@ class ManifestManager:
         if not os.path.exists(self.manifest_path):
             return None
 
-        with open(self.manifest_path, 'r', encoding='utf-8') as f:
+        with open(self.manifest_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             return Manifest(**data)
 
     def save_manifest(self, manifest: Manifest):
         """保存 manifest"""
-        with open(self.manifest_path, 'w', encoding='utf-8') as f:
+        with open(self.manifest_path, "w", encoding="utf-8") as f:
             f.write(manifest.model_dump_json(indent=2))
 
     def get_current_stage(self) -> Optional[PipelineStage]:
@@ -56,7 +56,7 @@ class ManifestManager:
 
         stage_file = os.path.join(self.steps_dir, stage.file)
         if os.path.exists(stage_file):
-            with open(stage_file, 'r', encoding='utf-8') as f:
+            with open(stage_file, "r", encoding="utf-8") as f:
                 return f.read()
 
         return None
@@ -64,7 +64,7 @@ class ManifestManager:
     def load_master_spec(self) -> Optional[str]:
         """加载 master spec"""
         if os.path.exists(self.master_spec_path):
-            with open(self.master_spec_path, 'r', encoding='utf-8') as f:
+            with open(self.master_spec_path, "r", encoding="utf-8") as f:
                 return f.read()
         return None
 
@@ -73,7 +73,7 @@ class ManifestManager:
         stage_id: str,
         decisions: List[Dict],
         completed_artifacts: List[str],
-        next_stage: bool = True
+        next_stage: bool = True,
     ) -> Manifest:
         """
         同步和回填 - 核心功能
@@ -87,9 +87,9 @@ class ManifestManager:
         Returns:
             Manifest: 更新后的 manifest
         """
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"🔄 同步和回填 - Stage {stage_id}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         manifest = self.load_manifest()
         if not manifest:
@@ -113,7 +113,9 @@ class ManifestManager:
         if next_stage:
             next_stage_config = self._move_to_next_stage(manifest, stage_id)
             if next_stage_config:
-                print(f"  ✓ 切换到下一个阶段: {next_stage_config.id} - {next_stage_config.name}")
+                print(
+                    f"  ✓ 切换到下一个阶段: {next_stage_config.id} - {next_stage_config.name}"
+                )
             else:
                 print("  ✓ 所有阶段已完成！")
                 manifest.status = "completed"
@@ -133,7 +135,7 @@ class ManifestManager:
         if not os.path.exists(self.master_spec_path):
             return
 
-        with open(self.master_spec_path, 'r', encoding='utf-8') as f:
+        with open(self.master_spec_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         # 回填决策
@@ -145,8 +147,7 @@ class ManifestManager:
             # 查找或添加上下文快照部分
             if "## 4. 上下文快照" in content:
                 content = content.replace(
-                    "## 4. 上下文快照",
-                    f"## 4. 上下文快照{decisions_section}\n"
+                    "## 4. 上下文快照", f"## 4. 上下文快照{decisions_section}\n"
                 )
             else:
                 content += f"\n## 4. 上下文快照{decisions_section}\n"
@@ -159,22 +160,24 @@ class ManifestManager:
 
             if "## 3. 交付物清单" in content:
                 # 查找并更新交付物清单
-                lines = content.split('\n')
+                lines = content.split("\n")
                 in_artifacts_section = False
                 for i, line in enumerate(lines):
                     if "## 3. 交付物清单" in line:
                         in_artifacts_section = True
-                    elif in_artifacts_section and line.strip() == '':
+                    elif in_artifacts_section and line.strip() == "":
                         lines.insert(i, artifacts_section)
                         break
-                content = '\n'.join(lines)
+                content = "\n".join(lines)
 
-        with open(self.master_spec_path, 'w', encoding='utf-8') as f:
+        with open(self.master_spec_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         print("  ✓ 回填完成")
 
-    def _move_to_next_stage(self, manifest: Manifest, current_stage_id: str) -> Optional[PipelineStage]:
+    def _move_to_next_stage(
+        self, manifest: Manifest, current_stage_id: str
+    ) -> Optional[PipelineStage]:
         """移动到下一个阶段"""
         # 找到当前阶段的索引
         current_index = -1
@@ -233,30 +236,20 @@ if __name__ == "__main__":
 
     # 模拟同步和回填
     decisions = [
-        {
-            "decision": "使用 JWT 认证",
-            "rationale": "安全性和扩展性好"
-        },
-        {
-            "decision": "数据库使用 PostgreSQL",
-            "rationale": "需要事务支持"
-        }
+        {"decision": "使用 JWT 认证", "rationale": "安全性和扩展性好"},
+        {"decision": "数据库使用 PostgreSQL", "rationale": "需要事务支持"},
     ]
 
-    artifacts = [
-        "requirements.txt",
-        "main.py",
-        "auth.py"
-    ]
+    artifacts = ["requirements.txt", "main.py", "auth.py"]
 
     manifest = manager.sync_and_backfill(
         stage_id="stage_1",
         decisions=decisions,
         completed_artifacts=artifacts,
-        next_stage=True
+        next_stage=True,
     )
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("📋 更新后的 Manifest")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(manifest.model_dump_json(indent=2))

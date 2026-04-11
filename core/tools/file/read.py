@@ -1,4 +1,5 @@
 """文件读取工具"""
+
 from pathlib import Path
 from pydantic import BaseModel, Field
 from loguru import logger
@@ -8,9 +9,14 @@ import os
 SANDBOX_DIR = Path(os.path.join(os.getcwd(), "agent_workspace")).resolve()
 SANDBOX_DIR.mkdir(parents=True, exist_ok=True)
 
+
 class ReadFileInput(BaseModel):
     """读取文件输入"""
-    filepath: str = Field(..., description="文件路径（相对于 agent_workspace，例如：'main.py'）")
+
+    filepath: str = Field(
+        ..., description="文件路径（相对于 agent_workspace，例如：'main.py'）"
+    )
+
 
 def safe_read_file(filepath: str) -> str:
     """安全读取文件（限制在沙箱目录）"""

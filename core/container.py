@@ -2,10 +2,11 @@
 依赖注入容器 - NanoAgent
 提供简单的依赖注入功能，支持单例和工厂模式
 """
+
 from typing import Dict, Type, TypeVar, Optional, Callable, Any
 from loguru import logger
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class DIContainer:
@@ -31,7 +32,9 @@ class DIContainer:
             implementation: 实现实例
         """
         self._singletons[interface] = implementation
-        logger.info(f"✓ Registered singleton: {interface.__name__} -> {type(implementation).__name__}")
+        logger.info(
+            f"✓ Registered singleton: {interface.__name__} -> {type(implementation).__name__}"
+        )
 
     def register_factory(self, interface: Type[T], factory: Callable[[], T]):
         """

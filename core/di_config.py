@@ -2,6 +2,7 @@
 依赖注入配置 - NanoAgent
 配置所有组件的依赖关系（配置驱动架构）
 """
+
 from core.container import DIContainer
 from core.config import ConfigManager, get_config_manager
 from core.llm_client import NanoLLMClient
@@ -18,8 +19,12 @@ from core.spec_initializer import SpecInitializer
 
 # 导入接口（用于类型提示，实际注册具体实现）
 from core.interfaces import (
-    ILLMClient, IRouter, IManifestManager,
-    IContextLoader, ISpecGenerator, IPersistenceManager
+    ILLMClient,
+    IRouter,
+    IManifestManager,
+    IContextLoader,
+    ISpecGenerator,
+    IPersistenceManager,
 )
 
 
@@ -32,7 +37,7 @@ def setup_dependencies(container: DIContainer, config: dict = None, model: str =
         config: 配置字典（可选）
         model: LLM 模型名称（可选，用于向后兼容）
     """
-    
+
     # 1. 配置管理器（单例）
     if config:
         # 使用传入的配置创建配置管理器
@@ -40,16 +45,18 @@ def setup_dependencies(container: DIContainer, config: dict = None, model: str =
     else:
         # 使用默认的配置管理器
         config_manager = get_config_manager()
-    
+
     container.register(ConfigManager, instance=config_manager)
-    
+
     # 读取配置
     core_config = config_manager.get_module_config("core")
     llm_config = config_manager.get_module_config("llm")
     tools_config = config_manager.get_module_config("tools")
-    
+
     # 2. LLM 客户端（单例）
-    llm_model = model or llm_config.get("default", {}).get("model", "openai/qwen3.5-plus")
+    llm_model = model or llm_config.get("default", {}).get(
+        "model", "openai/qwen3.5-plus"
+    )
     llm_client = NanoLLMClient(model=llm_model, config=llm_config)
     container.register_singleton(ILLMClient, llm_client)
 
@@ -90,7 +97,7 @@ def setup_dependencies(container: DIContainer, config: dict = None, model: str =
     container.register(AgentState, instance=state)
 
     # 11. Spec初始化器（单例）
-    spec_initializer = SpecInitializer()
+    spec_initializer = SpecInitializer(llm_client=llm_client)  # 传入已有的 llm 客户端
     container.register(SpecInitializer, instance=spec_initializer)
 
     # 12. 执行器（单例）
@@ -103,7 +110,8 @@ def setup_dependencies(container: DIContainer, config: dict = None, model: str =
         tool_registry=tool_registry,
         persistence_manager=persistence_manager,
         cache=cache_manager,
-        config=config_manager.get_main_config()
+        config=config_manager.get_main_config(),
+        state=state,  # 传入 state
     )
     container.register(AgentExecutor, instance=executor)
 
@@ -135,14 +143,14 @@ def initialize_container(config: dict = None, model: str = None) -> DIContainer:
 
 class MockConfigManager:
     """模拟配置管理器，用于直接传入配置字典"""
-    
+
     def __init__(self, config: dict):
         self.config = config
-    
+
     def get_module_config(self, module_name: str) -> dict:
         """获取模块配置"""
         return self.config.get(module_name, {})
-    
+
     def get_main_config(self) -> dict:
         """获取主配置"""
         return self.config.get("main", self.config)

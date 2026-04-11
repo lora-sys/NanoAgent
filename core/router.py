@@ -2,6 +2,7 @@
 混合路由系统 - NanoAgent
 结合规则路由和 LLM 路由，实现高效且灵活的任务分类
 """
+
 import json
 import os
 from typing import Dict, List, Optional
@@ -17,34 +18,113 @@ class RuleBasedRouter:
     def _load_rules(self, rules_file: str = None) -> Dict[str, Dict]:
         """加载路由规则"""
         if rules_file and os.path.exists(rules_file):
-            with open(rules_file, 'r', encoding='utf-8') as f:
+            with open(rules_file, "r", encoding="utf-8") as f:
                 return json.load(f)
 
         # 默认规则
         return {
             "code": {
-                "keywords": ["开发", "实现", "构建", "编写", "create", "implement", "build", "develop", "代码", "api", "接口", "function", "函数", "class", "类"],
+                "keywords": [
+                    "开发",
+                    "实现",
+                    "构建",
+                    "编写",
+                    "create",
+                    "implement",
+                    "build",
+                    "develop",
+                    "代码",
+                    "api",
+                    "接口",
+                    "function",
+                    "函数",
+                    "class",
+                    "类",
+                ],
                 "patterns": ["开发.*", "实现.*", "build.*", "implement.*"],
-                "tech_keywords": ["python", "javascript", "react", "vue", "fastapi", "flask", "django", "数据库", "database"],
-                "confidence": 0.95
+                "tech_keywords": [
+                    "python",
+                    "javascript",
+                    "react",
+                    "vue",
+                    "fastapi",
+                    "flask",
+                    "django",
+                    "数据库",
+                    "database",
+                ],
+                "confidence": 0.95,
             },
             "writing": {
-                "keywords": ["写", "撰写", "文章", "博客", "文档", "报告", "write", "article", "blog", "document", "report", "论文", "paper"],
+                "keywords": [
+                    "写",
+                    "撰写",
+                    "文章",
+                    "博客",
+                    "文档",
+                    "报告",
+                    "write",
+                    "article",
+                    "blog",
+                    "document",
+                    "report",
+                    "论文",
+                    "paper",
+                ],
                 "patterns": ["写.*", "撰写.*", "write.*", "draft.*"],
-                "style_keywords": ["正式", "学术", "博客", "幽默", "professional", "academic", "blog"],
-                "confidence": 0.90
+                "style_keywords": [
+                    "正式",
+                    "学术",
+                    "博客",
+                    "幽默",
+                    "professional",
+                    "academic",
+                    "blog",
+                ],
+                "confidence": 0.90,
             },
             "analyze": {
-                "keywords": ["分析", "评估", "研究", "调查", "review", "analysis", "evaluate", "study", "investigate", "调查报告", "评估报告"],
+                "keywords": [
+                    "分析",
+                    "评估",
+                    "研究",
+                    "调查",
+                    "review",
+                    "analysis",
+                    "evaluate",
+                    "study",
+                    "investigate",
+                    "调查报告",
+                    "评估报告",
+                ],
                 "patterns": ["分析.*", "评估.*", "review.*", "analyze.*"],
-                "analysis_types": ["性能", "安全", "代码", "数据", "performance", "security", "code", "data"],
-                "confidence": 0.92
+                "analysis_types": [
+                    "性能",
+                    "安全",
+                    "代码",
+                    "数据",
+                    "performance",
+                    "security",
+                    "code",
+                    "data",
+                ],
+                "confidence": 0.92,
             },
             "chat": {
-                "keywords": ["聊天", "对话", "讨论", "咨询", "chat", "conversation", "discuss", "ask", "question"],
+                "keywords": [
+                    "聊天",
+                    "对话",
+                    "讨论",
+                    "咨询",
+                    "chat",
+                    "conversation",
+                    "discuss",
+                    "ask",
+                    "question",
+                ],
                 "patterns": ["聊聊", "谈谈", "讨论", "帮我看看"],
-                "confidence": 0.85
-            }
+                "confidence": 0.85,
+            },
         }
 
     def route(self, user_input: str) -> Optional[RoutingDecision]:
@@ -66,7 +146,7 @@ class RuleBasedRouter:
                 task_type=TaskType(best_match),
                 confidence=confidence,
                 template_modules=self._get_template_modules(best_match),
-                reasoning=f"规则路由匹配：检测到关键词和模式，置信度 {confidence:.2f}"
+                reasoning=f"规则路由匹配：检测到关键词和模式，置信度 {confidence:.2f}",
             )
 
         return None
@@ -74,6 +154,7 @@ class RuleBasedRouter:
     def _calculate_match_score(self, user_input: str, rules: Dict) -> float:
         """计算匹配分数"""
         import re
+
         score = 0
 
         # 关键词匹配
@@ -119,7 +200,7 @@ class RuleBasedRouter:
             "code": ["base_spec", "code_logic", "code_api", "project_plan"],
             "writing": ["base_spec", "writing_style", "writing_structure"],
             "analyze": ["base_spec", "analyze_framework", "analyze_report"],
-            "chat": ["base_spec", "chat_protocol"]
+            "chat": ["base_spec", "chat_protocol"],
         }
         return module_map.get(task_type, ["base_spec"])
 
@@ -152,13 +233,13 @@ class LLMRouter:
 
         try:
             response = self.llm_client.chat(
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3
+                messages=[{"role": "user", "content": prompt}], temperature=0.3
             )
 
             # 解析 LLM 响应
             import re
-            json_match = re.search(r'\{[^}]+\}', response, re.DOTALL)
+
+            json_match = re.search(r"\{[^}]+\}", response, re.DOTALL)
             if json_match:
                 result = json.loads(json_match.group())
 
@@ -166,7 +247,7 @@ class LLMRouter:
                     task_type=TaskType(result["task_type"]),
                     confidence=result["confidence"],
                     template_modules=self._get_template_modules(result["task_type"]),
-                    reasoning=f"LLM 路由决策：{result['reasoning']}"
+                    reasoning=f"LLM 路由决策：{result['reasoning']}",
                 )
         except Exception as e:
             print(f"LLM 路由失败: {e}")
@@ -176,7 +257,7 @@ class LLMRouter:
             task_type=TaskType.CHAT,
             confidence=0.5,
             template_modules=["base_spec"],
-            reasoning="LLM 路由失败，回退到默认类型"
+            reasoning="LLM 路由失败，回退到默认类型",
         )
 
     def _get_template_modules(self, task_type: str) -> List[str]:
@@ -185,7 +266,7 @@ class LLMRouter:
             "code": ["base_spec", "code_logic", "code_api", "project_plan"],
             "writing": ["base_spec", "writing_style", "writing_structure"],
             "analyze": ["base_spec", "analyze_framework", "analyze_report"],
-            "chat": ["base_spec", "chat_protocol"]
+            "chat": ["base_spec", "chat_protocol"],
         }
         return module_map.get(task_type, ["base_spec"])
 
@@ -208,7 +289,9 @@ class HybridRouter:
         rule_decision = self.rule_router.route(user_input)
 
         if rule_decision and rule_decision.confidence > 0.7:
-            print(f"✓ 规则路由匹配: {rule_decision.task_type} (置信度: {rule_decision.confidence:.2f})")
+            print(
+                f"✓ 规则路由匹配: {rule_decision.task_type} (置信度: {rule_decision.confidence:.2f})"
+            )
             return rule_decision
 
         # 第二层：LLM 路由
@@ -229,9 +312,9 @@ class HybridRouter:
 - 任务类型: {decision.task_type.value}
 - 置信度: {decision.confidence:.2%}
 - 推理: {decision.reasoning}
-- 模板模块: {', '.join(decision.template_modules)}
+- 模板模块: {", ".join(decision.template_modules)}
 
 路由路径:
-{'规则路由 (快速匹配)' if decision.confidence > 0.7 else 'LLM 路由 (语义分析)'}
+{"规则路由 (快速匹配)" if decision.confidence > 0.7 else "LLM 路由 (语义分析)"}
 """
         return explanation
