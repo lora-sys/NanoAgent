@@ -24,7 +24,11 @@ def safe_write_file(filepath: str, content: str, mode: str = "w") -> str:
     """安全写入文件（限制在沙箱目录）"""
     try:
         target = (SANDBOX_DIR / filepath).resolve()
-        if not str(target).startswith(str(SANDBOX_DIR)):
+
+        # 使用相对路径检查来验证沙箱边界
+        try:
+            target.relative_to(SANDBOX_DIR)
+        except ValueError:
             raise ValueError("Access denied: Path outside sandbox")
 
         target.parent.mkdir(parents=True, exist_ok=True)

@@ -6,6 +6,8 @@ Manifest 管理器 - NanoAgent
 
 import os
 import json
+import re
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from .spec_initializer import Manifest, PipelineStage
@@ -106,21 +108,29 @@ class ManifestManager:
         if not current_stage:
             raise ValueError(f"阶段 {stage_id} 不存在")
 
-        # 2. 回填到 master_spec
+        # 2. 更新 ContextManager 中的上下文
+        self._update_context_manager(stage_id, decisions, completed_artifacts)
+
+        # 3. 回填到 master_spec
         self._backfill_to_master_spec(decisions, completed_artifacts)
 
-        # 3. 切换到下一个阶段
+        # 4. 更新 Steps 文件的状态
+        self._update_steps_file_status(stage_id, "completed")
+
+        # 5. 切换到下一个阶段
         if next_stage:
             next_stage_config = self._move_to_next_stage(manifest, stage_id)
             if next_stage_config:
                 print(
                     f"  ✓ 切换到下一个阶段: {next_stage_config.id} - {next_stage_config.name}"
                 )
+                # 更新下一个阶段的 Steps 文件状态为 active
+                self._update_steps_file_status(next_stage_config.id, "active")
             else:
                 print("  ✓ 所有阶段已完成！")
                 manifest.status = "completed"
 
-        # 4. 保存 manifest
+        # 6. 保存 manifest
         self.save_manifest(manifest)
 
         print("\n✅ 同步和回填完成！")
@@ -228,6 +238,86 @@ class ManifestManager:
                 return stage.model_dump()
 
         return None
+
+    def _update_context_manager(
+        self, stage_id: str, decisions: List[Dict], artifacts: List[str]
+    ):
+        """更新 ContextManager 中的上下文"""
+        print("📝 更新 ContextManager 上下文...")
+
+        try:
+            from .context_manager import ContextManager
+
+            context_manager = ContextManager()
+
+            # 加载 master_spec 和当前阶段 spec
+            master_spec = self.load_master_spec() or ""
+            current_stage_spec = self.load_current_stage_spec() or ""
+
+            # 构建更新数据
+            updates = {
+                "master_spec": master_spec,
+                "current_stage_spec": current_stage_spec,
+                "collected_info": {
+                    "decisions": decisions,
+                    "artifacts": artifacts,
+                },
+            }
+
+            # 更新上下文
+            context_manager.update_context(stage_id, updates)
+            print(f"  ✓ 上下文已更新: {stage_id}")
+
+        except Exception as e:
+            print(f"  ⚠️ 上下文更新失败: {e}")
+
+    def _update_steps_file_status(self, stage_id: str, status: str):
+        """更新 Steps 文件的状态"""
+        print(f"📝 更新 Steps 文件状态: {stage_id} -> {status}")
+
+        try:
+            manifest = self.load_manifest()
+            if not manifest:
+                return
+
+            # 找到对应的 stage
+            stage = None
+            for s in manifest.pipeline:
+                if s.id == stage_id:
+                    stage = s
+                    break
+
+            if not stage:
+                print(f"  ⚠️ 阶段 {stage_id} 不存在")
+                return
+
+            # 读取 steps 文件
+            stage_file = os.path.join(self.steps_dir, stage.file)
+            if not os.path.exists(stage_file):
+                print(f"  ⚠️ 文件不存在: {stage_file}")
+                return
+
+            with open(stage_file, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # 更新状态行
+            status_pattern = r"\*\*状态\*\*:\s*\w+"
+            status_line = f"**状态**: {status}"
+
+            if re.search(status_pattern, content):
+                content = re.sub(status_pattern, status_line, content)
+            else:
+                # 如果没有状态行，添加到文件末尾
+                content += f"\n\n---\n\n**状态**: {status}\n**更新时间**: {datetime.now().isoformat()}\n"
+
+            # 保存文件
+            with open(stage_file, "w", encoding="utf-8") as f:
+                f.write(content)
+
+            print(f"  ✓ 文件状态已更新: {stage_file}")
+
+        except Exception as e:
+            print(f"  ⚠️ 文件状态更新失败: {e}")
 
 
 # 使用示例

@@ -5,6 +5,7 @@
 
 from typing import Dict, Any, Optional
 from loguru import logger
+import re
 from spec.models import AgentPlan
 from core.interfaces import (
     ILLMClient,
@@ -57,6 +58,16 @@ class AgentExecutor:
         self.config = config or {}
         self.state = state  # 添加 state 引用
 
+        # 初始化上下文管理器
+        from .context_manager import ContextManager
+
+        self.context_manager = ContextManager()
+
+        # 新增：初始化规则引擎
+        from .rule_engine import RuleEngine
+
+        self.rule_engine = RuleEngine()
+
         # 从配置中读取参数
         core_config = self.config.get("core", {})
         performance_config = core_config.get("performance", {})
@@ -106,15 +117,64 @@ class AgentExecutor:
 
     def load_context(self) -> Dict:
         """
-        阶段3：动态加载上下文
+        阶段3：动态加载上下文（支持持久化）
 
         Returns:
             上下文字典
         """
         logger.info("=== Phase 3: Dynamic Context Loading ===")
+
+        # 加载 manifest
+        manifest = self.manifest_manager.load_manifest()
+        if not manifest:
+            logger.warning("No manifest found, using empty context")
+            return {"master_spec": "", "current_stage_spec": "", "constraints": {}}
+
+        # 总是重新加载最新的上下文（不依赖缓存）
         context = self.context_loader.dynamic_load_context()
-        logger.info("Context loaded", has_master=bool(context.get("master_spec")))
+        logger.info(
+            f"Context loaded for stage: {manifest.current_stage}",
+            has_master=bool(context.get("master_spec")),
+            has_stage=bool(context.get("current_stage_spec")),
+        )
+
+        # 尝试从缓存加载决策和交付物（增量更新）
+        cached_context = self.context_manager.load_context(manifest.current_stage)
+        if cached_context:
+            # 合并缓存的决策和交付物
+            collected_info = cached_context.get("collected_info", {})
+            if collected_info.get("decisions"):
+                context.setdefault("collected_info", {})["decisions"] = collected_info[
+                    "decisions"
+                ]
+                logger.info(
+                    f"✓ 从缓存加载决策: {len(collected_info['decisions'])} 个"
+                )
+            if collected_info.get("artifacts"):
+                context.setdefault("collected_info", {})["artifacts"] = collected_info[
+                    "artifacts"
+                ]
+                logger.info(
+                    f"✓ 从缓存加载交付物: {len(collected_info['artifacts'])} 个"
+                )
+
+        # 保存更新后的上下文到缓存
+        self.context_manager.save_context(manifest.current_stage, context)
+        logger.info(f"✓ 保存上下文到缓存: {manifest.current_stage}")
+
         return context
+
+    def update_context(self, updates: Dict) -> None:
+        """
+        增量更新上下文
+
+        Args:
+            updates: 要更新的字段
+        """
+        manifest = self.manifest_manager.load_manifest()
+        if manifest:
+            self.context_manager.update_context(manifest.current_stage, updates)
+            logger.info(f"✓ 更新上下文: {manifest.current_stage}")
 
     def build_system_prompt(self, context: Dict) -> str:
         """
@@ -174,6 +234,28 @@ class AgentExecutor:
             f"Context truncated from {len(context)} to {len(truncated)} chars"
         )
         return truncated
+
+    def _build_context(self) -> Dict:
+        """构建上下文（用于规则引擎）
+
+        Returns:
+            上下文字典
+        """
+        context = {
+            "requirements_confirmed": False,
+            "artifacts": [],
+            "decisions": [],
+            "step_count": 0,
+        }
+
+        # 从 state 中获取信息
+        if hasattr(self, "state") and self.state:
+            context["requirements_confirmed"] = self.state.is_requirements_confirmed()
+            context["artifacts"] = self.state.get_artifacts()
+            context["decisions"] = self.state.get_decisions()
+            context["step_count"] = self.state.step_count
+
+        return context
 
     def _get_recent_observations_summary(
         self, observations: list, max_items: int = 5
@@ -337,6 +419,13 @@ class AgentExecutor:
         from core.prompt import SYSTEM_PROMPT, REACT_THINK_PROMPT
         import json
 
+        # 新增：检查需求确认状态
+        requirements_confirmed = False
+        current_state = "initial"
+        if hasattr(self, "state") and self.state:
+            requirements_confirmed = self.state.is_requirements_confirmed()
+            current_state = self.state.get_current_state().value
+
         # 构建动态提示
         prompt = REACT_THINK_PROMPT.format(
             current_step=step_count + 1,
@@ -350,6 +439,16 @@ class AgentExecutor:
             if self.tool_registry
             else "No tools available",
         )
+
+        # 新增：如果需求已确认，添加强制提示
+        if requirements_confirmed:
+            prompt += "\n\n【重要提示】\n"
+            prompt += f"需求已确认！当前状态: {current_state}\n"
+            prompt += "不要再向用户询问需求问题！\n"
+            prompt += "必须开始执行任务，创建交付物！\n"
+            prompt += "使用 write_file 或 safe_write_file 工具创建文件。\n"
+            prompt += "不要使用 ask_user_question 工具！\n"
+            logger.info("需求已确认，添加强制提示防止重复询问")
 
         # 添加当前阶段约束
         if context.get("current_stage_spec"):
@@ -783,12 +882,38 @@ class AgentExecutor:
                 decisions: List[str] = Field(default_factory=list)
                 artifacts: List[str] = Field(default_factory=list)
 
-            reflection = self.llm_client.structured_chat(
-                messages, ReflectionResult, temperature=0.5
+            # 新增：双重验证机制
+            # 1. LLM 辅助检查（概率性）
+            reflection = self.llm_client.structured_chat_with_validation(
+                messages, ReflectionResult, temperature=0.5, max_retries=3
             )
-            logger.info(
-                f"Reflection: {reflection.next_action}, stage_completed: {reflection.stage_completed}"
-            )
+            logger.info(f"LLM 判断: stage_completed = {reflection.stage_completed}")
+
+            # 2. 规则引擎检查（确定性）
+            stage_completed_by_rules = False
+            current_stage = self.manifest_manager.get_current_stage()
+            if current_stage:
+                context = self._build_context()
+                stage_completed_by_rules = self.rule_engine.determine_stage_completion(
+                    current_stage.id, context
+                )
+                logger.info(
+                    f"规则引擎判断: stage_completed = {stage_completed_by_rules}"
+                )
+
+            # 3. 双重验证：规则引擎优先
+            # 如果规则引擎判断完成，不管 LLM 如何判断，都认为完成
+            final_stage_completed = stage_completed_by_rules
+            reflection.stage_completed = final_stage_completed
+
+            # 4. 记录判断结果
+            if stage_completed_by_rules and not reflection.stage_completed:
+                logger.warning("规则引擎判断阶段完成，但 LLM 未确认，使用规则引擎结果")
+            elif not stage_completed_by_rules and reflection.stage_completed:
+                logger.warning("LLM 判断阶段完成，但规则引擎未确认，使用规则引擎结果")
+
+            logger.info(f"最终判断: stage_completed = {reflection.stage_completed}")
+
             return reflection.model_dump()
 
         except Exception as e:
@@ -1042,7 +1167,7 @@ class AgentExecutor:
         for keyword in decision_keywords:
             if keyword in user_answer:
                 # 提取包含关键词的句子
-                sentences = user_answer.split("，|。|；|！")
+                sentences = re.split(r"[，。；！]+", user_answer)
                 for sentence in sentences:
                     if keyword in sentence:
                         return sentence.strip()[:100]

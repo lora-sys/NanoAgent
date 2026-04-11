@@ -58,8 +58,24 @@ class CacheManager:
         """生成缓存键"""
         # 将消息和参数转换为字符串
         cache_data = {"messages": messages, "kwargs": kwargs}
+
+        # 如果需要包含模型名称，添加到缓存数据中
+        if self.include_model_name and "model" in kwargs:
+            cache_data["model"] = kwargs["model"]
+
         cache_str = json.dumps(cache_data, sort_keys=True)
-        return hashlib.md5(cache_str.encode()).hexdigest()
+
+        # 使用配置的哈希算法
+        try:
+            hash_obj = hashlib.new(self.key_hash_algorithm)
+            hash_obj.update(cache_str.encode())
+            return hash_obj.hexdigest()
+        except ValueError:
+            # 如果算法不支持，回退到 md5
+            logger.warning(
+                f"Unsupported hash algorithm: {self.key_hash_algorithm}, falling back to md5"
+            )
+            return hashlib.md5(cache_str.encode()).hexdigest()
 
     def _get_cache_file(self, cache_key: str) -> str:
         """获取缓存文件路径"""

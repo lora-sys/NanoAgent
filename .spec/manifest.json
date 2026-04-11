@@ -1,7 +1,7 @@
 {
-  "project_name": "GreenEnergy",
-  "status": "active",
-  "current_stage": "stage_1",
+  "project_name": "SmartHomeAI",
+  "status": "completed",
+  "current_stage": "stage_5",
   "storage": {
     "master": ".spec/master_spec.md",
     "steps_dir": ".spec/steps/"
@@ -11,31 +11,31 @@
       "id": "stage_1",
       "name": "需求对齐",
       "file": "01_requirements.md",
-      "status": "active"
+      "status": "completed"
     },
     {
       "id": "stage_2",
       "name": "接口设计",
       "file": "02_api_design.md",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "stage_3",
       "name": "逻辑实现",
       "file": "03_implementation.md",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "stage_4",
       "name": "测试计划",
       "file": "04_testing.md",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "stage_5",
       "name": "部署指南",
       "file": "05_deployment.md",
-      "status": "pending"
+      "status": "completed"
     }
   ]
 }

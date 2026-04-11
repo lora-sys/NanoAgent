@@ -20,7 +20,11 @@ def safe_list_directory(path: str = ".") -> str:
     """安全列出目录内容"""
     try:
         target = (SANDBOX_DIR / path).resolve()
-        if not str(target).startswith(str(SANDBOX_DIR)):
+
+        # 使用相对路径检查来验证沙箱边界
+        try:
+            target.relative_to(SANDBOX_DIR)
+        except ValueError:
             raise ValueError("Access denied: Path outside sandbox")
 
         if not target.exists() or not target.is_dir():

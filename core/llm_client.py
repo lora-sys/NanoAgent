@@ -329,6 +329,72 @@ class NanoLLMClient:
             logger.error(f"Structured chat error: {e}")
             raise
 
+    def structured_chat_with_validation(
+        self,
+        messages: List[Dict[str, str]],
+        response_model: Type[T],
+        temperature: Optional[float] = None,
+        max_retries: int = 3,
+    ) -> T:
+        """
+        带多层防御验证的结构化输出
+
+        使用多层防御策略：
+        Layer 1: Prompt Engineering（基础层）
+        Layer 2: JSON Mode（增强层，如果支持）
+        Layer 3: 验证 + 修复（保证层）
+        Layer 4: 重试机制（最终保证）
+
+        Args:
+            messages: 消息列表
+            response_model: 目标 Pydantic 模型类型
+            temperature: 温度参数
+            max_retries: 最大重试次数
+
+        Returns:
+            验证后的 Pydantic 模型实例
+
+        Raises:
+            ValueError: 如果重试后仍然失败
+        """
+        from .output_validator import validate_with_retry
+
+        for attempt in range(max_retries):
+            try:
+                # 使用 Chat Completions API
+                response = litellm.completion(
+                    model=self.model,
+                    messages=messages,
+                    temperature=self._get_temperature(temperature),
+                    max_tokens=self.max_tokens,
+                    response_format={"type": "json_object"},
+                )
+
+                content = response.choices[0].message.content or ""
+                usage = {
+                    "input_tokens": response.usage.prompt_tokens,
+                    "output_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                }
+
+                logger.debug(f"Structured response: {content[:200]}...")
+                logger.info(
+                    f"Structured chat completed - Total tokens: {usage['total_tokens']}"
+                )
+
+                # 使用多层防御验证输出
+                return validate_with_retry(content, response_model, max_retries=1)
+
+            except Exception as e:
+                logger.warning(f"尝试 {attempt + 1}/{max_retries} 失败: {e}")
+
+                if attempt == max_retries - 1:
+                    logger.error(f"所有尝试都失败: {e}")
+                    raise ValueError(f"无法获取有效的结构化输出: {e}")
+
+        # 理论上不会到达这里
+        raise ValueError("无法获取有效的结构化输出")
+
     def tool_chat(
         self,
         messages: List[Dict[str, str]],

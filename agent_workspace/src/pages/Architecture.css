@@ -1,0 +1,214 @@
+/* Architecture Page Styles - SmartHome AI */
+
+.architecture-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 80px 20px;
+  background: linear-gradient(135deg, #0a1628 0%, #1a365d 100%);
+  min-height: 100vh;
+}
+
+.architecture-header {
+  text-align: center;
+  margin-bottom: 60px;
+}
+
+.architecture-header h1 {
+  font-size: 3rem;
+  color: #63b3ed;
+  margin-bottom: 20px;
+  font-weight: 700;
+  text-shadow: 0 0 20px rgba(99, 179, 237, 0.5);
+}
+
+.architecture-header p {
+  font-size: 1.2rem;
+  color: #a0aec0;
+  max-width: 800px;
+  margin: 0 auto;
+  line-height: 1.8;
+}
+
+.architecture-diagram {
+  background: rgba(26, 54, 93, 0.5);
+  border-radius: 20px;
+  padding: 40px;
+  margin-bottom: 60px;
+  border: 1px solid rgba(99, 179, 237, 0.3);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.diagram-title {
+  text-align: center;
+  color: #63b3ed;
+  font-size: 1.8rem;
+  margin-bottom: 40px;
+  font-weight: 600;
+}
+
+.architecture-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.layer {
+  background: linear-gradient(135deg, rgba(45, 55, 72, 0.8) 0%, rgba(26, 54, 93, 0.8) 100%);
+  border-radius: 15px;
+  padding: 30px;
+  border: 1px solid rgba(99, 179, 237, 0.2);
+  transition: all 0.3s ease;
+}
+
+.layer:hover {
+  border-color: rgba(99, 179, 237, 0.6);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(99, 179, 237, 0.2);
+}
+
+.layer-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.layer-icon {
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, #4299e1 0%, #63b3ed 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.layer-title {
+  color: #63b3ed;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.layer-components {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.component {
+  background: rgba(99, 179, 237, 0.1);
+  border-radius: 10px;
+  padding: 15px;
+  text-align: center;
+  border: 1px solid rgba(99, 179, 237, 0.2);
+  transition: all 0.3s ease;
+}
+
+.component:hover {
+  background: rgba(99, 179, 237, 0.2);
+  border-color: rgba(99, 179, 237, 0.4);
+}
+
+.component-name {
+  color: #e2e8f0;
+  font-weight: 500;
+  margin-bottom: 5px;
+}
+
+.component-desc {
+  color: #a0aec0;
+  font-size: 0.85rem;
+}
+
+.architecture-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+  margin-top: 60px;
+}
+
+.feature-card {
+  background: rgba(26, 54, 93, 0.5);
+  border-radius: 15px;
+  padding: 30px;
+  border: 1px solid rgba(99, 179, 237, 0.2);
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+  border-color: rgba(99, 179, 237, 0.5);
+  transform: translateY(-5px);
+}
+
+.feature-icon {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #4299e1 0%, #63b3ed 100%);
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+}
+
+.feature-title {
+  color: #63b3ed;
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 15px;
+}
+
+.feature-desc {
+  color: #a0aec0;
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .architecture-container {
+    padding: 60px 15px;
+  }
+
+  .architecture-header h1 {
+    font-size: 2rem;
+  }
+
+  .architecture-header p {
+    font-size: 1rem;
+  }
+
+  .architecture-diagram {
+    padding: 25px;
+  }
+
+  .layer {
+    padding: 20px;
+  }
+
+  .layer-components {
+    grid-template-columns: 1fr;
+  }
+
+  .architecture-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .architecture-header h1 {
+    font-size: 1.6rem;
+  }
+
+  .layer-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+  }
+
+  .layer-title {
+    font-size: 1.2rem;
+  }
+}

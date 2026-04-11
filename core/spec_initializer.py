@@ -48,7 +48,7 @@ class SpecInitializer:
 
         # 3. 加载并填充模板
         self._load_and_fill_templates(
-            task, routing_decision, routing_decision.template_modules
+            task, routing_decision, routing_decision.template_modules, project_name
         )
 
         # 4. 创建步骤文件
@@ -164,7 +164,11 @@ class SpecInitializer:
             }
 
     def _load_and_fill_templates(
-        self, task: str, routing_decision, template_modules: List[str] = None
+        self,
+        task: str,
+        routing_decision,
+        template_modules: List[str] = None,
+        project_name: str = None,
     ):
         """加载并填充模板（使用 LLM 生成内容）"""
         print("\n📄 加载并填充模板...")
@@ -182,25 +186,26 @@ class SpecInitializer:
 
             # 填充基本占位符
             content = base_template.replace(
-                "{{Project_Name}}", self._generate_project_name(task)
+                "{{Project_Name}}",
+                project_name if project_name else self._generate_project_name(task),
             )
             content = content.replace("{{一句话描述核心交付物}}", task)
             content = content.replace("{{Step_ID}}", "stage_1")
 
             # 填充 MUST 约束
             must_list = "\n".join(
-                [f"  - {c}" for c in spec_content.get("must_constraints", [])]
+                [f"- {c}" for c in spec_content.get("must_constraints", [])]
             )
             content = content.replace(
-                "{{约束项 1}}", must_list if must_list else "  - 待确认"
+                "{{约束项 1}}", must_list if must_list else "- 待确认"
             )
 
             # 填充 MUST NOT 约束
             must_not_list = "\n".join(
-                [f"  - {c}" for c in spec_content.get("must_not_constraints", [])]
+                [f"- {c}" for c in spec_content.get("must_not_constraints", [])]
             )
             content = content.replace(
-                "{{禁止项 1}}", must_not_list if must_not_list else "  - 待确认"
+                "{{禁止项 1}}", must_not_list if must_not_list else "- 待确认"
             )
 
             # 填充交付物清单
@@ -217,11 +222,11 @@ class SpecInitializer:
 
             # 填充决策点
             decisions_section = "\n".join(
-                [f"- [DECISION]: {d}" for d in spec_content.get("decisions", [])]
+                [f"- \\[DECISION\\]: {d}" for d in spec_content.get("decisions", [])]
             )
             content = content.replace(
-                "- [DECISION]: {{记录点}}",
-                decisions_section if decisions_section else "- [DECISION]: 待记录",
+                "- \\[DECISION\\]: {{记录点}}",
+                decisions_section if decisions_section else "- \\[DECISION\\]: 待记录",
             )
 
             # 保存到 .spec/master_spec.md
@@ -360,14 +365,13 @@ class SpecInitializer:
    - Never（绝对禁止）：2-3 条
 3. **交互提示**：该阶段需要询问用户什么信息
 
-请以以下格式返回：
+请以以下格式返回（注意：不要包含"边界约束："标签，直接使用 Markdown 标题）：
 
 成功标准：
 - [ ] 标准 1
 - [ ] 标准 2
 ...
 
-边界约束：
 ### Always (必须做)
 - 约束 1
 - 约束 2
@@ -404,8 +408,6 @@ class SpecInitializer:
 
 ## 成功标准
 {response}
-
-## 边界约束
 
 ---
 

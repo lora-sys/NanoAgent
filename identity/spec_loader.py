@@ -30,7 +30,7 @@ class SpecLoader:
 
         # 读取模板
         template = (
-            safe_read_file(str(template_path.relative_to(".")))
+            safe_read_file(str(template_path))
             if template_path.exists()
             else "# Default Spec"
         )

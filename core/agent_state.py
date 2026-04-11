@@ -1,10 +1,11 @@
 from typing import Any, List, Dict, Optional
 from spec.models import PlanStep, AgentPlan
 from loguru import logger
+from core.state_machine import StateMachine, AgentState as StateMachineState
 
 
 class AgentState:
-    """Agent 状态管理 - 支持 Planning + ReAct 循环"""
+    """Agent 状态管理 - 支持 Planning + ReAct 循环 + 状态机"""
 
     def __init__(self, config: Dict[str, Any] = None):
         """
@@ -31,6 +32,9 @@ class AgentState:
         # 决策和交付物管理
         self.decisions: List[Dict] = []  # 存储决策记录
         self.artifacts: List[Dict] = []  # 存储交付物记录
+
+        # 新增：状态机
+        self.state_machine = StateMachine()
 
         # 从配置中读取参数（支持完整config或core_config）
         if config and "core" in config:
@@ -156,12 +160,33 @@ class AgentState:
         else:
             summary_lines.append("\n⏳ 需求待确认")
 
+        # 添加当前状态
+        current_state = self.get_current_state()
+        summary_lines.append(f"\n🔄 当前状态: {current_state.value}")
+
         return "\n".join(summary_lines)
 
     def confirm_requirements(self):
-        """标记需求已确认"""
+        """标记需求已确认（触发状态转换）"""
         self.requirements_confirmed = True
-        logger.info("Requirements confirmed")
+        logger.info("Requirements confirmed, triggering state transition")
+
+        # 触发状态转换（只有在 REQUIREMENT_GATHERING 状态时才转换）
+        try:
+            current_state = self.state_machine.get_current_state()
+            if current_state == StateMachineState.REQUIREMENT_GATHERING:
+                self.state_machine.transition(
+                    StateMachineState.REQUIREMENT_CONFIRMED,
+                    "用户确认需求",
+                    {"step_count": self.step_count},
+                )
+            else:
+                logger.warning(
+                    f"Cannot transition to REQUIREMENT_CONFIRMED from {current_state.value}, "
+                    "expected REQUIREMENT_GATHERING"
+                )
+        except ValueError as e:
+            logger.error(f"State transition failed: {e}")
 
     def is_requirements_confirmed(self) -> bool:
         """
@@ -171,6 +196,24 @@ class AgentState:
             需求是否已确认
         """
         return self.requirements_confirmed
+
+    def get_current_state(self) -> StateMachineState:
+        """
+        获取当前状态
+
+        Returns:
+            当前状态
+        """
+        return self.state_machine.get_current_state()
+
+    def get_transition_history(self) -> List[Dict]:
+        """
+        获取状态转换历史
+
+        Returns:
+            状态转换历史列表
+        """
+        return self.state_machine.get_transition_history()
 
     def get_requirements_by_category(self, category: str) -> Dict[str, Any]:
         """
@@ -214,9 +257,20 @@ class AgentState:
         获取所有决策
 
         Returns:
-            决策列表
+            决策列表，格式为 [{"decision": "...", "rationale": ""}]
         """
-        return self.decisions
+        formatted_decisions = []
+        for d in self.decisions:
+            if isinstance(d, dict):
+                # 已经是正确格式
+                formatted_decisions.append(d)
+            elif isinstance(d, str):
+                # 将字符串决策转换为字典格式
+                formatted_decisions.append(
+                    {"decision": d, "rationale": "从执行记录中提取"}
+                )
+
+        return formatted_decisions
 
     def get_decisions_summary(self) -> str:
         """
@@ -245,7 +299,7 @@ class AgentState:
 
     def add_artifact(self, artifact_path: str, description: str = "", step: int = None):
         """
-        添加交付物记录
+        添加交付物记录（可能触发状态转换）
 
         Args:
             artifact_path: 交付物路径
@@ -261,6 +315,38 @@ class AgentState:
             }
         )
         logger.info(f"Artifact added: {artifact_path}")
+
+        # 根据当前状态进行合适的状态转换
+        try:
+            current_state = self.state_machine.get_current_state()
+
+            if current_state == StateMachineState.REQUIREMENT_CONFIRMED:
+                # 从需求确认状态转换到规划状态
+                self.state_machine.transition(
+                    StateMachineState.PLANNING,
+                    "创建第一个交付物，开始规划",
+                    {"artifact_path": artifact_path},
+                )
+                logger.info("State transition: REQUIREMENT_CONFIRMED -> PLANNING")
+            elif current_state == StateMachineState.PLANNING:
+                # 从规划状态转换到执行状态
+                self.state_machine.transition(
+                    StateMachineState.EXECUTING,
+                    "开始执行任务",
+                    {"artifact_path": artifact_path},
+                )
+                logger.info("State transition: PLANNING -> EXECUTING")
+            elif current_state == StateMachineState.EXECUTING:
+                # 已经在执行状态，不需要转换
+                logger.debug("Already in EXECUTING state, no transition needed")
+            else:
+                # 其他状态（INITIAL, REQUIREMENT_GATHERING 等）不进行状态转换
+                logger.debug(
+                    f"Current state {current_state.value}, not transitioning on artifact creation"
+                )
+        except ValueError as e:
+            # 状态转换失败，记录错误但不影响交付物添加
+            logger.warning(f"State transition failed: {e}, artifact still added")
 
     def get_artifacts(self) -> List[str]:
         """
@@ -309,6 +395,7 @@ class AgentState:
             "reflections_count": len(self.reflections),
             "decisions_count": len(self.decisions),
             "artifacts_count": len(self.artifacts),
+            "current_state": self.get_current_state().value,
         }
 
     def get_execution_summary(self) -> str:
@@ -323,7 +410,8 @@ class AgentState:
             f"  - 观察记录: {progress['observations_count']}\n"
             f"  - 反思次数: {progress['reflections_count']}\n"
             f"  - 决策数量: {progress['decisions_count']}\n"
-            f"  - 交付物数量: {progress['artifacts_count']}"
+            f"  - 交付物数量: {progress['artifacts_count']}\n"
+            f"  - 当前状态: {progress['current_state']}"
         )
 
     def _log_execution(self, event_type: str, data: Dict):
@@ -353,6 +441,8 @@ class AgentState:
             "progress": self.get_progress(),
             "decisions": self.decisions,
             "artifacts": self.artifacts,
+            "current_state": self.get_current_state().value,
+            "transition_history": self.get_transition_history(),
         }
 
     def summary(self) -> str:
@@ -374,6 +464,7 @@ class AgentState:
         self.requirements_history = []
         self.decisions = []
         self.artifacts = []
+        self.state_machine = StateMachine()
 
     def get_recent_observations(self, limit: int = 5) -> List[Dict]:
         """
@@ -510,6 +601,8 @@ class AgentState:
             "timestamp": self._get_timestamp(),
             "decisions": self.decisions,
             "artifacts": self.artifacts,
+            "current_state": self.get_current_state().value,
+            "transition_history": self.get_transition_history(),
         }
 
     @classmethod
@@ -542,4 +635,4 @@ class AgentState:
         return agent_state
 
     def __repr__(self) -> str:
-        return f"AgentState(step={self.step_count}, observations={len(self.observations)}, plan_steps={len(self.current_plan.steps) if self.current_plan else 0})"
+        return f"AgentState(step={self.step_count}, observations={len(self.observations)}, plan_steps={len(self.current_plan.steps) if self.current_plan else 0}, state={self.get_current_state().value})"

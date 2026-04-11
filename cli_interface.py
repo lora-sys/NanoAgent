@@ -15,6 +15,12 @@ from loguru import logger
 from typing import Optional, Callable
 from queue import Queue
 import time
+import hashlib
+
+
+def _generate_fingerprint(value: str) -> str:
+    """生成值的 SHA-256 指纹（用于安全日志记录）"""
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
 
 
 class CLIInterface:
@@ -134,7 +140,9 @@ class CLIInterface:
             if 0 <= idx < len(options):
                 answer = options[idx]
 
-        logger.info(f"用户回答：{answer[:50]}...")
+        logger.info(
+            f"用户回答：长度={len(answer)}, 指纹={_generate_fingerprint(answer)}"
+        )
         return answer
 
     def display_decision(self, analysis: str, action: str, risk: str = "low") -> str:
@@ -178,7 +186,9 @@ class CLIInterface:
         print("\n请提供纠正或指导：")
         correction = input("> ").strip()
 
-        logger.info(f"人类干预已提供：{correction[:50]}...")
+        logger.info(
+            f"人类干预已提供：长度={len(correction)}, 指纹={_generate_fingerprint(correction)}"
+        )
         return correction
 
     def display_escalation(self, reason: str, level: str, context: str) -> str:
@@ -262,7 +272,9 @@ class CLIInterface:
         # 获取反馈
         user_feedback = input("请提供反馈：").strip()
 
-        logger.info(f"反馈已收集（类型={feedback_type}）：{user_feedback[:50]}...")
+        logger.info(
+            f"反馈已收集：类型={feedback_type}, 长度={len(user_feedback)}, 指纹={_generate_fingerprint(user_feedback)}"
+        )
         return user_feedback
 
     def display_header(self):
