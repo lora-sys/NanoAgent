@@ -9,8 +9,8 @@ import os
 from typing import Any, Optional, Dict
 from datetime import datetime, timedelta
 from loguru import logger
-from .config import get_config_manager
-from .interfaces import ICacheManager
+from infrastructure.config.manager import get_config_manager
+from domain.interfaces.interfaces import ICacheManager
 
 
 class CacheManager(ICacheManager):

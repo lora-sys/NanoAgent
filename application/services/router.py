@@ -6,7 +6,7 @@
 import json
 import os
 from typing import Dict, List, Optional
-from spec.models import TaskType, RoutingDecision
+from domain.models.models import TaskType, RoutingDecision
 from core.interfaces import IRouter
 
 

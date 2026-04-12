@@ -10,7 +10,7 @@
 from loguru import logger
 from typing import Dict, Any, Optional, List
 import importlib
-from core.interfaces import IToolRegistry
+from domain.interfaces.interfaces import IToolRegistry
 
 # 第一层：类别索引（始终加载，简洁描述）
 CATEGORIES = {

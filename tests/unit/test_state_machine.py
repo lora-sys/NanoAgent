@@ -3,7 +3,7 @@
 """
 
 import pytest
-from core.state_machine import StateMachine, AgentState
+from domain.entities.state_machine import StateMachine, AgentState
 
 
 class TestStateMachine:

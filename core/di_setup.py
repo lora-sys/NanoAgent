@@ -7,11 +7,11 @@
 
 from typing import Optional
 from loguru import logger
-from .container import DIContainer, get_container
-from .config import ConfigManager
-from .cache import CacheManager
-from .tools.registry import ToolRegistry
-from .interfaces import (
+from infrastructure.container import DIContainer, get_container
+from infrastructure.config.manager import ConfigManager
+from infrastructure.cache.manager import CacheManager
+from infrastructure.tools.registry import ToolRegistry
+from domain.interfaces.interfaces import (
     IConfigManager,
     ICacheManager,
     IToolRegistry,

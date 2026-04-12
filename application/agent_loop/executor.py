@@ -37,31 +37,29 @@ from spec.models import AgentPlan
 class AgentExecutor:
     """执行器 - 编排器模式。
 
-    负责 ReAct 循环的编排，将各个阶段（Think, Act, Observe, Reflection）
-    委托给独立的处理器。
-
-    此类作为应用层的核心编排器，协调 LLM、工具、上下文管理和状态机，
-    确保 Agent 按照 Spec 和规则有序执行任务。
+    负责 ReAct 循环的编排，将各个阶段委托给独立的处理器。
 
     Attributes:
-        llm_client: LLM 客户端实例。
-        router: 路由器实例，用于任务分类。
-        manifest_manager: Manifest 管理器实例。
-        context_loader: 上下文加载器实例。
-        spec_generator: Spec 生成器实例。
-        tool_registry: 工具注册表实例。
-        persistence_manager: 持久化管理器实例。
-        cache: 缓存管理器实例。
-        config: 配置字典。
-        state: Agent 状态管理器实例。
+        llm_client: LLM 客户端实例
+        router: 路由器实例
+        manifest_manager: Manifest 管理器实例
+        context_loader: 上下文加载器实例
+        spec_generator: Spec 生成器实例
+        tool_registry: 工具注册表实例
+        persistence_manager: 持久化管理器实例
+        cache: 缓存管理器实例
+        config: 配置字典
+        state: Agent 状态管理器实例
 
     Example:
         >>> executor = AgentExecutor(
         ...     llm_client=llm_client,
         ...     router=router,
         ...     manifest_manager=manifest_manager,
+        ...     context_loader=context_loader,
+        ...     spec_generator=spec_generator,
         ... )
-        >>> result = executor.think_phase(task="...", context={})
+        >>> result = executor.run(task="编写代码")
     """
 
     def __init__(
@@ -77,22 +75,7 @@ class AgentExecutor:
         config: Optional[Dict[str, Any]] = None,
         state: Optional[StateManagerProtocol] = None,
     ):
-        """初始化执行器。
-
-        配置所有依赖组件并初始化各个阶段处理器。
-
-        Args:
-            llm_client: LLM 客户端。
-            router: 路由器。
-            manifest_manager: Manifest 管理器。
-            context_loader: 上下文加载器。
-            spec_generator: Spec 生成器。
-            tool_registry: 工具注册表。
-            persistence_manager: 持久化管理器。
-            cache: 缓存管理器。
-            config: 配置字典。
-            state: 状态管理器。
-        """
+        """初始化执行器"""
         self.llm_client = llm_client
         self.router = router
         self.manifest_manager = manifest_manager
@@ -153,65 +136,28 @@ class AgentExecutor:
     # ============ 代理方法 ============
 
     def route_task(self, task: str) -> Dict[str, Any]:
-        """路由任务。
-
-        使用路由器对任务进行分类，确定任务类型和置信度。
-
-        Args:
-            task: 用户任务描述。
-
-        Returns:
-            路由决策结果。
-        """
+        """路由任务"""
         logger.info("=== Phase 1: Task Routing ===")
         return self.router.route(task)
 
     def should_init_spec(self, task: str, routing_decision: Dict[str, Any]) -> bool:
-        """判断是否需要初始化 Spec。
-
-        Args:
-            task: 用户任务描述。
-            routing_decision: 路由决策结果。
-
-        Returns:
-            是否需要初始化 Spec。
-        """
+        """判断是否需要初始化 Spec"""
         from domain.models.models import TaskType
         return routing_decision.get("task_type") == TaskType.CODE
 
     def load_context(self) -> Dict[str, Any]:
-        """加载上下文。
-
-        从上下文加载器中获取当前阶段的上下文信息。
-
-        Returns:
-            上下文字典。
-        """
+        """加载上下文"""
         logger.info("=== Phase 3: Dynamic Context Loading ===")
         context = self.context_loader.load_context()
         logger.info(f"Context loaded for stage: {context.get('current_stage_id', 'unknown')}")
         return context
 
     def update_context(self, updates: Dict[str, Any]) -> None:
-        """更新上下文。
-
-        Args:
-            updates: 要更新的上下文字典。
-        """
+        """更新上下文"""
         self.context_loader.update_context(updates)
 
     def planning_phase(self, task: str, context: Dict[str, Any]) -> AgentPlan:
-        """Planning 阶段。
-
-        根据任务和上下文生成执行计划。
-
-        Args:
-            task: 用户任务描述。
-            context: 当前上下文。
-
-        Returns:
-            生成的执行计划。
-        """
+        """Planning 阶段"""
         # 构建 spec 内容
         spec_content = ""
         if context.get("master_spec") and context.get("current_stage_spec"):
@@ -238,20 +184,7 @@ class AgentExecutor:
         step_count: int = 0,
         spec: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Think 阶段。
-
-        分析当前状态并决定下一步行动。
-
-        Args:
-            task: 用户任务描述。
-            context: 当前上下文。
-            observations: 历史观察记录。
-            step_count: 当前步骤计数。
-            spec: 任务规范。
-
-        Returns:
-            思考结果，包含下一步行动决策。
-        """
+        """Think 阶段"""
         return self.thinking_phase.execute(
             task=task,
             context=context,
@@ -262,51 +195,22 @@ class AgentExecutor:
         )
 
     def act_phase(self, action: Dict[str, Any]) -> Any:
-        """Act 阶段。
-
-        执行 Think 阶段决定的行动。
-
-        Args:
-            action: 行动描述，包含工具调用信息。
-
-        Returns:
-            行动执行结果。
-        """
+        """Act 阶段"""
         return self.acting_phase.execute(action)
 
     def observe_phase(self, action: Dict[str, Any], result: Any) -> Dict[str, Any]:
-        """Observe 阶段。
-
-        观察行动执行结果并决定下一步。
-
-        Args:
-            action: 执行的行动。
-            result: 执行结果。
-
-        Returns:
-            观察结果和下一步决策。
-        """
+        """Observe 阶段"""
         return self.observing_phase.execute(
             last_action=action,
             tool_result=result,
         )
 
     def reflection_phase(
-        self,
-        observations: List[Dict[str, Any]],
-        spec: Optional[Any] = None,
+        self, 
+        observations: List[Dict[str, Any]], 
+        spec: Optional[Any] = None
     ) -> Dict[str, Any]:
-        """Reflection 阶段。
-
-        自我评估执行进度和质量，决定是否需要调整策略。
-
-        Args:
-            observations: 历史观察记录。
-            spec: 任务规范。
-
-        Returns:
-            反思结果，包含进度评估和下一步建议。
-        """
+        """Reflection 阶段"""
         return self.reflection_phase_handler.execute(
             execution_history=observations,
             task_spec=spec,

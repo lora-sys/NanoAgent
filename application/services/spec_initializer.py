@@ -7,7 +7,7 @@ Spec 初始化器 - NanoAgent
 import os
 from typing import Dict, List
 from datetime import datetime
-from spec.models import PipelineStage, Manifest, TemplateSpecContent
+from domain.models.models import PipelineStage, Manifest, TemplateSpecContent
 from .llm_client import NanoLLMClient
 
 

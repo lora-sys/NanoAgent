@@ -4,8 +4,8 @@ from pydantic import BaseModel
 import json
 import litellm
 from loguru import logger
-from .config import get_config_manager
-from .interfaces import ILLMClient
+from infrastructure.config.manager import get_config_manager
+from domain.interfaces.interfaces import ILLMClient
 
 load_dotenv()
 

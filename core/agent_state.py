@@ -1,7 +1,7 @@
 from typing import Any, List, Dict, Optional
 from spec.models import PlanStep, AgentPlan
 from loguru import logger
-from core.state_machine import StateMachine, AgentState as StateMachineState
+from domain.entities.state_machine import StateMachine, AgentState as StateMachineState
 
 
 class AgentState:

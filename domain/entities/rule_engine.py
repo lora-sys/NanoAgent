@@ -1,17 +1,31 @@
 """
 规则引擎模块 - NanoAgent
-提供确定性的规则检查机制
+提供确定性的规则检查机制。
+
+该模块用于验证 Agent 执行过程中的各种业务规则，
+例如阶段完成条件、需求确认状态、交付物检查等。
 """
 
-from typing import Dict, Callable
+from typing import Dict, Callable, Any
 from loguru import logger
 
 
 class RuleEngine:
-    """确定性规则引擎"""
+    """确定性规则引擎。
+
+    维护一组预定义的规则（Callable），并根据传入的上下文进行检查。
+    这些规则通常用于判断 Agent 是否可以进入下一个状态或阶段。
+
+    Attributes:
+        rules: 注册的所有规则字典，键为规则名称，值为检查函数。
+
+    Example:
+        >>> engine = RuleEngine()
+        >>> result = engine.check_rule("has_artifacts", {"artifacts": ["file.txt"]})
+    """
 
     def __init__(self):
-        """初始化规则引擎"""
+        """初始化规则引擎，注册内置规则。"""
         self.rules: Dict[str, Callable] = {
             "stage_1_completion": self._check_stage_1_completion,
             "stage_2_5_completion": self._check_stage_2_5_completion,
@@ -24,14 +38,17 @@ class RuleEngine:
         )
 
     def check_rule(self, rule_name: str, context: Dict) -> bool:
-        """检查特定规则
+        """检查特定规则。
 
         Args:
-            rule_name: 规则名称
-            context: 上下文字典
+            rule_name: 规则名称。
+            context: 用于检查规则的上下文字典。
 
         Returns:
-            规则检查结果（True/False）
+            规则检查结果（True 表示通过，False 表示未通过）。
+
+        Raises:
+            如果规则执行异常，记录错误并返回 False。
         """
         if rule_name not in self.rules:
             logger.warning(f"Unknown rule: {rule_name}")
@@ -46,13 +63,13 @@ class RuleEngine:
             return False
 
     def check_all_rules(self, context: Dict) -> Dict[str, bool]:
-        """检查所有规则
+        """检查所有已注册的规则。
 
         Args:
-            context: 上下文字典
+            context: 用于检查规则的上下文字典。
 
         Returns:
-            所有规则的检查结果
+            包含所有规则名称及其检查结果的字典。
         """
         results = {}
         for rule_name, rule_func in self.rules.items():
@@ -64,14 +81,20 @@ class RuleEngine:
         return results
 
     def determine_stage_completion(self, stage_id: str, context: Dict) -> bool:
-        """确定阶段是否完成（确定性判断）
+        """确定指定阶段是否完成。
+
+        根据不同阶段的特定规则来判断阶段完成情况。
 
         Args:
-            stage_id: 阶段 ID（如 stage_1, stage_2 等）
-            context: 上下文字典
+            stage_id: 阶段 ID（如 stage_1, stage_2 等）。
+            context: 用于检查规则的上下文字典。
 
         Returns:
-            阶段是否完成
+            阶段是否完成。
+
+        Example:
+            >>> engine.determine_stage_completion("stage_1", {"requirements_confirmed": True})
+            True
         """
         if stage_id == "stage_1":
             # 阶段 1：需求对齐
@@ -86,12 +109,17 @@ class RuleEngine:
             return False
 
     def _check_stage_1_completion(self, context: Dict) -> bool:
-        """检查阶段 1 是否完成（需求对齐）
+        """检查阶段 1（需求对齐）是否完成。
 
-        规则：需求已确认 或 已有交付物
+        规则：需求已确认 或 已有交付物。
         - 如果需求已确认（requirements_confirmed=True），则认为阶段 1 完成
         - 如果需求未确认但有交付物（artifacts > 0），也认为阶段 1 完成
-          （适用于跳过需求确认流程的项目）
+
+        Args:
+            context: 上下文字典。
+
+        Returns:
+            阶段是否完成。
         """
         requirements_confirmed = context.get("requirements_confirmed", False)
         artifacts = context.get("artifacts", [])
