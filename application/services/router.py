@@ -7,7 +7,6 @@ import json
 import os
 from typing import Dict, List, Optional
 from domain.models.models import TaskType, RoutingDecision
-from core.interfaces import IRouter
 
 
 # 共享的模板模块映射（消除重复代码）
@@ -266,7 +265,7 @@ class LLMRouter:
         )
 
 
-class HybridRouter(IRouter):
+class HybridRouter:
     """混合路由器 - 结合规则路由和 LLM 路由"""
 
     def __init__(self, llm_client, rules_file: str = None):

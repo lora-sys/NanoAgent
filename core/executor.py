@@ -7,13 +7,6 @@
 from typing import Dict, Any, Optional, List
 from loguru import logger
 
-from core.interfaces import (
-    ILLMClient,
-    IRouter,
-    IManifestManager,
-    IContextLoader,
-    ISpecGenerator,
-)
 from core.phases import (
     ThinkingPhase,
     ActingPhase,
@@ -62,11 +55,11 @@ class AgentExecutor:
 
     def __init__(
         self,
-        llm_client: ILLMClient,
-        router: IRouter,
-        manifest_manager: IManifestManager,
-        context_loader: IContextLoader,
-        spec_generator: ISpecGenerator,
+        llm_client: Any,
+        router: Any,
+        manifest_manager: Any,
+        context_loader: Any,
+        spec_generator: Any,
         tool_registry: Optional[Any] = None,
         persistence_manager: Optional[PersistenceManagerProtocol] = None,
         cache: Optional[CacheManagerProtocol] = None,

@@ -8,10 +8,9 @@ import toml
 from pathlib import Path
 from typing import Dict, Any, Optional
 from loguru import logger
-from domain.interfaces.interfaces import IConfigManager
 
 
-class ConfigManager(IConfigManager):
+class ConfigManager:
     """配置管理器 - 负责加载和管理所有模块配置"""
 
     def __init__(self, config_dir: str = "config", main_config: str = "nanoagent.toml"):

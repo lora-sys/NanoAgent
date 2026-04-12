@@ -10,10 +10,9 @@ from typing import Any, Optional, Dict
 from datetime import datetime, timedelta
 from loguru import logger
 from infrastructure.config.manager import get_config_manager
-from domain.interfaces.interfaces import ICacheManager
 
 
-class CacheManager(ICacheManager):
+class CacheManager:
     """缓存管理器"""
 
     def __init__(self, cache_dir: Optional[str] = None, ttl_hours: int = None):

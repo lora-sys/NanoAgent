@@ -8,7 +8,6 @@ from loguru import logger
 from infrastructure.config.manager import get_config_manager, ConfigManager
 from core.agent_state import AgentState
 from core.executor import AgentExecutor
-from infrastructure.container import DIContainer
 from application.services.spec_initializer import SpecInitializer
 
 

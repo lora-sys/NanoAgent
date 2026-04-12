@@ -10,7 +10,6 @@
 from loguru import logger
 from typing import Dict, Any, Optional, List
 import importlib
-from domain.interfaces.interfaces import IToolRegistry
 
 # 第一层：类别索引（始终加载，简洁描述）
 CATEGORIES = {
@@ -25,7 +24,7 @@ CATEGORY_MODULES = {
 }
 
 
-class ToolRegistry(IToolRegistry):
+class ToolRegistry:
     """工具注册表 - 支持动态加载和安全检查"""
 
     def __init__(self, config: Dict[str, Any] = None):

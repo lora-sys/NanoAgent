@@ -1,56 +1,64 @@
 """
-NanoAgent - 主协调器（简化版）
-纯粹的协调逻辑，所有业务逻辑委托给专门的模块
+NanoAgent - 主协调器
 """
 
 from typing import Dict, Any
 from loguru import logger
-from infrastructure.config.manager import get_config_manager, ConfigManager
-from .agent_state import AgentState
-from .executor import AgentExecutor
-from infrastructure.container import DIContainer
+from infrastructure.config.manager import get_config_manager
 from application.services.spec_initializer import SpecInitializer
 
 
 class NanoAgent:
-    """NanoAgent - 主协调器（简化版，纯粹的协调逻辑）"""
-
-    def __init__(self, config: Dict[str, Any] = None, container: DIContainer = None):
-        """
-        初始化协调器
-
-        Args:
-            config: 配置字典（优先级最高）
-            container: 依赖注入容器
-        """
-        # 配置管理
+    def __init__(self, config: Dict[str, Any] = None):
+        # 加载配置
         if config:
             self.config = config
-        elif container and container.has(ConfigManager):
-            config_manager = container.get(ConfigManager)
-            self.config = self._load_all_configs(config_manager)
         else:
-            config_manager = get_config_manager()
-            self.config = self._load_all_configs(config_manager)
+            self.config = self._load_all_configs(get_config_manager())
 
-        # 通过依赖注入获取各个组件
-        if container:
-            self.executor = container.get(AgentExecutor)
-            self.state = container.get(AgentState)
-            self.spec_initializer = (
-                container.get(SpecInitializer)
-                if container.has(SpecInitializer)
-                else SpecInitializer(
-                    llm_client=self.executor.llm_client
-                )  # 从 executor 获取 llm_client
-            )
-            # 从 executor 中获取 manifest_manager（因为 executor 已经有这个引用）
-            self.manifest_manager = self.executor.manifest_manager
-        else:
-            # 向后兼容的传统初始化
-            self._initialize_components()
+        # 初始化组件
+        self._initialize_components()
+        logger.info("NanoAgent initialized")
 
-        logger.info("NanoAgent initialized as coordinator")
+    def _load_all_configs(self, config_manager) -> Dict[str, Any]:
+        config = {}
+        for module_name in ["core", "agent", "llm", "cache", "logging", "tools"]:
+            config[module_name] = config_manager.get_module_config(module_name)
+        return config
+
+    def _initialize_components(self):
+        # Lazy imports to avoid circular dependency and speed up startup
+        from infrastructure.llm.client import NanoLLMClient
+        from application.services.router import HybridRouter
+        from application.services.manifest import ManifestManager
+        from infrastructure.persistence.context import ContextManager
+        from spec.generator import SpecGenerator
+        from infrastructure.tools.registry import ToolRegistry
+        from .agent_state import AgentState
+        from .executor import AgentExecutor
+
+        llm_config = self.config.get("llm", {}).get("default", {})
+        model = llm_config.get("model", "openai/qwen3.5-plus")
+
+        self.llm = NanoLLMClient(model=model)
+        self.router = HybridRouter(self.llm)
+        self.tools = ToolRegistry()
+        self.manifest_manager = ManifestManager()
+        self.context_loader = ContextManager()
+        self.spec_generator = SpecGenerator(self.llm)
+        self.spec_initializer = SpecInitializer(llm_client=self.llm)
+        self.state = AgentState(self.config)
+
+        self.executor = AgentExecutor(
+            llm_client=self.llm,
+            router=self.router,
+            manifest_manager=self.manifest_manager,
+            context_loader=self.context_loader,
+            spec_generator=self.spec_generator,
+            tool_registry=self.tools,
+            config=self.config,
+            state=self.state,
+        )
 
     def run(self, task: str) -> Dict[str, Any]:
         """
@@ -323,56 +331,3 @@ class NanoAgent:
             "message": f"Task execution completed: {reason}",
         }
 
-    def _load_all_configs(self, config_manager: ConfigManager) -> Dict[str, Any]:
-        """加载所有配置"""
-        config = {"main": config_manager.get_main_config()}
-
-        module_names = ["core", "agent", "llm", "cache", "logging", "tools"]
-        for module_name in module_names:
-            config[module_name] = config_manager.get_module_config(module_name)
-
-        return config
-
-    def _initialize_components(self):
-        """传统初始化方式（向后兼容）"""
-        # 这里应该实现传统初始化逻辑
-        from infrastructure.llm.client import NanoLLMClient
-        from application.services.router import HybridRouter
-        from application.services.manifest import ManifestManager
-        from infrastructure.persistence.context import ContextManager as ContextLoader
-        from spec.generator import SpecGenerator
-        from infrastructure.persistence.manager import PersistenceManager
-        from infrastructure.tools.registry import ToolRegistry
-
-        # 从配置中读取参数
-        llm_config = self.config.get("llm", {}).get("default", {})
-
-        model = llm_config.get("model", "openai/qwen3.5-plus")
-
-        # 初始化各个组件
-        self.llm = NanoLLMClient(model=model)
-        self.router = HybridRouter(self.llm)
-        self.tools = ToolRegistry()
-        self.manifest_manager = ManifestManager()
-        self.context_loader = ContextLoader()
-        self.spec_generator = SpecGenerator(self.llm)
-        self.persistence_manager = PersistenceManager()
-        self.spec_initializer = SpecInitializer(
-            llm_client=self.llm
-        )  # 传入已有的 llm 客户端
-        self.state = AgentState(self.config)
-
-        # 创建执行器
-        self.executor = AgentExecutor(
-            llm_client=self.llm,
-            router=self.router,
-            manifest_manager=self.manifest_manager,
-            context_loader=self.context_loader,
-            spec_generator=self.spec_generator,
-            tool_registry=self.tools,
-            persistence_manager=self.persistence_manager,
-            config=self.config,
-            state=self.state,  # 传入 state
-        )
-
-        logger.info("NanoAgent initialized with traditional method")
