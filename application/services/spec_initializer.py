@@ -8,7 +8,7 @@ import os
 from typing import Dict, List
 from datetime import datetime
 from domain.models.models import PipelineStage, Manifest, TemplateSpecContent
-from .llm_client import NanoLLMClient
+from infrastructure.llm.client import NanoLLMClient
 
 
 class SpecInitializer:
@@ -17,9 +17,8 @@ class SpecInitializer:
     def __init__(
         self, base_dir: str = None, model: str = "openai/qwen3.5-plus", llm_client=None
     ):
-        self.base_dir = base_dir or os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__))
-        )
+        # 默认使用项目根目录（当前工作目录），而非本文件所在目录
+        self.base_dir = base_dir or os.getcwd()
         self.templates_dir = os.path.join(self.base_dir, "templates", "moubles")
         self.spec_workspace_dir = os.path.join(self.base_dir, ".spec")
         # 使用传入的 llm_client，如果没有则创建新的
@@ -507,7 +506,7 @@ class SpecInitializer:
 
 # 使用示例
 if __name__ == "__main__":
-    from .router import RoutingDecision, TaskType
+    from domain.models.models import RoutingDecision, TaskType
 
     initializer = SpecInitializer()
 

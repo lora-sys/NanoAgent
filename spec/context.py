@@ -31,6 +31,7 @@ class ContextLoader(IContextLoader):
         context = {
             "master_spec": "",
             "current_stage_spec": "",
+            "current_stage_id": "unknown",
             "constraints": {},  # 修复：初始化为 dict 而不是 list
         }
 
@@ -42,6 +43,10 @@ class ContextLoader(IContextLoader):
                 # 清除缓存的上下文以防止泄漏
                 self.current_stage_context = context
                 return context
+
+            # 记录当前阶段 ID
+            if hasattr(manifest, "current_stage"):
+                context["current_stage_id"] = manifest.current_stage
 
             # 2. 加载 master_spec（保持方向）
             master_spec = self.manifest_manager.load_master_spec()

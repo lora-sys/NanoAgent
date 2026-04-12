@@ -3,7 +3,6 @@
 """
 
 import sys
-import os
 from pathlib import Path
 
 # 添加项目根目录到 Python 路径
@@ -17,6 +16,7 @@ from typing import Dict, Any
 
 
 # ============ 通用 Fixtures ============
+
 
 @pytest.fixture
 def tmp_workspace(tmp_path: Path) -> Path:
@@ -34,17 +34,14 @@ def sample_spec_data() -> Dict[str, Any]:
         "deliverables": [
             "README.md - 项目文档",
             "main.py - 主程序文件",
-            "requirements.txt - 依赖列表"
+            "requirements.txt - 依赖列表",
         ],
         "boundaries": {
             "always": ["使用 Python 3.8+", "包含错误处理"],
             "ask_first": ["添加外部依赖前确认"],
-            "never": ["删除用户文件", "修改系统配置"]
+            "never": ["删除用户文件", "修改系统配置"],
         },
-        "success_criteria": [
-            "应用可以正常运行",
-            "代码符合 PEP 8 规范"
-        ]
+        "success_criteria": ["应用可以正常运行", "代码符合 PEP 8 规范"],
     }
 
 
@@ -54,12 +51,9 @@ def sample_context() -> Dict[str, Any]:
     return {
         "current_stage_id": "stage_1",
         "current_stage_spec": "实现基本功能",
-        "constraints": {
-            "always": ["使用相对路径"],
-            "never": ["访问系统文件"]
-        },
+        "constraints": {"always": ["使用相对路径"], "never": ["访问系统文件"]},
         "artifacts": [],
-        "decisions": []
+        "decisions": [],
     }
 
 
@@ -75,19 +69,20 @@ def sample_manifest() -> Dict[str, Any]:
                 "stage_id": "stage_1",
                 "name": "需求分析",
                 "status": "completed",
-                "steps": 5
+                "steps": 5,
             },
             {
                 "stage_id": "stage_2",
                 "name": "实现",
                 "status": "in_progress",
-                "steps": 10
-            }
-        ]
+                "steps": 10,
+            },
+        ],
     }
 
 
 # ============ 辅助函数 ============
+
 
 def create_temp_file(workspace: Path, filename: str, content: str) -> Path:
     """在临时工作空间创建文件"""

@@ -6,7 +6,7 @@
 例如阶段完成条件、需求确认状态、交付物检查等。
 """
 
-from typing import Dict, Callable, Any
+from typing import Dict, Callable, Any, List
 from loguru import logger
 
 
@@ -79,6 +79,33 @@ class RuleEngine:
                 logger.error(f"Rule check failed: {rule_name}, error: {e}")
                 results[rule_name] = False
         return results
+
+    def check_stage_completion(
+        self, stage_id: str, artifacts: List[str], decisions: List[Dict[str, Any]]
+    ) -> bool:
+        """检查阶段是否完成（公开 API）。
+
+        这是一个适配器方法，将 artifacts 和 decisions 转换为 context 字典格式，
+        然后委托给 `determine_stage_completion`。
+
+        Args:
+            stage_id: 阶段 ID（如 stage_1, stage_2 等）。
+            artifacts: 完成的交付物列表。
+            decisions: 决策记录列表。
+
+        Returns:
+            阶段是否完成。
+
+        Example:
+            >>> engine.check_stage_completion("stage_1", ["file.md"], [])
+            True
+        """
+        context: Dict[str, Any] = {
+            "artifacts": artifacts,
+            "decisions": decisions,
+            "requirements_confirmed": len(decisions) > 0,
+        }
+        return self.determine_stage_completion(stage_id, context)
 
     def determine_stage_completion(self, stage_id: str, context: Dict) -> bool:
         """确定指定阶段是否完成。

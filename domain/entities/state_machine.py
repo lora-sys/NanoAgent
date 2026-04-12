@@ -15,7 +15,7 @@ from loguru import logger
 
 class AgentState(Enum):
     """Agent 执行状态枚举。
-    
+
     定义了 Agent 在生命周期中可能处于的所有状态。
 
     Attributes:
@@ -124,10 +124,7 @@ class StateMachine:
         return new_state in self.TRANSITIONS.get(self.current_state, [])
 
     def transition(
-        self, 
-        new_state: AgentState, 
-        reason: str, 
-        metadata: Optional[Dict] = None
+        self, new_state: AgentState, reason: str, metadata: Optional[Dict] = None
     ):
         """执行状态转换。
 
@@ -210,7 +207,7 @@ class StateMachine:
 
     def reset(self):
         """重置状态机。
-        
+
         将状态重置为 INITIAL 并清空转换历史。
         """
         logger.info("Resetting StateMachine")

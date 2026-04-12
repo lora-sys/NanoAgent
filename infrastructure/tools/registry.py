@@ -19,7 +19,10 @@ CATEGORIES = {
 }
 
 # 工具模块映射（按需导入）
-CATEGORY_MODULES = {"file": "core.tools.file", "hitl": "core.tools.hitl"}
+CATEGORY_MODULES = {
+    "file": "infrastructure.tools.file",
+    "hitl": "infrastructure.tools.hitl",
+}
 
 
 class ToolRegistry(IToolRegistry):

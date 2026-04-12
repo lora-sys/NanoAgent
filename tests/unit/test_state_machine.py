@@ -32,7 +32,7 @@ class TestStateMachine:
         sm = StateMachine()
         sm.transition(AgentState.REQUIREMENT_GATHERING, "Start gathering")
         sm.transition(AgentState.REQUIREMENT_CONFIRMED, "Requirements confirmed")
-        
+
         history = sm.transitions
         assert len(history) >= 2
 
@@ -41,7 +41,7 @@ class TestStateMachine:
         sm = StateMachine()
         sm.transition(AgentState.REQUIREMENT_GATHERING, "Start gathering")
         sm.transition(AgentState.REQUIREMENT_CONFIRMED, "Requirements confirmed")
-        
+
         # 检查当前状态是否是 REQUIREMENT_CONFIRMED
         assert sm.get_current_state() == AgentState.REQUIREMENT_CONFIRMED
 

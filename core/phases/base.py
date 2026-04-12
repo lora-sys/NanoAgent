@@ -7,7 +7,6 @@
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
-from loguru import logger
 from core.utils import get_recent_observations_summary, truncate_text
 
 
@@ -23,7 +22,12 @@ class BasePhase(ABC):
         config: 配置字典。
     """
 
-    def __init__(self, llm_client: Any, tool_registry: Optional[Any] = None, config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        llm_client: Any,
+        tool_registry: Optional[Any] = None,
+        config: Optional[Dict[str, Any]] = None,
+    ):
         """初始化阶段处理器。
 
         Args:
@@ -71,6 +75,7 @@ class BasePhase(ABC):
             解析后的字典，如果失败则返回 None。
         """
         import json
+
         try:
             return json.loads(text)
         except (json.JSONDecodeError, ValueError):

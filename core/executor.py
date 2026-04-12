@@ -6,7 +6,6 @@
 
 from typing import Dict, Any, Optional, List
 from loguru import logger
-import json
 
 from core.interfaces import (
     ILLMClient,
@@ -27,11 +26,8 @@ from core.types import (
     StateManagerProtocol,
     PersistenceManagerProtocol,
     CacheManagerProtocol,
-    ObservationRecord,
-    ExecutionContext,
-    ExecutionResult,
 )
-from spec.models import AgentPlan
+from domain.models.models import AgentPlan, RoutingDecision
 
 
 class AgentExecutor:
@@ -105,11 +101,13 @@ class AgentExecutor:
         self.state = state
 
         # 初始化上下文管理器
-        from .context_manager import ContextManager
+        from infrastructure.persistence.context import ContextManager
+
         self.context_manager = ContextManager()
 
         # 初始化规则引擎
-        from .rule_engine import RuleEngine
+        from domain.entities.rule_engine import RuleEngine
+
         self.rule_engine = RuleEngine()
 
         # 从配置读取参数
@@ -125,26 +123,26 @@ class AgentExecutor:
             config=config,
         )
         self.thinking_phase.max_steps = self.max_steps
-        
+
         self.acting_phase = ActingPhase(
             llm_client=llm_client,
             tool_registry=tool_registry,
             config=config,
         )
-        
+
         self.observing_phase = ObservingPhase(
             llm_client=llm_client,
             tool_registry=tool_registry,
             config=config,
         )
-        
+
         self.reflection_phase_handler = ReflectionPhase(
             llm_client=llm_client,
             tool_registry=tool_registry,
             config=config,
         )
-        
-        self.planning_phase = PlanningPhase(
+
+        self.planning_phase_handler = PlanningPhase(
             llm_client=llm_client,
             tool_registry=tool_registry,
             config=config,
@@ -152,7 +150,7 @@ class AgentExecutor:
 
     # ============ 代理方法 ============
 
-    def route_task(self, task: str) -> Dict[str, Any]:
+    def route_task(self, task: str) -> RoutingDecision:
         """路由任务。
 
         使用路由器对任务进行分类，确定任务类型和置信度。
@@ -161,12 +159,12 @@ class AgentExecutor:
             task: 用户任务描述。
 
         Returns:
-            路由决策结果。
+            路由决策结果（RoutingDecision 对象）。
         """
         logger.info("=== Phase 1: Task Routing ===")
         return self.router.route(task)
 
-    def should_init_spec(self, task: str, routing_decision: Dict[str, Any]) -> bool:
+    def should_init_spec(self, task: str, routing_decision: RoutingDecision) -> bool:
         """判断是否需要初始化 Spec。
 
         Args:
@@ -177,7 +175,8 @@ class AgentExecutor:
             是否需要初始化 Spec。
         """
         from domain.models.models import TaskType
-        return routing_decision.get("task_type") == TaskType.CODE
+
+        return routing_decision.task_type == TaskType.CODE
 
     def load_context(self) -> Dict[str, Any]:
         """加载上下文。
@@ -188,8 +187,10 @@ class AgentExecutor:
             上下文字典。
         """
         logger.info("=== Phase 3: Dynamic Context Loading ===")
-        context = self.context_loader.load_context()
-        logger.info(f"Context loaded for stage: {context.get('current_stage_id', 'unknown')}")
+        context = self.context_loader.dynamic_load_context()
+        logger.info(
+            f"Context loaded for stage: {context.get('current_stage_id', 'unknown')}"
+        )
         return context
 
     def update_context(self, updates: Dict[str, Any]) -> None:
@@ -198,7 +199,7 @@ class AgentExecutor:
         Args:
             updates: 要更新的上下文字典。
         """
-        self.context_loader.update_context(updates)
+        self.context_loader.dynamic_load_context()  # Trigger reload
 
     def planning_phase(self, task: str, context: Dict[str, Any]) -> AgentPlan:
         """Planning 阶段。
@@ -216,15 +217,15 @@ class AgentExecutor:
         spec_content = ""
         if context.get("master_spec") and context.get("current_stage_spec"):
             spec_content = f"""【当前任务阶段】
-{context.get('master_spec', '')[:300]}
+{context.get("master_spec", "")[:300]}
 
 ## 当前阶段约束
-{context.get('current_stage_spec', '')}
+{context.get("current_stage_spec", "")}
 """
         else:
             spec_content = "No spec context available"
 
-        return self.planning_phase.execute(
+        return self.planning_phase_handler.execute(
             task=task,
             spec_content=spec_content,
             current_context="",
@@ -321,12 +322,14 @@ class AgentExecutor:
         return f"""你是 NanoAgent 智能助手。
 
 当前上下文：
-- 阶段：{context.get('current_stage_id', 'unknown')}
-- 任务：{context.get('task_goal', 'unknown')}
+- 阶段：{context.get("current_stage_id", "unknown")}
+- 任务：{context.get("task_goal", "unknown")}
 
 请按照 ReAct 循环执行任务：思考 → 行动 → 观察 → 反思"""
 
-    def _truncate_context_for_tokens(self, context: str, max_tokens: Optional[int] = None) -> str:
+    def _truncate_context_for_tokens(
+        self, context: str, max_tokens: Optional[int] = None
+    ) -> str:
         """截断上下文"""
         max_tokens = max_tokens or self.max_context_tokens
         # 粗略估计：1 token ≈ 4 字符
@@ -348,24 +351,39 @@ class AgentExecutor:
         """获取最近观察摘要"""
         return get_recent_observations_summary(observations, max_items)
 
-    def check_completion(self, observations: List[Dict[str, Any]], manifest: Any) -> bool:
+    def check_completion(
+        self, observations: List[Dict[str, Any]], manifest: Any
+    ) -> bool:
         """检查是否完成"""
         if not observations:
             return False
-        
+
         last_obs = observations[-1]
         return last_obs.get("action") == "complete"
 
-    def init_spec(self, task: str) -> Any:
-        """初始化 Spec"""
+    def init_spec(
+        self, task: str, routing_decision: RoutingDecision, spec_initializer: Any = None
+    ) -> Any:
+        """初始化 Spec。
+
+        Args:
+            task: 用户任务描述。
+            routing_decision: 路由决策结果。
+            spec_initializer: Spec 初始化器实例（可选，使用内置的如果未提供）。
+
+        Returns:
+            生成的 Manifest 对象。
+        """
         logger.info("=== Initializing Spec ===")
-        return self.spec_generator.generate(task)
+        initializer = spec_initializer or self.spec_generator
+        return initializer.init_spec(task, routing_decision)
 
     def load_existing_manifest(self) -> Any:
         """加载现有 Manifest"""
         try:
-            return self.manifest_manager.load()
-        except:
+            return self.manifest_manager.load_manifest()
+        except (AttributeError, FileNotFoundError, OSError) as e:
+            logger.debug(f"No existing manifest found: {e}")
             return None
 
     def save_execution_result(self, decisions: List[str], artifacts: List[str]) -> None:
@@ -382,7 +400,9 @@ class AgentExecutor:
         if self.state:
             self.state.add_requirement(user_answer)
 
-    def _extract_artifact_from_action(self, action: Dict[str, Any], result: Any) -> Optional[str]:
+    def _extract_artifact_from_action(
+        self, action: Dict[str, Any], result: Any
+    ) -> Optional[str]:
         """从动作中提取交付物"""
         if action.get("tool") in ["write_file", "safe_write_file"]:
             return action.get("arguments", {}).get("filepath", "unknown")
@@ -390,6 +410,8 @@ class AgentExecutor:
 
     def _extract_decision_from_answer(self, user_answer: str) -> Optional[str]:
         """从回答中提取决策"""
-        if any(word in user_answer.lower() for word in ["确认", "好的", "没问题", "可以"]):
+        if any(
+            word in user_answer.lower() for word in ["确认", "好的", "没问题", "可以"]
+        ):
             return "confirmed"
         return None

@@ -21,6 +21,15 @@ class ReadFileInput(BaseModel):
 def safe_read_file(filepath: str) -> str:
     """安全读取文件（限制在沙箱目录）"""
     try:
+        # 处理绝对路径转换为相对路径
+        if filepath.startswith(("/sandbox", "/project-root", "/project/", "/")):
+            filepath = filepath.lstrip("/")
+            for prefix in ["sandbox", "project-root/", "project/", "root/"]:
+                if filepath.startswith(prefix):
+                    filepath = filepath[len(prefix) :].lstrip("/")
+                    break
+            logger.info(f"Converted absolute path to relative: {filepath}")
+
         target = (SANDBOX_DIR / filepath).resolve()
         if not str(target).startswith(str(SANDBOX_DIR)):
             raise ValueError("Access denied: Path outside sandbox")

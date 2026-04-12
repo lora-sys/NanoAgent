@@ -107,12 +107,25 @@ class CLIInterface:
         print("-" * 60)
 
     def display_progress(self, current: int, total: int, message: str = ""):
-        """显示进度条"""
+        """显示进度条。
+
+        Args:
+            current: 当前步骤。
+            total: 总步骤数。
+            message: 附加消息。
+        """
         self._current_step = current
         self._total_steps = total
-        percentage = int((current / total) * 100)
         bar_length = 20
-        filled = int(bar_length * current / total)
+
+        if total <= 0:
+            # 避免除零错误
+            percentage = 0
+            filled = 0
+        else:
+            percentage = int((current / total) * 100)
+            filled = int(bar_length * current / total)
+
         bar = "█" * filled + "░" * (bar_length - filled)
         print(f"\n[{bar}] {current}/{total} ({percentage}%) {message}")
 

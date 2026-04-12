@@ -19,13 +19,24 @@ class ListDirectoryInput(BaseModel):
 def safe_list_directory(path: str = ".") -> str:
     """安全列出目录内容"""
     try:
+        # 处理绝对路径转换为相对路径
+        if path.startswith(("/sandbox", "/project-root", "/project/", "/")):
+            path = path.lstrip("/")
+            for prefix in ["sandbox", "project-root/", "project/", "root/"]:
+                if path.startswith(prefix):
+                    path = path[len(prefix) :].lstrip("/")
+                    break
+            logger.info(f"Converted absolute path to relative: {path}")
+
         target = (SANDBOX_DIR / path).resolve()
 
         # 使用相对路径检查来验证沙箱边界
         try:
             target.relative_to(SANDBOX_DIR)
         except ValueError:
-            raise ValueError("Access denied: Path outside sandbox")
+            raise ValueError(
+                f"Access denied: Path outside sandbox. Requested: {path}, Resolved: {target}"
+            )
 
         if not target.exists() or not target.is_dir():
             return f"Directory not found: {path}"

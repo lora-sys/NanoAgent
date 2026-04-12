@@ -80,11 +80,11 @@ class NanoAgent:
         logger.info("开始任务路由分析")
         routing_decision = self.executor.route_task(task)
         logger.info(
-            f"路由结果: {routing_decision['task_type']}, "
-            f"置信度: {routing_decision['confidence']:.2%}"
+            f"路由结果: {routing_decision.task_type}, "
+            f"置信度: {routing_decision.confidence:.2%}"
         )
-        cli.display_result(f"任务类型: {routing_decision['task_type']}", True)
-        cli.display_result(f"置信度: {routing_decision['confidence']:.2%}", True)
+        cli.display_result(f"任务类型: {routing_decision.task_type}", True)
+        cli.display_result(f"置信度: {routing_decision.confidence:.2%}", True)
 
         # === 阶段2: Spec管理 ===
         if self.executor.should_init_spec(task, routing_decision):
@@ -290,7 +290,19 @@ class NanoAgent:
         if self.manifest and hasattr(self, "manifest_manager"):
             current_stage = self.manifest_manager.get_current_stage()
             if current_stage:
-                self.executor.init_spec("", {}, None)  # 触发阶段完成逻辑
+                stage_id = (
+                    current_stage.id
+                    if hasattr(current_stage, "id")
+                    else current_stage.get("id", "unknown")
+                )
+                self.manifest_manager.sync_and_backfill(
+                    stage_id=stage_id,
+                    decisions=[{"decision": d, "rationale": ""} for d in decisions]
+                    if decisions
+                    else [],
+                    completed_artifacts=artifacts if artifacts else [],
+                    next_stage=True,
+                )
 
         # 最终反思
         cli.display_phase("Reflection Phase")
@@ -324,13 +336,13 @@ class NanoAgent:
     def _initialize_components(self):
         """传统初始化方式（向后兼容）"""
         # 这里应该实现传统初始化逻辑
-        from .llm_client import NanoLLMClient
-        from .router import HybridRouter
-        from .manifest_manager import ManifestManager
+        from infrastructure.llm.client import NanoLLMClient
+        from application.services.router import HybridRouter
+        from application.services.manifest import ManifestManager
         from spec.context import ContextLoader
         from spec.generator import SpecGenerator
-        from .persistence import PersistenceManager
-        from .tools.registry import ToolRegistry
+        from infrastructure.persistence.manager import PersistenceManager
+        from infrastructure.tools.registry import ToolRegistry
 
         # 从配置中读取参数
         llm_config = self.config.get("llm", {}).get("default", {})

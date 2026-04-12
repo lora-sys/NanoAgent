@@ -8,6 +8,7 @@ NanoAgent 入口点
 
 import sys
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from core.agent_loop import NanoAgent

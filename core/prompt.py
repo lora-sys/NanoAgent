@@ -127,6 +127,13 @@ REACT_THINK_PROMPT = """你处于 ReAct 循环的"思考"阶段。
 - 检查需求信息是否完整，如果缺少关键信息才需要询问
 - 如果需求已确认，你应该：开始执行任务、创建交付物、不要询问需求
 
+## 交付物创建规则（极其重要！）
+- **交付物是实际的项目文件**：如代码文件（.py, .ts, .tsx, .js）、文档（README.md, docs/）、配置文件（package.json, requirements.txt）
+- **状态记录不是交付物**：不要创建包含 "status", "summary", "checklist", "requirements_" 的文件作为交付物
+- **不要重复创建同名文件**：如果某个文件已经存在且有实质内容，不要再覆盖它
+- **每个文件都应该是项目的一部分**：想想最终用户需要什么（代码、文档、配置），而不是 "记录当前状态"
+- **对于代码任务**：创建 package.json/requirements.txt、项目目录结构、源代码文件、配置文件、测试文件、README
+
 ## 执行效率指导（重要！）
 - **避免重复验证**: 不要反复验证已经确认的信息
 - **避免重复操作**: 不要多次执行相同的操作（如多次列出同一个目录）
@@ -151,16 +158,16 @@ REACT_THINK_PROMPT = """你处于 ReAct 循环的"思考"阶段。
   "reason": "选择此动作的原因说明"
 }}
 
-示例：
+示例（创建实际项目文件，不是状态记录）：
 ```json
 {{
   "action": "tool_call",
   "tool": "safe_write_file",
   "arguments": {{
-    "filepath": "README.md",
-    "content": "# 项目文档"
+    "filepath": "package.json",
+    "content": "{{\n  \"name\": \"my-project\",\n  \"version\": \"1.0.0\"\n}}"
   }},
-  "reason": "创建项目文档作为第一个交付物"
+  "reason": "创建项目配置文件，定义依赖和构建命令"
 }}
 ```"""
 

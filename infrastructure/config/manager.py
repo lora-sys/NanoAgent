@@ -8,7 +8,6 @@ import toml
 from pathlib import Path
 from typing import Dict, Any, Optional
 from loguru import logger
-from infrastructure.container import get_container
 from domain.interfaces.interfaces import IConfigManager
 
 

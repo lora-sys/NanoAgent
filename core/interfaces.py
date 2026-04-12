@@ -10,29 +10,29 @@ from spec.models import TaskSpec, RoutingDecision, Manifest
 
 class IConfigManager(ABC):
     """配置管理器接口"""
-    
+
     @abstractmethod
     def get(self, key: str, default: Any = None) -> Any:
         """
         获取配置值
-        
+
         Args:
             key: 配置键（支持嵌套，如 'llm.default.model'）
             default: 默认值
-            
+
         Returns:
             配置值
         """
         pass
-    
+
     @abstractmethod
     def get_module_config(self, module_name: str) -> Dict[str, Any]:
         """
         获取模块配置
-        
+
         Args:
             module_name: 模块名称
-            
+
         Returns:
             模块配置字典
         """
@@ -307,12 +307,12 @@ class IPersistenceManager(ABC):
 
 class ICacheManager(ABC):
     """缓存管理器接口"""
-    
+
     @abstractmethod
     def get(self, key: str) -> Optional[Any]:
         """获取缓存"""
         pass
-    
+
     @abstractmethod
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """设置缓存"""

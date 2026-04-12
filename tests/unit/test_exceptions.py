@@ -2,7 +2,6 @@
 异常层次单元测试
 """
 
-import pytest
 from core.exceptions import (
     NanoAgentError,
     LLMError,
@@ -59,7 +58,9 @@ class TestExceptionHierarchy:
 
     def test_tool_error_with_details(self):
         """测试 ToolError 详细信息"""
-        error = ToolError("write_file", "Permission denied", {"filepath": "/etc/passwd"})
+        error = ToolError(
+            "write_file", "Permission denied", {"filepath": "/etc/passwd"}
+        )
         assert error.tool_name == "write_file"
         assert error.arguments == {"filepath": "/etc/passwd"}
         assert "write_file" in str(error)

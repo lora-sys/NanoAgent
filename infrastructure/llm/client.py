@@ -358,7 +358,7 @@ class NanoLLMClient(ILLMClient):
         Raises:
             ValueError: 如果重试后仍然失败
         """
-        from .output_validator import validate_with_retry
+        from core.output_validator import validate_with_retry
 
         for attempt in range(max_retries):
             try:

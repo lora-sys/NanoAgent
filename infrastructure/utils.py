@@ -5,7 +5,7 @@
 """
 
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 
 def get_timestamp() -> str:
@@ -25,30 +25,32 @@ def get_recent_observations_summary(
 ) -> str:
     """
     获取最近观察记录摘要
-    
+
     Args:
         observations: 观察记录列表
         max_items: 最多返回条数
-        
+
     Returns:
         格式化的观察记录字符串
     """
     if not observations:
         return "无观察记录"
-    
-    recent = observations[-max_items:] if len(observations) > max_items else observations
+
+    recent = (
+        observations[-max_items:] if len(observations) > max_items else observations
+    )
     summary_lines = []
-    
+
     for obs in recent:
         step = obs.get("step", "?")
         action = obs.get("action", "unknown")
         result = obs.get("result", "")
-        
+
         if isinstance(result, str):
             result = truncate_text(result, 200)
         else:
             result = str(result)[:200]
-        
+
         summary_lines.append(f"步骤 {step}: {action} -> {result}")
-    
+
     return "\n".join(summary_lines)

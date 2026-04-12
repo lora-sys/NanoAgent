@@ -8,7 +8,7 @@ import os
 import json
 import re
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from core.interfaces import IManifestManager
 from .spec_initializer import Manifest, PipelineStage
 
@@ -318,6 +318,37 @@ class ManifestManager(IManifestManager):
 
         except Exception as e:
             print(f"  ⚠️ 文件状态更新失败: {e}")
+
+    def get_progress_bar(self) -> Any:
+        """获取进度条对象。
+
+        Returns:
+            进度条对象。当前返回 None，
+            可由外部 UI 组件替换。
+        """
+        return None
+
+    def save(self, decisions: List[Dict] = None, artifacts: List[str] = None):
+        """保存执行结果到 Manifest。
+
+        这是一个便捷方法，将决策和交付物更新到当前 Manifest 并保存。
+
+        Args:
+            decisions: 决策列表。
+            artifacts: 完成的交付物列表。
+        """
+        manifest = self.load_manifest()
+        if manifest:
+            if decisions:
+                # 更新当前阶段状态
+                current_stage = self.get_current_stage()
+                if current_stage:
+                    for stage in manifest.stages:
+                        if stage.id == current_stage.id:
+                            stage.status = "in_progress"
+                            stage.completed_steps = len(artifacts) if artifacts else 0
+                            break
+            self.save_manifest(manifest)
 
 
 # 使用示例
