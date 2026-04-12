@@ -1,6 +1,7 @@
 """
 依赖注入容器 - NanoAgent
 提供简单的依赖注入功能，支持单例和工厂模式
+统一管理系统中所有单例和依赖
 """
 
 from typing import Dict, Type, TypeVar, Optional, Callable, Any

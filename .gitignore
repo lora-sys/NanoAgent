@@ -21,7 +21,7 @@ wheels/
 *.egg
 
 # Virtual environments
-venv/
+.venv
 env/
 ENV/
 env.bak/
@@ -76,3 +76,6 @@ build/
 *.bak
 *.backup
 *_backup.py
+
+
+.qwen

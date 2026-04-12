@@ -8,8 +8,9 @@
 """
 
 from loguru import logger
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import importlib
+from core.interfaces import IToolRegistry
 
 # 第一层：类别索引（始终加载，简洁描述）
 CATEGORIES = {
@@ -21,7 +22,7 @@ CATEGORIES = {
 CATEGORY_MODULES = {"file": "core.tools.file", "hitl": "core.tools.hitl"}
 
 
-class ToolRegistry:
+class ToolRegistry(IToolRegistry):
     """工具注册表 - 支持动态加载和安全检查"""
 
     def __init__(self, config: Dict[str, Any] = None):
@@ -252,6 +253,11 @@ class ToolRegistry:
             )
         else:
             return f"工具类别：\n{category_desc}"
+
+    def get_available_tools(self) -> List[str]:
+        """获取可用工具名称列表（IToolRegistry 接口实现）"""
+        tools = self.get_all_tools()
+        return list(tools.keys())
 
 
 # 全局工具注册表实例

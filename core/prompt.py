@@ -142,22 +142,25 @@ REACT_THINK_PROMPT = """你处于 ReAct 循环的"思考"阶段。
 - 如果在 PLANNING 状态，应该开始执行第一个交付物
 - 如果在 EXECUTING 状态，应该继续创建剩余的交付物
 
-## 输出格式
-<thinking>
-你的思考过程...
-</thinking>
+## 输出格式（JSON）
+请输出符合以下 schema 的 JSON 对象：
+{{
+  "action": "动作类型 (tool_call | complete | wait | stage_complete | continue)",
+  "tool": "工具名称（仅当 action=tool_call 时需要）",
+  "arguments": {{"参数名": "参数值"}}（仅当 action=tool_call 时需要）,
+  "reason": "选择此动作的原因说明"
+}}
 
-然后选择一个行动：
-- 如果需要调用工具，输出工具调用 JSON
-- 如果需要等待用户输入，输出 "WAIT_FOR_USER"
-- 如果任务完成，输出 "TASK_COMPLETE"
-
-工具调用格式：
+示例：
 ```json
 {{
   "action": "tool_call",
-  "tool": "工具名称",
-  "arguments": {{"参数": "值"}}
+  "tool": "safe_write_file",
+  "arguments": {{
+    "filepath": "README.md",
+    "content": "# 项目文档"
+  }},
+  "reason": "创建项目文档作为第一个交付物"
 }}
 ```"""
 

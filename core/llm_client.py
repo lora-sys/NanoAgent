@@ -5,6 +5,7 @@ import json
 import litellm
 from loguru import logger
 from .config import get_config_manager
+from .interfaces import ILLMClient
 
 load_dotenv()
 
@@ -14,7 +15,7 @@ litellm.drop_params = True
 T = TypeVar("T", bound=BaseModel)
 
 
-class NanoLLMClient:
+class NanoLLMClient(ILLMClient):
     """轻量级 LLM 客户端，支持结构化输出、流式调用、工具调用
 
     支持 OpenAI Responses API 和 Chat Completions API

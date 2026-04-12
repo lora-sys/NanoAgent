@@ -1,0 +1,17 @@
+{
+  "overall_goal": "创建一个简单的 Web 应用",
+  "deliverables": [
+    "README.md - 项目文档",
+    "main.py - 主程序文件",
+    "requirements.txt - 依赖列表"
+  ],
+  "boundaries": {
+    "always": ["使用 Python 3.8+", "包含错误处理"],
+    "ask_first": ["添加外部依赖前确认"],
+    "never": ["删除用户文件", "修改系统配置"]
+  },
+  "success_criteria": [
+    "应用可以正常运行",
+    "代码符合 PEP 8 规范"
+  ]
+}

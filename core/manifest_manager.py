@@ -9,11 +9,11 @@ import json
 import re
 from datetime import datetime
 from typing import Dict, List, Optional
-
+from core.interfaces import IManifestManager
 from .spec_initializer import Manifest, PipelineStage
 
 
-class ManifestManager:
+class ManifestManager(IManifestManager):
     """Manifest 管理器"""
 
     def __init__(self, spec_workspace_dir: str = None):

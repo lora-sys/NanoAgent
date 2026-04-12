@@ -7,6 +7,21 @@ import json
 import os
 from typing import Dict, List, Optional
 from spec.models import TaskType, RoutingDecision
+from core.interfaces import IRouter
+
+
+# 共享的模板模块映射（消除重复代码）
+TEMPLATE_MODULE_MAP = {
+    "code": ["base_spec", "code_logic", "code_api", "project_plan"],
+    "writing": ["base_spec", "writing_style", "writing_structure"],
+    "analyze": ["base_spec", "analyze_framework", "analyze_report"],
+    "chat": ["base_spec", "chat_protocol"],
+}
+
+
+def get_template_modules_for_task(task_type: str) -> List[str]:
+    """根据任务类型获取模板模块列表（共享函数，消除重复）"""
+    return TEMPLATE_MODULE_MAP.get(task_type, ["base_spec"])
 
 
 class RuleBasedRouter:
@@ -145,7 +160,7 @@ class RuleBasedRouter:
             return RoutingDecision(
                 task_type=TaskType(best_match),
                 confidence=confidence,
-                template_modules=self._get_template_modules(best_match),
+                template_modules=get_template_modules_for_task(best_match),
                 reasoning=f"规则路由匹配：检测到关键词和模式，置信度 {confidence:.2f}",
             )
 
@@ -194,16 +209,6 @@ class RuleBasedRouter:
         # 归一化分数到 0-1
         return min(score, 1.0)
 
-    def _get_template_modules(self, task_type: str) -> List[str]:
-        """获取模板模块列表"""
-        module_map = {
-            "code": ["base_spec", "code_logic", "code_api", "project_plan"],
-            "writing": ["base_spec", "writing_style", "writing_structure"],
-            "analyze": ["base_spec", "analyze_framework", "analyze_report"],
-            "chat": ["base_spec", "chat_protocol"],
-        }
-        return module_map.get(task_type, ["base_spec"])
-
 
 class LLMRouter:
     """基于 LLM 的路由器 - 第二层，处理复杂或模糊的请求"""
@@ -246,7 +251,7 @@ class LLMRouter:
                 return RoutingDecision(
                     task_type=TaskType(result["task_type"]),
                     confidence=result["confidence"],
-                    template_modules=self._get_template_modules(result["task_type"]),
+                    template_modules=get_template_modules_for_task(result["task_type"]),
                     reasoning=f"LLM 路由决策：{result['reasoning']}",
                 )
         except Exception as e:
@@ -260,18 +265,8 @@ class LLMRouter:
             reasoning="LLM 路由失败，回退到默认类型",
         )
 
-    def _get_template_modules(self, task_type: str) -> List[str]:
-        """获取模板模块列表"""
-        module_map = {
-            "code": ["base_spec", "code_logic", "code_api", "project_plan"],
-            "writing": ["base_spec", "writing_style", "writing_structure"],
-            "analyze": ["base_spec", "analyze_framework", "analyze_report"],
-            "chat": ["base_spec", "chat_protocol"],
-        }
-        return module_map.get(task_type, ["base_spec"])
 
-
-class HybridRouter:
+class HybridRouter(IRouter):
     """混合路由器 - 结合规则路由和 LLM 路由"""
 
     def __init__(self, llm_client, rules_file: str = None):

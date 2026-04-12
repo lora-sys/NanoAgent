@@ -5,9 +5,10 @@
 
 from typing import Dict
 from loguru import logger
+from core.interfaces import IContextLoader
 
 
-class ContextLoader:
+class ContextLoader(IContextLoader):
     """上下文加载器 - 从 manifest 和 spec 文件中提取上下文信息"""
 
     def __init__(self, manifest_manager):
