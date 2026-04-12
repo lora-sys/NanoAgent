@@ -7,7 +7,7 @@ from typing import Dict, Any
 from loguru import logger
 from infrastructure.config.manager import get_config_manager, ConfigManager
 from core.agent_state import AgentState
-from .executor import AgentExecutor
+from core.executor import AgentExecutor
 from infrastructure.container import DIContainer
 from application.services.spec_initializer import SpecInitializer
 
@@ -339,7 +339,7 @@ class NanoAgent:
         from infrastructure.llm.client import NanoLLMClient
         from application.services.router import HybridRouter
         from application.services.manifest import ManifestManager
-        from spec.context import ContextLoader
+        from infrastructure.persistence.context import ContextManager as ContextLoader
         from spec.generator import SpecGenerator
         from infrastructure.persistence.manager import PersistenceManager
         from infrastructure.tools.registry import ToolRegistry
@@ -354,7 +354,7 @@ class NanoAgent:
         self.router = HybridRouter(self.llm)
         self.tools = ToolRegistry()
         self.manifest_manager = ManifestManager()
-        self.context_loader = ContextLoader(self.manifest_manager)
+        self.context_loader = ContextLoader()
         self.spec_generator = SpecGenerator(self.llm)
         self.persistence_manager = PersistenceManager()
         self.spec_initializer = SpecInitializer(

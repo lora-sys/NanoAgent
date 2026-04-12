@@ -218,7 +218,7 @@ class ThinkingPhase(BasePhase):
                     "arguments": arguments,
                     "thought": response[:200],
                 }
-            except:
+            except Exception:
                 pass
 
         # 尝试正则提取工具名

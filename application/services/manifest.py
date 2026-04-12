@@ -339,14 +339,14 @@ class ManifestManager(IManifestManager):
         """
         manifest = self.load_manifest()
         if manifest:
-            if decisions:
-                # 更新当前阶段状态
+            if artifacts or decisions:
+                # 更新当前阶段 pipeline 状态
                 current_stage = self.get_current_stage()
-                if current_stage:
-                    for stage in manifest.stages:
+                if current_stage and hasattr(manifest, "pipeline"):
+                    for stage in manifest.pipeline:
                         if stage.id == current_stage.id:
-                            stage.status = "in_progress"
-                            stage.completed_steps = len(artifacts) if artifacts else 0
+                            if artifacts:
+                                stage.completed_steps = len(artifacts)
                             break
             self.save_manifest(manifest)
 

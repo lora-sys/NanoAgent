@@ -5,7 +5,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any
-from spec.models import TaskSpec, RoutingDecision, Manifest
+from domain.models.models import TaskSpec, RoutingDecision, Manifest
 
 
 class IConfigManager(ABC):

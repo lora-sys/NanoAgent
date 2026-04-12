@@ -9,7 +9,7 @@ import json
 
 from .base import BasePhase
 from core.prompt import SYSTEM_PROMPT, PLANNING_PROMPT
-from spec.models import AgentPlan, PlanStep
+from domain.models.models import AgentPlan, PlanStep
 
 
 class PlanningPhase(BasePhase):

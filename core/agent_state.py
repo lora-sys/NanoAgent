@@ -58,7 +58,7 @@ class AgentState:
 
     def add_observation(self, step: int, action: Dict, result: Any, analysis: str = ""):
         """添加观察记录。
-        
+
         如果观察到的行动是成功的文件写入操作，自动将文件记录为交付物。
         """
         observation = {
@@ -70,7 +70,7 @@ class AgentState:
         }
         self.observations.append(observation)
         self._log_execution("observation", observation)
-        
+
         # 自动提取交付物：检查是否是成功的文件写入操作
         self._auto_extract_artifact(action, result)
 
@@ -356,20 +356,20 @@ class AgentState:
 
     def _auto_extract_artifact(self, action: Dict, result: Any):
         """自动从文件写入操作中提取交付物。
-        
+
         当工具执行结果为成功的文件写入时，自动将文件路径添加为交付物。
-        
+
         Args:
             action: 执行的行动字典。
             result: 执行结果。
         """
         if not isinstance(action, dict):
             return
-        
+
         tool = action.get("tool", "")
         arguments = action.get("arguments", {})
         filepath = arguments.get("filepath", "")
-        
+
         # 检查是否是文件写入操作
         if tool in ("safe_write_file", "write_file") and filepath:
             # 检查结果是否成功
@@ -381,7 +381,7 @@ class AgentState:
                     # 自动添加为交付物
                     self.add_artifact(
                         artifact_path=filepath,
-                        description=f"自动检测到的项目文件",
+                        description="自动检测到的项目文件",
                         step=self.step_count,
                     )
 

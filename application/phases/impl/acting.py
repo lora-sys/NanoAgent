@@ -155,26 +155,26 @@ class ActingPhase(BasePhase):
 
     def _check_duplicate_write(self, filepath: str, content: str) -> Optional[str]:
         """检查是否重复覆盖已有文件。
-        
+
         如果文件已存在且内容差异很小（说明 Agent 在反复写同一个文件），则阻止。
-        
+
         Returns:
             如果是重复写入，返回阻止消息；否则返回 None。
         """
         import os
         from difflib import SequenceMatcher
-        
+
         SANDBOX_DIR = self._get_sandbox_dir()
         full_path = os.path.join(SANDBOX_DIR, filepath)
-        
+
         if os.path.exists(full_path):
             try:
                 with open(full_path, "r", encoding="utf-8") as f:
                     existing_content = f.read()
-                
+
                 # 计算内容相似度
                 similarity = SequenceMatcher(None, existing_content, content).ratio()
-                
+
                 # 如果内容 90% 以上相同，认为是重复覆盖
                 if similarity > 0.9:
                     return (
@@ -183,13 +183,14 @@ class ActingPhase(BasePhase):
                     )
             except Exception:
                 pass  # 读取失败时不阻止写入
-        
+
         return None
 
     def _get_sandbox_dir(self) -> str:
         """获取沙箱目录路径"""
         import os
         from pathlib import Path
+
         return str(Path(os.path.join(os.getcwd(), "agent_workspace")).resolve())
 
     def _map_parameters(

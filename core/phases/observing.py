@@ -75,7 +75,7 @@ class ObservingPhase(BasePhase):
                 end = response.rfind("}") + 1
                 data = json.loads(response[start:end])
                 return data
-            except:
+            except Exception:
                 pass
 
         # 回退：检查特殊标记

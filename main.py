@@ -1,20 +1,12 @@
-"""
-NanoAgent 入口点
-
-用法：
-    uv run main.py "你的任务描述"
-    uv run main.py  # 使用示例任务
-"""
+"""NanoAgent CLI entry point."""
 
 import sys
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from core.agent_loop import NanoAgent
+from core.agent_loop import NanoAgent  # noqa: E402
 
-
-# 示例任务（当没有提供 CLI 参数时使用）
 DEFAULT_TASK = (
     "我要为一个名为'SmartHome AI'的智能家居公司开发一个完整的商业计划书和产品展示网站。"
     "具体需求："
@@ -33,15 +25,11 @@ DEFAULT_TASK = (
 )
 
 
-def get_task_from_args() -> str:
-    """从命令行参数获取任务描述"""
-    if len(sys.argv) > 1:
-        return " ".join(sys.argv[1:])
-    return DEFAULT_TASK
+def get_task() -> str:
+    return " ".join(sys.argv[1:]) if len(sys.argv) > 1 else DEFAULT_TASK
 
 
 if __name__ == "__main__":
-    task = get_task_from_args()
     agent = NanoAgent()
-    result = agent.run(task)
+    result = agent.run(get_task())
     print(result)
