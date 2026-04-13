@@ -2,6 +2,7 @@
 上下文加载器 - NanoAgent
 负责动态加载和提取 Spec 约束上下文
 """
+
 from typing import Dict
 from loguru import logger
 
@@ -29,7 +30,8 @@ class ContextLoader:
         context = {
             "master_spec": "",
             "current_stage_spec": "",
-            "constraints": {}  # 修复：初始化为 dict 而不是 list
+            "current_stage_id": "unknown",
+            "constraints": {},  # 修复：初始化为 dict 而不是 list
         }
 
         try:
@@ -40,6 +42,10 @@ class ContextLoader:
                 # 清除缓存的上下文以防止泄漏
                 self.current_stage_context = context
                 return context
+
+            # 记录当前阶段 ID
+            if hasattr(manifest, "current_stage"):
+                context["current_stage_id"] = manifest.current_stage
 
             # 2. 加载 master_spec（保持方向）
             master_spec = self.manifest_manager.load_master_spec()
@@ -77,13 +83,9 @@ class ContextLoader:
         Returns:
             包含 always、ask_first、never 约束的字典
         """
-        constraints = {
-            "always": [],
-            "ask_first": [],
-            "never": []
-        }
+        constraints = {"always": [], "ask_first": [], "never": []}
 
-        lines = spec_content.split('\n')
+        lines = spec_content.split("\n")
         current_section = None
 
         for line in lines:
@@ -111,5 +113,5 @@ class ContextLoader:
         return self.current_stage_context or {
             "master_spec": "",
             "current_stage_spec": "",
-            "constraints": {}
+            "constraints": {},
         }

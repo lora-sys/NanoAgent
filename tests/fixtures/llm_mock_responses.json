@@ -1,0 +1,85 @@
+[
+  {
+    "action": "tool_call",
+    "tool": "safe_write_file",
+    "arguments": {
+      "filepath": "package.json",
+      "content": "{\n  \"name\": \"nanoagent-mock-test\",\n  \"version\": \"1.0.0\",\n  \"scripts\": {\n    \"start\": \"node index.js\"\n  }\n}"
+    },
+    "reason": "初始化项目配置文件"
+  },
+  {
+    "action": "tool_call",
+    "tool": "safe_write_file",
+    "arguments": {
+      "filepath": "src/index.js",
+      "content": "console.log('Hello from Mock Mode!');\n\nfunction main() {\n  return 'Mock Agent is working';\n}\n\nmodule.exports = { main };"
+    },
+    "reason": "创建核心入口文件"
+  },
+  {
+    "action": "tool_call",
+    "tool": "safe_list_directory",
+    "arguments": {
+      "path": "."
+    },
+    "reason": "检查当前目录结构是否正确"
+  },
+  {
+    "action": "tool_call",
+    "tool": "safe_read_file",
+    "arguments": {
+      "filepath": "package.json"
+    },
+    "reason": "读取 package.json 确认脚本配置"
+  },
+  {
+    "action": "tool_call",
+    "tool": "ask_user_question",
+    "arguments": {
+      "question": "请问你希望为这个项目添加单元测试吗？(是/否)"
+    },
+    "reason": "确认是否需要测试文件"
+  },
+  {
+    "action": "tool_call",
+    "tool": "safe_write_file",
+    "arguments": {
+      "filepath": "README.md",
+      "content": "# NanoAgent Mock Test\n\n这是一个由 Mock Agent 自动生成的测试项目。\n\n## 运行方式\n```bash\nnode src/index.js\n```"
+    },
+    "reason": "补充项目文档说明"
+  },
+  {
+    "action": "tool_call",
+    "tool": "safe_write_file",
+    "arguments": {
+      "filepath": "src/utils.js",
+      "content": "function add(a, b) {\n  return a + b;\n}\n\nmodule.exports = { add };"
+    },
+    "reason": "添加工具函数模块"
+  },
+  {
+    "action": "wait",
+    "reason": "需要用户确认 UI 设计风格后再继续编写样式文件"
+  },
+  {
+    "action": "tool_call",
+    "tool": "safe_write_file",
+    "arguments": {
+      "filepath": "tests/test_basic.js",
+      "content": "const assert = require('assert');\nconst { add } = require('../src/utils');\n\ndescribe('Utils', () => {\n  it('should add two numbers', () => {\n    assert.strictEqual(add(1, 2), 3);\n  });\n});"
+    },
+    "reason": "创建基础测试用例"
+  },
+  {
+    "action": "stage_complete",
+    "decisions": ["选定 Node.js 作为运行时", "使用 CommonJS 模块规范"],
+    "artifacts": ["package.json", "src/index.js", "README.md"],
+    "reason": "第一阶段（初始化）目标已达成，准备进入下一阶段"
+  },
+  {
+    "action": "complete",
+    "reason": "任务已全部完成，所有文件已生成，项目可以运行。"
+  }
+]

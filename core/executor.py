@@ -1,42 +1,86 @@
 """
-执行器 - NanoAgent
-管理执行流程的各个阶段
+执行器 - NanoAgent（简化版）
+
+负责编排 ReAct 循环，各个阶段委托给独立的处理器
 """
-import re
-from typing import Dict, Any
+
+from typing import Dict, Any, Optional, List
 from loguru import logger
-from spec.models import AgentPlan
-from core.interfaces import ILLMClient, IRouter, IManifestManager, IContextLoader, ISpecGenerator
+
+from core.phases import (
+    ThinkingPhase,
+    ActingPhase,
+    ObservingPhase,
+    ReflectionPhase,
+    PlanningPhase,
+)
+from core.utils import get_timestamp, get_recent_observations_summary
+from core.types import (
+    StateManagerProtocol,
+    PersistenceManagerProtocol,
+    CacheManagerProtocol,
+)
+from domain.models.models import AgentPlan, RoutingDecision
 
 
 class AgentExecutor:
-    """执行器 - 管理执行流程"""
+    """执行器 - 编排器模式。
+
+    负责 ReAct 循环的编排，将各个阶段（Think, Act, Observe, Reflection）
+    委托给独立的处理器。
+
+    此类作为应用层的核心编排器，协调 LLM、工具、上下文管理和状态机，
+    确保 Agent 按照 Spec 和规则有序执行任务。
+
+    Attributes:
+        llm_client: LLM 客户端实例。
+        router: 路由器实例，用于任务分类。
+        manifest_manager: Manifest 管理器实例。
+        context_loader: 上下文加载器实例。
+        spec_generator: Spec 生成器实例。
+        tool_registry: 工具注册表实例。
+        persistence_manager: 持久化管理器实例。
+        cache: 缓存管理器实例。
+        config: 配置字典。
+        state: Agent 状态管理器实例。
+
+    Example:
+        >>> executor = AgentExecutor(
+        ...     llm_client=llm_client,
+        ...     router=router,
+        ...     manifest_manager=manifest_manager,
+        ... )
+        >>> result = executor.think_phase(task="...", context={})
+    """
 
     def __init__(
         self,
-        llm_client: ILLMClient,
-        router: IRouter,
-        manifest_manager: IManifestManager,
-        context_loader: IContextLoader,
-        spec_generator: ISpecGenerator,
-        tool_registry: Any = None,
-        persistence_manager: Any = None,
-        cache: Any = None,
-        config: Dict[str, Any] = None
+        llm_client: Any,
+        router: Any,
+        manifest_manager: Any,
+        context_loader: Any,
+        spec_generator: Any,
+        tool_registry: Optional[Any] = None,
+        persistence_manager: Optional[PersistenceManagerProtocol] = None,
+        cache: Optional[CacheManagerProtocol] = None,
+        config: Optional[Dict[str, Any]] = None,
+        state: Optional[StateManagerProtocol] = None,
     ):
-        """
-        初始化执行器
+        """初始化执行器。
+
+        配置所有依赖组件并初始化各个阶段处理器。
 
         Args:
-            llm_client: LLM 客户端
-            router: 路由器
-            manifest_manager: Manifest 管理器
-            context_loader: 上下文加载器
-            spec_generator: Spec 生成器
-            tool_registry: 工具注册表
-            persistence_manager: 持久化管理器
-            cache: 缓存管理器
-            config: 配置字典
+            llm_client: LLM 客户端。
+            router: 路由器。
+            manifest_manager: Manifest 管理器。
+            context_loader: 上下文加载器。
+            spec_generator: Spec 生成器。
+            tool_registry: 工具注册表。
+            persistence_manager: 持久化管理器。
+            cache: 缓存管理器。
+            config: 配置字典。
+            state: 状态管理器。
         """
         self.llm_client = llm_client
         self.router = router
@@ -47,644 +91,360 @@ class AgentExecutor:
         self.persistence_manager = persistence_manager
         self.cache = cache
         self.config = config or {}
-        
-        # 从配置中读取参数
+        self.state = state
+
+        # 初始化上下文管理器
+        from infrastructure.persistence.context import ContextManager
+
+        self.context_manager = ContextManager()
+
+        # 初始化规则引擎
+        from domain.entities.rule_engine import RuleEngine
+
+        self.rule_engine = RuleEngine()
+
+        # 从配置读取参数
         core_config = self.config.get("core", {})
         performance_config = core_config.get("performance", {})
-        
         self.max_steps = performance_config.get("max_steps", 20)
         self.max_context_tokens = performance_config.get("max_context_tokens", 3500)
-        self.context_window_ratio = performance_config.get("context_window_ratio", 0.7)
 
-    def route_task(self, task: str) -> Dict:
-        """
-        阶段1：智能路由
+        # 初始化阶段处理器
+        self.thinking_phase = ThinkingPhase(
+            llm_client=llm_client,
+            tool_registry=tool_registry,
+            config=config,
+        )
+        self.thinking_phase.max_steps = self.max_steps
+
+        self.acting_phase = ActingPhase(
+            llm_client=llm_client,
+            tool_registry=tool_registry,
+            config=config,
+        )
+
+        self.observing_phase = ObservingPhase(
+            llm_client=llm_client,
+            tool_registry=tool_registry,
+            config=config,
+        )
+
+        self.reflection_phase_handler = ReflectionPhase(
+            llm_client=llm_client,
+            tool_registry=tool_registry,
+            config=config,
+        )
+
+        self.planning_phase_handler = PlanningPhase(
+            llm_client=llm_client,
+            tool_registry=tool_registry,
+            config=config,
+        )
+
+    # ============ 代理方法 ============
+
+    def route_task(self, task: str) -> RoutingDecision:
+        """路由任务。
+
+        使用路由器对任务进行分类，确定任务类型和置信度。
 
         Args:
-            task: 用户任务
+            task: 用户任务描述。
 
         Returns:
-            路由决策结果
+            路由决策结果（RoutingDecision 对象）。
         """
         logger.info("=== Phase 1: Task Routing ===")
-        routing_decision = self.router.route(task)
-        logger.info(
-            "Task routed",
-            task_type=routing_decision.task_type.value,
-            confidence=f"{routing_decision.confidence:.2%}"
-        )
-        return routing_decision.model_dump()
+        return self.router.route(task)
 
-    def should_init_spec(self, task: str, routing_decision: Dict) -> bool:
-        """
-        判断是否需要初始化 Spec
+    def should_init_spec(self, task: str, routing_decision: RoutingDecision) -> bool:
+        """判断是否需要初始化 Spec。
 
         Args:
-            task: 用户任务
-            routing_decision: 路由决策
+            task: 用户任务描述。
+            routing_decision: 路由决策结果。
 
         Returns:
-            是否需要初始化
+            是否需要初始化 Spec。
         """
-        # 检查是否已存在 manifest
-        manifest = self.manifest_manager.load_manifest()
-        if manifest is None:
-            # 没有 manifest，需要初始化
-            return True
-        
-        # manifest 已存在，不需要重新初始化，支持恢复逻辑
-        return False
+        from domain.models.models import TaskType
 
-    def load_context(self) -> Dict:
-        """
-        阶段3：动态加载上下文
+        return routing_decision.task_type == TaskType.CODE
 
-        Returns:
-            上下文字典
+    def load_context(self) -> Dict[str, Any]:
+        """加载上下文。
+
+        合并静态 Spec 约束和已积累的执行上下文，确保 Agent 记住之前的决策。
         """
         logger.info("=== Phase 3: Dynamic Context Loading ===")
-        context = self.context_loader.dynamic_load_context()
-        logger.info("Context loaded", has_master=bool(context.get("master_spec")))
+        
+        # 1. 从 Spec 文件加载静态约束
+        spec_context = self.context_loader.dynamic_load_context()
+        stage_id = spec_context.get("current_stage_id", "unknown")
+        
+        # 2. 加载之前积累的执行上下文（决策、交付物、观察）
+        saved_context = self.context_manager.load_context(stage_id) or {}
+        
+        # 3. 合并：静态约束 + 积累的执行信息
+        merged = {
+            **spec_context,
+            "accumulated_decisions": saved_context.get("accumulated_decisions", []),
+            "accumulated_artifacts": saved_context.get("accumulated_artifacts", []),
+            "recent_observations": saved_context.get("recent_observations", []),
+        }
+        
+        logger.info(
+            f"Context loaded: {stage_id} "
+            f"({len(merged.get('accumulated_decisions', []))} decisions, "
+            f"{len(merged.get('accumulated_artifacts', []))} artifacts)"
+        )
+        return merged
+
+    def save_context(self, context_updates: Dict[str, Any]) -> None:
+        """保存执行上下文，确保 Agent 记住之前的决策。
+        
+        Args:
+            context_updates: 要追加的上下文信息（决策、交付物、观察）
+        """
+        stage_id = context_updates.get("current_stage_id", "unknown")
+        if stage_id == "unknown":
+            # 尝试从加载器获取当前阶段
+            spec_context = self.context_loader.dynamic_load_context()
+            stage_id = spec_context.get("current_stage_id", "unknown")
+        
+        # 加载现有上下文
+        existing = self.context_manager.load_context(stage_id) or {}
+        
+        # 深度合并
+        merged = self._deep_merge(existing, context_updates)
+        
+        # 保存
+        self.context_manager.save_context(stage_id, merged)
+
+    def _deep_merge(self, base: Dict, updates: Dict) -> Dict:
+        """深度合并字典，列表追加而非覆盖。"""
+        result = base.copy()
+        for key, value in updates.items():
+            if key in result and isinstance(result[key], list) and isinstance(value, list):
+                # 列表去重追加
+                result[key] = list(dict.fromkeys(result[key] + value))
+            elif key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = self._deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
+
+    def planning_phase(self, task: str, context: Dict[str, Any]) -> AgentPlan:
+        """Planning 阶段。
+
+        根据任务和上下文生成执行计划。
+
+        Args:
+            task: 用户任务描述。
+            context: 当前上下文。
+
+        Returns:
+            生成的执行计划。
+        """
+        # 构建 spec 内容
+        spec_content = ""
+        if context.get("master_spec") and context.get("current_stage_spec"):
+            spec_content = f"""【当前任务阶段】
+{context.get("master_spec", "")[:300]}
+
+## 当前阶段约束
+{context.get("current_stage_spec", "")}
+"""
+        else:
+            spec_content = "No spec context available"
+
+        return self.planning_phase_handler.execute(
+            task=task,
+            spec_content=spec_content,
+            current_context="",
+        )
+
+    def think_phase(
+        self,
+        task: str,
+        context: Dict[str, Any],
+        observations: List[Dict[str, Any]],
+        step_count: int = 0,
+        spec: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Think 阶段。
+
+        分析当前状态并决定下一步行动。
+
+        Args:
+            task: 用户任务描述。
+            context: 当前上下文。
+            observations: 历史观察记录。
+            step_count: 当前步骤计数。
+            spec: 任务规范。
+
+        Returns:
+            思考结果，包含下一步行动决策。
+        """
+        return self.thinking_phase.execute(
+            task=task,
+            context=context,
+            observations=observations,
+            step_count=step_count,
+            spec=spec,
+            state=self.state,
+        )
+
+    def act_phase(self, action: Dict[str, Any]) -> Any:
+        """Act 阶段。
+
+        执行 Think 阶段决定的行动。
+
+        Args:
+            action: 行动描述，包含工具调用信息。
+
+        Returns:
+            行动执行结果。
+        """
+        return self.acting_phase.execute(action)
+
+    def observe_phase(self, action: Dict[str, Any], result: Any) -> Dict[str, Any]:
+        """Observe 阶段。
+
+        观察行动执行结果并决定下一步。
+
+        Args:
+            action: 执行的行动。
+            result: 执行结果。
+
+        Returns:
+            观察结果和下一步决策。
+        """
+        return self.observing_phase.execute(
+            last_action=action,
+            tool_result=result,
+        )
+
+    def reflection_phase(
+        self,
+        observations: List[Dict[str, Any]],
+        spec: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Reflection 阶段。
+
+        自我评估执行进度和质量，决定是否需要调整策略。
+
+        Args:
+            observations: 历史观察记录。
+            spec: 任务规范。
+
+        Returns:
+            反思结果，包含进度评估和下一步建议。
+        """
+        return self.reflection_phase_handler.execute(
+            execution_history=observations,
+            task_spec=spec,
+            current_progress={"observations_count": len(observations)},
+            rule_engine=self.rule_engine,
+        )
+
+    # ============ 辅助方法 ============
+
+    def build_system_prompt(self, context: Dict[str, Any]) -> str:
+        """构建系统提示"""
+        return f"""你是 NanoAgent 智能助手。
+
+当前上下文：
+- 阶段：{context.get("current_stage_id", "unknown")}
+- 任务：{context.get("task_goal", "unknown")}
+
+请按照 ReAct 循环执行任务：思考 → 行动 → 观察 → 反思"""
+
+    def _truncate_context_for_tokens(
+        self, context: str, max_tokens: Optional[int] = None
+    ) -> str:
+        """截断上下文"""
+        max_tokens = max_tokens or self.max_context_tokens
+        # 粗略估计：1 token ≈ 4 字符
+        max_chars = max_tokens * 4
+        if len(context) > max_chars:
+            return context[:max_chars] + "\n... [truncated]"
         return context
 
-    def build_system_prompt(self, context: Dict) -> str:
-        """
-        构建系统提示（基于当前阶段的约束）
+    def _build_context(self) -> Dict[str, Any]:
+        """构建上下文"""
+        return {
+            "max_steps": self.max_steps,
+            "max_context_tokens": self.max_context_tokens,
+        }
 
-        Args:
-            context: 上下文字典
+    def _get_recent_observations_summary(
+        self, observations: List[Dict[str, Any]], max_items: int = 3
+    ) -> str:
+        """获取最近观察摘要"""
+        return get_recent_observations_summary(observations, max_items)
 
-        Returns:
-            系统提示
-        """
-        if context.get("master_spec") and context.get("current_stage_spec"):
-            # 规范化约束：支持 list 或 dict 格式
-            constraints = context.get("constraints", {})
-            if isinstance(constraints, list):
-                # 如果是 list，视为 always 约束
-                always_constraints = constraints
-                never_constraints = []
-            elif isinstance(constraints, dict):
-                # 如果是 dict，提取 always 和 never
-                always_constraints = constraints.get("always", [])
-                never_constraints = constraints.get("never", [])
-            else:
-                # 无效格式，使用默认值
-                always_constraints = []
-                never_constraints = []
-            
-            return f"""【当前任务阶段】
-
-## 核心目标（来自 Master Spec）
-{context['master_spec'][:300]}
-
-## 当前阶段约束
-{context['current_stage_spec']}
-
-## 必须遵守的规则
-{chr(10).join(f'- {c}' for c in always_constraints)}
-
-## 禁止的操作
-{chr(10).join(f'- {c}' for c in never_constraints)}
-"""
-        else:
-            return "No spec context available"
-
-    def _truncate_context_for_tokens(self, context: str, max_tokens: int = None) -> str:
-        """截断上下文以符合 token 限制（简单估算：1 token ≈ 4 字符）"""
-        if max_tokens is None:
-            max_tokens = self.max_context_tokens
-        
-        max_chars = max_tokens * 4  # 粗略估算
-        
-        if len(context) <= max_chars:
-            return context
-        
-        truncated = context[:max_chars]
-        logger.warning(f"Context truncated from {len(context)} to {len(truncated)} chars")
-        return truncated
-    
-    def _get_recent_observations_summary(self, observations: list, max_items: int = 5) -> str:
-        """获取最近的观察摘要"""
+    def check_completion(
+        self, observations: List[Dict[str, Any]], manifest: Any
+    ) -> bool:
+        """检查是否完成"""
         if not observations:
-            return "No observations yet"
-        
-        recent = observations[-max_items:]
-        summary = []
-        for i, obs in enumerate(recent, 1):
-            obs_type = obs.get("type", "")
-            
-            if obs_type == "user_answer":
-                # 用户回答：显示用户的回答内容
-                user_answer = obs.get("user_answer", obs.get("raw", ""))
-                summary.append(f"Step {i}: 用户回答了：{user_answer[:500]}")
-            else:
-                # 其他观察：显示标准摘要
-                raw = obs.get("raw", "")
-                summary.append(f"Step {i}: {raw[:150]}...")
-        
-        return "\n".join(summary)
-    
-    def planning_phase(self, task: str, context: Dict) -> AgentPlan:
-        """
-        阶段4：Planning 阶段
+            return False
+
+        last_obs = observations[-1]
+        return last_obs.get("action") == "complete"
+
+    def init_spec(
+        self, task: str, routing_decision: RoutingDecision, spec_initializer: Any = None
+    ) -> Any:
+        """初始化 Spec。
 
         Args:
-            task: 用户任务
-            context: 上下文字典
+            task: 用户任务描述。
+            routing_decision: 路由决策结果。
+            spec_initializer: Spec 初始化器实例（可选，使用内置的如果未提供）。
 
         Returns:
-            执行计划
+            生成的 Manifest 对象。
         """
-        logger.info("=== Planning Phase ===")
-        
-        if context is None:
-            context = {}
-        
-        # 标准化constraints格式
-        constraints = context.get("constraints")
-        if constraints is None:
-            constraints = {"always": [], "never": []}
-        elif isinstance(constraints, list):
-            # 如果是list，视为always约束
-            constraints = {"always": constraints, "never": []}
-        
-        # 构建动态 Spec 内容（基于当前阶段）
-        if context.get("master_spec") and context.get("current_stage_spec"):
-            full_spec_content = f"""【当前任务阶段】
+        logger.info("=== Initializing Spec ===")
+        initializer = spec_initializer or self.spec_generator
+        return initializer.init_spec(task, routing_decision)
 
-## 核心目标（来自 Master Spec）
-{context['master_spec'][:300]}
-
-## 当前阶段约束
-{context['current_stage_spec']}
-
-## 必须遵守的规则
-{chr(10).join(f'- {c}' for c in constraints.get('always', []))}
-
-## 禁止的操作
-{chr(10).join(f'- {c}' for c in constraints.get('never', []))}
-"""
-        else:
-            # 回退到旧方式
-            full_spec_content = "No spec context available"
-        
-        from core.prompt import SYSTEM_PROMPT, PLANNING_PROMPT
-        from spec.models import AgentPlan, PlanStep
-        import json
-        
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": PLANNING_PROMPT.format(
-                task_description=task,
-                task_spec=full_spec_content,
-                current_context="",
-                available_tools=self.tool_registry.get_tool_descriptions() if self.tool_registry else "No tools available"
-            )}
-        ]
-        
-        try:
-            # 尝试使用结构化输出（更可靠）
-            plan = self.llm_client.structured_chat(messages, AgentPlan, temperature=0.5)
-            logger.info(f"Plan generated with {len(plan.steps)} steps")
-            return plan
-            
-        except Exception as e:
-            logger.warning(f"Structured planning failed, falling back to JSON parsing: {e}")
-            # 回退到 JSON 解析
-            try:
-                response = self.llm_client.chat(messages, temperature=0.5)
-                plan_data = json.loads(response)
-                plan = AgentPlan(
-                    steps=[
-                        PlanStep(
-                            step_id=step["step_id"],
-                            goal=step["goal"],
-                            suggested_tools=step.get("tool", "").split(",")
-                        )
-                        for step in plan_data.get("steps", [])
-                    ],
-                    overall_goal=plan_data.get("overview", "")
-                )
-                logger.info(f"Plan generated with {len(plan.steps)} steps (fallback)")
-                return plan
-            except Exception as e2:
-                logger.error(f"Planning error: {e2}")
-                # 生成简单计划作为回退
-                return AgentPlan(
-                    steps=[PlanStep(step_id=1, goal="Execute task", suggested_tools=[])],
-                    overall_goal="Fallback plan"
-                )
-
-    def think_phase(self, task: str, context: Dict, observations: list, step_count: int = 0, spec: Any = None) -> Dict:
-        """
-        Think 阶段：分析当前状态
-
-        Args:
-            task: 用户任务
-            context: 上下文字典
-            observations: 历史观察
-            step_count: 当前步数
-            spec: 任务规范
-
-        Returns:
-            思考结果（包含 action 和参数）
-        """
-        logger.info(f"=== Think Phase (Step {step_count + 1}) ===")
-        
-        if context is None:
-            context = {}
-        
-        # 使用摘要而不是完整的观察记录
-        recent_observations = self._get_recent_observations_summary(observations, max_items=3)
-        
-        from core.prompt import SYSTEM_PROMPT, REACT_THINK_PROMPT
-        import json
-        
-        # 构建动态提示
-        prompt = REACT_THINK_PROMPT.format(
-            current_step=step_count + 1,
-            completed_steps=[s.get("step", 0) for s in observations],
-            step_count=step_count,
-            max_steps=self.max_steps,
-            task_goal=spec.overall_goal if spec else task,
-            recent_observations=recent_observations,
-            available_tools=self.tool_registry.get_tool_descriptions() if self.tool_registry else "No tools available"
-        )
-        
-        # 添加当前阶段约束
-        if context.get("current_stage_spec"):
-            prompt += "\n\n【当前阶段约束】\n"
-            prompt += context["current_stage_spec"]
-        
-        if context.get("constraints"):
-            constraints = context["constraints"]
-            # 标准化constraints格式
-            if isinstance(constraints, list):
-                # 如果是list，转换为dict格式
-                constraints = {"always": constraints, "never": []}
-            elif not isinstance(constraints, dict):
-                constraints = {}
-            
-            if constraints.get("never"):
-                prompt += "\n【禁止操作】\n"
-                for c in constraints["never"]:
-                    prompt += f"- {c}\n"
-        
-        # 截断 prompt 以符合 token 限制
-        prompt = self._truncate_context_for_tokens(prompt)
-        
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ]
-        
-        response = self.llm_client.chat(messages, temperature=0.7)
-        
-        logger.debug(f"Think response: {response[:200]}...")
-        
-        # 解析决策
-        if "TASK_COMPLETE" in response:
-            return {"action": "complete", "reason": "Task completed"}
-        elif "WAIT_FOR_USER" in response:
-            return {"action": "wait", "reason": "Needs user input"}
-        elif "STAGE_COMPLETE" in response:
-            # 提取决策和交付物
-            decisions = []
-            artifacts = []
-            
-            try:
-                start = response.find("{")
-                end = response.rfind("}") + 1
-                if start != -1 and end > start:
-                    stage_data = json.loads(response[start:end])
-                    decisions = stage_data.get("decisions", [])
-                    artifacts = stage_data.get("artifacts", [])
-            except Exception as e:
-                logger.error(f"Failed to parse STAGE_COMPLETE JSON: {e}", exc_info=True)
-                logger.debug(f"Response substring: {response[max(0, start-50):min(len(response), end+50)] if start != -1 else response[:100]}")
-            
-            return {
-                "action": "stage_complete",
-                "stage_id": context.get("current_stage_id", "unknown"),
-                "decisions": decisions,
-                "artifacts": artifacts
-            }
-        else:
-            # 解析工具调用
-            try:
-                # 尝试解析 JSON 格式的工具调用
-                if "{" in response and "}" in response:
-                    start = response.find("{")
-                    end = response.rfind("}") + 1
-                    action_data = json.loads(response[start:end])
-                    
-                    if "tool" in action_data or "function" in action_data:
-                        tool_name = action_data.get("tool") or action_data.get("function")
-                        arguments = action_data.get("arguments", action_data.get("parameters", {}))
-                        return {
-                            "action": "tool_call",
-                            "tool": tool_name,
-                            "arguments": arguments,
-                            "thought": action_data.get("thought", "")
-                        }
-                
-                # 回退：基于文本解析
-                return {
-                    "action": "tool_call",
-                    "tool": "unknown",
-                    "arguments": {},
-                    "thought": response[:200]
-                }
-                
-            except Exception as e:
-                logger.error(f"Failed to parse think response: {e}")
-                return {"action": "continue", "thought": response[:200]}
-
-    def act_phase(self, action: Dict) -> Any:
-        """
-        Act 阶段：执行动作
-
-        Args:
-            action: 动作描述
-
-        Returns:
-            执行结果
-        """
-        if action["action"] == "tool_call":
-            logger.info(f"Executing tool: {action['tool']}")
-            
-            tool_name = action["tool"]
-            arguments = action.get("arguments", {}).copy()
-            
-            # 检查是否为 HITL 工具
-            from core.tools.hitl import HITL_TOOL_NAMES
-            if tool_name in HITL_TOOL_NAMES:
-                # HITL 工具会自动在get_tool时动态加载，无需手动加载
-                pass
-            
-            # 参数映射：处理常见的参数名差异
-            # 为 write_file 映射参数
-            if tool_name == "write_file":
-                if "path" in arguments and "filepath" not in arguments:
-                    arguments["filepath"] = arguments.pop("path")
-                    logger.info("Mapped 'path' to 'filepath' for write_file")
-                elif "file_path" in arguments and "filepath" not in arguments:
-                    arguments["filepath"] = arguments.pop("file_path")
-                    logger.info("Mapped 'file_path' to 'filepath' for write_file")
-            
-            # 为 read_file 映射参数
-            elif tool_name == "read_file":
-                if "path" in arguments and "filepath" not in arguments:
-                    arguments["filepath"] = arguments.pop("path")
-                    logger.info("Mapped 'path' to 'filepath' for read_file")
-                elif "file_path" in arguments and "filepath" not in arguments:
-                    arguments["filepath"] = arguments.pop("file_path")
-                    logger.info("Mapped 'file_path' to 'filepath' for read_file")
-            
-            result = self.tool_registry.execute(tool_name, arguments) if self.tool_registry else f"Tool registry not available: {tool_name}"
-            
-            return result
-        else:
-            # 内容输出
-            content = action.get("content", "No action taken")
-            return content
-
-    def observe_phase(self, action: Dict, result: Any) -> Dict:
-        """
-        Observe 阶段：观察执行结果
-
-        Args:
-            action: 执行的动作
-            result: 执行结果
-
-        Returns:
-            观察结果
-        """
-        logger.info("=== Observe Phase ===")
-        
-        # 截断工具结果以减少 token 使用（对于用户回答，限制1000字符）
-        tool_result_str = str(result)[:1000]
-        
-        # 检查是否为 HITL 工具
-        from core.tools.hitl import HITL_TOOL_NAMES
-        is_hitl_tool = action.get("tool") in HITL_TOOL_NAMES
-        
-        if is_hitl_tool and tool_result_str:
-            # HITL 工具：直接存储用户回答，不调用 LLM 分析
-            logger.info(f"User answer captured: {tool_result_str[:100]}...")
-            return {
-                "raw": tool_result_str,
-                "summary": f"User answered: {tool_result_str[:200]}",
-                "type": "user_answer",
-                "user_answer": tool_result_str,
-                "timestamp": self._get_timestamp()
-            }
-        
-        # 其他工具：调用 LLM 分析
-        from core.prompt import SYSTEM_PROMPT, REACT_OBSERVE_PROMPT
-        import json
-        
-        # 对非 HITL 工具的结果，截断到 500 字符
-        tool_result_str_for_analysis = str(result)[:500]
-        
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": REACT_OBSERVE_PROMPT.format(
-                last_action=json.dumps(action, indent=2),
-                tool_result=tool_result_str_for_analysis,
-            )}
-        ]
-        
-        try:
-            response = self.llm_client.chat(messages, temperature=0.7)
-            
-            return {
-                "raw": response,
-                "summary": response[:200] if len(response) > 200 else response,
-                "type": "tool_observation"
-            }
-            
-        except Exception as e:
-            logger.error(f"Observe phase error: {e}")
-            return {
-                "raw": f"Error during observation: {str(e)}",
-                "summary": "Observation failed",
-                "type": "error"
-            }
-
-    def reflection_phase(self, observations: list, spec: Any = None) -> Dict:
-        """
-        反思阶段：评估执行状态
-
-        Args:
-            observations: 观察历史
-            spec: 任务规范
-
-        Returns:
-            反思结果
-        """
-        logger.info("=== Reflection Phase ===")
-        
-        # 使用摘要而不是完整的执行历史
-        execution_summary = self._get_recent_observations_summary(observations, max_items=10)
-        
-        # 处理 spec 可能为 None 的情况
-        task_spec_json = spec.model_dump_json(indent=2) if spec else "{}"
-        
-        from core.prompt import SYSTEM_PROMPT, REFLECTION_PROMPT
-        from pydantic import BaseModel, Field
-        from typing import List
-        import json
-        
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": REFLECTION_PROMPT.format(
-                execution_history=execution_summary,
-                task_spec=task_spec_json,
-                current_progress=f"{len(observations)} steps completed"
-            )}
-        ]
-        
-        # 截断 prompt 以符合 token 限制
-        user_content = messages[1]["content"]
-        messages[1]["content"] = self._truncate_context_for_tokens(user_content)
-        
-        try:
-            # 尝试使用结构化输出
-            class ReflectionResult(BaseModel):
-                task_completed: bool
-                progress_summary: str
-                issues_found: List[str] = Field(default_factory=list)
-                solutions_applied: List[str] = Field(default_factory=list)
-                next_action: str
-                confidence_score: float = 0.5
-            
-            reflection = self.llm_client.structured_chat(messages, ReflectionResult, temperature=0.5)
-            logger.info(f"Reflection: {reflection.next_action}")
-            return reflection.model_dump()
-            
-        except Exception as e:
-            logger.warning(f"Structured reflection failed, falling back to JSON parsing: {e}")
-            # 回退到 JSON 解析
-            try:
-                response = self.llm_client.chat(messages, temperature=0.5)
-                reflection = json.loads(response)
-                logger.info(f"Reflection: {reflection.get('next_action', 'unknown')}")
-                return reflection
-            except Exception as e:
-                logger.warning(f"Structured reflection failed, falling back to continue: {e}")
-                return {"task_completed": False, "next_action": "continue"}
-
-    def check_completion(self, observations: list, manifest) -> bool:
-        """
-        检查任务是否完成
-
-        Args:
-            observations: 观察历史
-            manifest: Manifest 对象
-
-        Returns:
-            是否完成
-        """
-        # 简化版：总是返回 False
-        return False
-
-    def extract_decisions(self, observations: list) -> list:
-        """
-        提取决策
-
-        Args:
-            observations: 观察历史
-
-        Returns:
-            决策列表
-        """
-        return []
-
-    def init_spec(self, task: str, routing_decision: Dict, spec_initializer: Any = None) -> Any:
-        """
-        初始化Spec
-
-        Args:
-            task: 用户任务
-            routing_decision: 路由决策
-            spec_initializer: Spec初始化器
-
-        Returns:
-            Manifest对象
-        """
-        if not spec_initializer:
-            logger.warning("No spec_initializer provided, skipping spec initialization")
-            return None
-        
-        # 创建简单的 routing_decision 对象
-        from spec.models import RoutingDecision
-        rd = RoutingDecision(**routing_decision)
-        manifest = spec_initializer.init_spec(task, rd)
-        
-        logger.info(f"Spec initialized: {manifest.project_name if manifest else 'Failed'}")
-        return manifest
-    
     def load_existing_manifest(self) -> Any:
-        """
-        加载现有manifest
+        """加载现有 Manifest"""
+        try:
+            return self.manifest_manager.load_manifest()
+        except (AttributeError, FileNotFoundError, OSError) as e:
+            logger.debug(f"No existing manifest found: {e}")
+            return None
 
-        Returns:
-            Manifest对象，如果不存在则返回None
-        """
-        manifest = self.manifest_manager.load_manifest()
-        if manifest:
-            logger.info(f"Loaded existing manifest: {manifest.project_name}")
-        return manifest
-    
-    def save_execution_result(self, decisions: list, artifacts: list) -> None:
-        """
-        保存执行结果
+    def save_execution_result(self, decisions: List[str], artifacts: List[str]) -> None:
+        """保存执行结果"""
+        if self.manifest_manager:
+            self.manifest_manager.save(decisions=decisions, artifacts=artifacts)
 
-        Args:
-            decisions: 决策列表
-            artifacts: 交付物列表
-        """
-        if self.persistence_manager:
-            try:
-                result = {
-                    "decisions": decisions,
-                    "artifacts": artifacts,
-                    "timestamp": self._get_timestamp()
-                }
-                
-                # 检查persistence_manager是否有save方法
-                if hasattr(self.persistence_manager, 'save'):
-                    self.persistence_manager.save(result)
-                elif hasattr(self.persistence_manager, 'persist'):
-                    self.persistence_manager.persist(result)
-                else:
-                    logger.warning("PersistenceManager has no save/persist method")
-                
-                logger.info(f"Saved execution result: {len(decisions)} decisions, {len(artifacts)} artifacts")
-            except Exception as e:
-                logger.error(f"Failed to save execution result: {e}")
-    
     def _get_timestamp(self) -> str:
-        """获取当前时间戳"""
-        from datetime import datetime
-        return datetime.now().isoformat()
-    
-    def extract_artifacts(self, observations: list) -> list:
-        """
-        提取交付物
+        """获取时间戳"""
+        return get_timestamp()
 
-        Args:
-            observations: 观察历史
+    def _extract_and_save_requirements(self, user_answer: str, action: Dict[str, Any]):
+        """提取并保存需求"""
+        if self.state:
+            self.state.add_requirement(user_answer)
 
-        Returns:
-            交付物文件列表
-        """
-        artifact_files = []
-        for obs in observations:
-            raw = obs.get("raw", "")
-            match = re.search(r'Successfully wrote \d+ chars to (\S+)', raw)
-            if match:
-                artifact_files.append(match.group(1))
-        return artifact_files
+    def _extract_artifact_from_action(
+        self, action: Dict[str, Any], result: Any
+    ) -> Optional[str]:
+        """从动作中提取交付物"""
+        if action.get("tool") in ["write_file", "safe_write_file"]:
+            return action.get("arguments", {}).get("filepath", "unknown")
+        return None
+
+    def _extract_decision_from_answer(self, user_answer: str) -> Optional[str]:
+        """从回答中提取决策"""
+        if any(
+            word in user_answer.lower() for word in ["确认", "好的", "没问题", "可以"]
+        ):
+            return "confirmed"
+        return None

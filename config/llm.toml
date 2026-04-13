@@ -1,13 +1,18 @@
 [default]
-# 默认LLM配置
 provider = "openai"
-model = "openai/qwen3.5-plus"
+model = "openai/deepseek-r1"
 temperature = 0.7
 max_tokens = 4096
 timeout = 30
 
+[mock]
+# 开启后，LLM 将直接从 fixtures 读取回复，不调用 API (开发调试用)
+enabled = true
+# 匹配模式: "hash" (精确匹配 prompt) 或 "random" (随机返回 fixture)
+mode = "random"
+responses_file = "tests/fixtures/llm_mock_responses.json"
+
 [retry]
-# 重试配置
 max_attempts = 3
 backoff_factor = 2.0
 initial_delay = 1.0
@@ -15,7 +20,6 @@ retry_on_timeout = true
 retry_on_rate_limit = true
 
 [logging]
-# LLM调用日志
 enable_trace = true
 log_requests = true
 log_responses = false
