@@ -12,7 +12,7 @@ from domain.exceptions.exceptions import (
     SpecError, SpecGenerationError, SpecValidationError,
     PersistenceError, FileAccessError,
 )
-from domain.entities.state_machine import StateMachine, AgentState
+from domain.entities.rule_engine import RuleEngine
 from domain.entities.rule_engine import RuleEngine
 
 from infrastructure.llm.client import NanoLLMClient

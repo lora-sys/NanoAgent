@@ -35,45 +35,34 @@ class SpecGenerator:
         # 步骤 1: 用 LLM 生成 task_type 和核心字段值
         soul_content = load_soul()
 
-        prompt = f"""你是一个专业的 Spec 内容生成器。
+        prompt = f"""为以下任务生成 Spec 配置。
 
-Agent 灵魂描述：
-{soul_content}
+任务: {task}
+Agent 设定: {soul_content}
 
-当前用户任务：
-{task}
-
-请生成一个完整的 Spec 内容 JSON 对象。
-
-JSON Schema:
+返回 JSON:
 {{
-  "task_type": "string (chat/code/writing/analyze)",
-  "overall_goal": "string - 核心目标",
-  "success_criteria": ["string1", "string2", ...],
-  "current_progress": "string",
-  "completed_steps": ["step1", "step2", ...],
-  "remaining": ["step3", "task4", ...],
-  "always": ["action1", "action2", ...],
-  "ask_first": ["action1", "action2", ...],
-  "never": ["action1", "action2", ...],
-  "self_check_instructions": ["instruction1", "instruction2", ...],
-  "process_requirements": ["string1", "string2", ...]
+  "task_type": "chat/code/writing/analyze",
+  "overall_goal": "核心目标",
+  "success_criteria": ["可验证标准 1", "标准 2"],
+  "current_progress": "当前阶段描述",
+  "completed_steps": [],
+  "remaining": ["待做事项 1", "待做事项 2"],
+  "always": ["必须遵守的规则"],
+  "ask_first": ["需确认的事项"],
+  "never": ["禁止的操作"],
+  "self_check_instructions": ["自查要点"],
+  "process_requirements": ["流程要求"]
 }}
 
-要求：
+要求:
 - success_criteria 必须具体、可验证
-- current_progress 描述当前阶段
-- completed_steps 和 remaining 是步骤列表
-- always/ask_first/never 是行为规则列表
-- 严格遵守 Three-Tier Boundaries
-
-重要：只返回合法的 JSON，不要任何额外文字。"""
+- always/never 是行为约束
+- 只返回 JSON
+"""
 
         messages = [
-            {
-                "role": "system",
-                "content": "你是一个严谨的 Spec 内容生成器，只输出 JSON。",
-            },
+            {"role": "system", "content": "Spec 生成器，只输出 JSON。"},
             {"role": "user", "content": prompt},
         ]
 

@@ -217,23 +217,17 @@ class LLMRouter:
 
     def route(self, user_input: str) -> RoutingDecision:
         """使用 LLM 进行路由决策"""
-        prompt = f"""你是一个任务分类专家。请分析以下用户请求，并确定任务类型。
+        prompt = f"""分析用户请求，确定任务类型。
 
-用户请求：
-{user_input}
+请求: {user_input}
 
-任务类型：
-- code: 编程开发任务（实现功能、编写代码、构建系统等）
-- writing: 写作任务（撰写文章、文档、报告、博客等）
-- analyze: 分析任务（代码分析、数据分析、性能评估等）
-- chat: 对话任务（聊天、咨询、讨论等）
+类型:
+- code: 编程、开发、调试
+- writing: 文章、报告、文档
+- analyze: 数据分析、研究、评估
+- chat: 对话、问答、咨询
 
-请以 JSON 格式返回，包含以下字段：
-{{
-  "task_type": "任务类型（code/writing/analyze/chat）",
-  "confidence": 0.0-1.0 之间的置信度,
-  "reasoning": "详细的推理过程"
-}}"""
+返回 JSON: {{"task_type": "code/writing/analyze/chat", "confidence": 0.0-1.0, "reasoning": "为什么"}}"""
 
         try:
             response = self.llm_client.chat(

@@ -12,7 +12,7 @@ NanoAgent CLI 界面 - 全局实时编排器
 
 import threading
 from loguru import logger
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 from queue import Queue
 import time
 import hashlib
@@ -229,6 +229,26 @@ class CLIInterface:
 
         logger.info(f"任务已升级（级别={level}）：{reason[:50]}...")
         return human_action
+
+    def print_dashboard(
+        self, 
+        stage_name: str, 
+        step_info: str, 
+        artifacts: List[str],
+        last_action: str
+    ):
+        """打印状态仪表盘 (用于实时查看 Agent 进度)"""
+        # 简单的 ASCII Dashboard
+        print("\n" + "=" * 60)
+        print(f" 🚀 当前阶段: {stage_name:<15} │ ⏱️ 耗时: {self._get_elapsed_time():.1f}s")
+        print(f" 📍 步骤信息: {step_info}")
+        print("-" * 60)
+        if artifacts:
+            print(" 📂 已创建文件:")
+            for f in artifacts[-5:]: # Show last 5
+                print(f"    • {f}")
+        print(f" 🔧 最近动作: {last_action[:50]}...")
+        print("=" * 60 + "\n")
 
     def display_completion(self, summary: str):
         """显示任务完成界面"""

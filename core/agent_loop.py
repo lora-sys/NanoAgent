@@ -31,6 +31,7 @@ class NanoAgent:
         from infrastructure.llm.client import NanoLLMClient
         from application.services.router import HybridRouter
         from application.services.manifest import ManifestManager
+        from spec.context import ContextLoader
         from infrastructure.persistence.context import ContextManager
         from spec.generator import SpecGenerator
         from infrastructure.tools.registry import ToolRegistry
@@ -44,10 +45,11 @@ class NanoAgent:
         self.router = HybridRouter(self.llm)
         self.tools = ToolRegistry()
         self.manifest_manager = ManifestManager()
-        self.context_loader = ContextManager()
+        self.context_loader = ContextLoader(self.manifest_manager)
+        # We also have ContextManager for persistent storage if needed, but context_loader is for specs
         self.spec_generator = SpecGenerator(self.llm)
         self.spec_initializer = SpecInitializer(llm_client=self.llm)
-        self.state = AgentState(self.config)
+        self.state = AgentState()
 
         self.executor = AgentExecutor(
             llm_client=self.llm,
@@ -149,6 +151,19 @@ class NanoAgent:
 
         for step in range(max_steps):
             self.state.step_count = step + 1
+            
+            # 打印仪表盘 (每 3 步打印一次，避免刷屏)
+            if step % 3 == 0:
+                try:
+                    artifacts = self.state.get_artifacts()
+                    cli.print_dashboard(
+                        stage_name=self.state.current_stage,
+                        step_info=f"{step + 1}/{max_steps}",
+                        artifacts=artifacts,
+                        last_action="Thinking..."
+                    )
+                except: pass
+
             cli.display_progress(step + 1, max_steps, f"步骤 {step + 1}")
 
             # 重新加载上下文
@@ -223,6 +238,9 @@ class NanoAgent:
                 action_result = self.executor.act_phase(think_result)
                 observation = self.executor.observe_phase(think_result, action_result)
                 self.state.observations.append(observation)
+                
+                # 保存执行上下文，确保 Agent 记住之前的决策
+                self._save_step_context(think_result, action_result, observation)
 
             # 定期反思
             if (step + 1) % reflection_interval == 0:
@@ -282,6 +300,45 @@ class NanoAgent:
 
         # 达到最大步数，完成执行
         return self._finalize_execution(cli, plan, "达到最大步数")
+
+    def _save_step_context(self, think_result: Dict, action_result: Any, observation: Dict):
+        """保存单步执行上下文，确保 Agent 记住之前的决策。
+        
+        同时更新：
+        1. 磁盘上下文 (通过 executor.save_context) - 用于持久化和 LLM 提示词注入
+        2. 内存状态 (通过 self.state) - 用于最终报告生成
+        """
+        # 提取决策：如果思考结果包含 reason，记录为决策
+        new_decisions = []
+        reason = think_result.get("reason", "")
+        if reason and len(reason) > 20:
+            new_decisions.append(reason[:200])
+        
+        # 提取交付物：如果行动是写文件且成功
+        new_artifacts = []
+        if isinstance(action_result, str) and "Successfully wrote" in action_result:
+            # 从结果中提取文件路径
+            import re
+            match = re.search(r"to (\S+)$", action_result)
+            if match:
+                new_artifacts.append(match.group(1))
+        
+        # 保存最近 5 条观察
+        recent_obs = [str(observation)[:200]] if observation else []
+        
+        if new_decisions or new_artifacts or recent_obs:
+            # 1. 保存到磁盘 (用于 LLM 上下文加载)
+            self.executor.save_context({
+                "accumulated_decisions": new_decisions,
+                "accumulated_artifacts": new_artifacts,
+                "recent_observations": recent_obs,
+            })
+            
+            # 2. 同步更新内存状态 (用于最终报告)
+            for artifact_path in new_artifacts:
+                self.state.add_artifact(artifact_path)
+            for decision in new_decisions:
+                self.state.add_decision(decision)
 
     def _finalize_execution(self, cli, plan, reason: str) -> Dict[str, Any]:
         """完成执行"""

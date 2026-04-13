@@ -78,16 +78,7 @@ class SpecInitializer:
 
     def _generate_project_name(self, task: str) -> str:
         """使用 LLM 生成项目名称"""
-        prompt = f"""从以下任务描述中提取项目名称：
-
-任务：{task}
-
-要求：
-1. 项目名称应该简洁、有意义
-2. 使用英文，单词首字母大写（如：GreenEnergy、FastAPI_User_Login）
-3. 只返回项目名称，不要其他内容
-
-请直接返回项目名称："""
+        prompt = f"从任务描述中提取简洁的英文项目名（用下划线连接），只返回名称，不要其他内容。\n\n任务：{task}"
 
         try:
             response = self.llm.chat(
@@ -107,43 +98,22 @@ class SpecInitializer:
             return "Untitled_Project"
 
     def _generate_spec_content(self, task: str, task_type: str) -> Dict:
-        """使用 LLM 生成 Spec 内容（填充占位符）"""
-        prompt = f"""为以下任务生成详细的 Spec 内容：
+        """使用 LLM 生成 Spec 内容"""
+        prompt = f"""为任务生成 Spec 配置。
 
-任务：{task}
-任务类型：{task_type}
+任务: {task}
+类型: {task_type}
 
-请生成以下内容（JSON 格式）：
-
+返回 JSON:
 {{
-  "must_constraints": [
-    "约束 1：具体要求",
-    "约束 2：具体要求"
-  ],
-  "must_not_constraints": [
-    "禁止项 1",
-    "禁止项 2"
-  ],
-  "artifacts": [
-    {{
-      "name": "交付物名称",
-      "format": "格式",
-      "acceptance_criteria": "验收标准"
-    }}
-  ],
-  "decisions": [
-    "关键决策点 1",
-    "关键决策点 2"
-  ]
+  "must_constraints": ["必须做的事"],
+  "must_not_constraints": ["禁止做的事"],
+  "artifacts": [{{"name": "交付物", "format": "格式", "acceptance_criteria": "验收标准"}}],
+  "decisions": ["关键决策"]
 }}
 
-要求：
-- must_constraints: 必须包含的具体约束
-- must_not_constraints: 绝对禁止的事项
-- artifacts: 交付物清单，包含名称、格式、验收标准
-- decisions: 已确定的关键决策（初始阶段可以留空）
-
-只返回合法的 JSON，不要其他内容。"""
+artifacts 必须是最终交付的文件（代码/文章/报告），不是状态/进度文件。
+只返回 JSON。"""
 
         try:
             spec_content = self.llm.structured_chat(
@@ -349,23 +319,12 @@ class SpecInitializer:
 """
 
         # 使用 LLM 生成具体内容
-        prompt = f"""为阶段 {stage.name} 生成具体的约束和成功标准：
+        prompt = f"""为阶段生成约束和成功标准。
 
-任务：{task}
-阶段：{stage.name}
-阶段 ID：{stage.id}
+任务: {task}
+阶段: {stage.name} ({stage.id})
 
-请生成以下内容：
-
-1. **成功标准**（3-5 条具体的、可验证的标准）
-2. **边界约束**：
-   - Always（必须做）：3-5 条
-   - Ask First（先询问）：2-3 条
-   - Never（绝对禁止）：2-3 条
-3. **交互提示**：该阶段需要询问用户什么信息
-
-请以以下格式返回（注意：不要包含"边界约束："标签，直接使用 Markdown 标题）：
-
+返回格式:
 成功标准：
 - [ ] 标准 1
 - [ ] 标准 2
@@ -373,23 +332,23 @@ class SpecInitializer:
 
 ### Always (必须做)
 - 约束 1
-- 约束 2
 ...
 
 ### Ask First (先询问)
 - 询问 1
-- 询问 2
 ...
 
 ### Never (绝对禁止)
 - 禁止 1
-- 禁止 2
 ...
 
 交互提示：
 提示内容
 
-请只返回上述内容，不要其他说明。"""
+要求:
+- 成功标准必须具体、可验证
+- Always/Never 是行为约束
+- 只返回上述格式，不要其他说明"""
 
         try:
             response = self.llm.chat(

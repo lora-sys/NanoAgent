@@ -174,25 +174,65 @@ class AgentExecutor:
     def load_context(self) -> Dict[str, Any]:
         """加载上下文。
 
-        从上下文加载器中获取当前阶段的上下文信息。
-
-        Returns:
-            上下文字典。
+        合并静态 Spec 约束和已积累的执行上下文，确保 Agent 记住之前的决策。
         """
         logger.info("=== Phase 3: Dynamic Context Loading ===")
-        context = self.context_loader.dynamic_load_context()
+        
+        # 1. 从 Spec 文件加载静态约束
+        spec_context = self.context_loader.dynamic_load_context()
+        stage_id = spec_context.get("current_stage_id", "unknown")
+        
+        # 2. 加载之前积累的执行上下文（决策、交付物、观察）
+        saved_context = self.context_manager.load_context(stage_id) or {}
+        
+        # 3. 合并：静态约束 + 积累的执行信息
+        merged = {
+            **spec_context,
+            "accumulated_decisions": saved_context.get("accumulated_decisions", []),
+            "accumulated_artifacts": saved_context.get("accumulated_artifacts", []),
+            "recent_observations": saved_context.get("recent_observations", []),
+        }
+        
         logger.info(
-            f"Context loaded for stage: {context.get('current_stage_id', 'unknown')}"
+            f"Context loaded: {stage_id} "
+            f"({len(merged.get('accumulated_decisions', []))} decisions, "
+            f"{len(merged.get('accumulated_artifacts', []))} artifacts)"
         )
-        return context
+        return merged
 
-    def update_context(self, updates: Dict[str, Any]) -> None:
-        """更新上下文。
-
+    def save_context(self, context_updates: Dict[str, Any]) -> None:
+        """保存执行上下文，确保 Agent 记住之前的决策。
+        
         Args:
-            updates: 要更新的上下文字典。
+            context_updates: 要追加的上下文信息（决策、交付物、观察）
         """
-        self.context_loader.dynamic_load_context()  # Trigger reload
+        stage_id = context_updates.get("current_stage_id", "unknown")
+        if stage_id == "unknown":
+            # 尝试从加载器获取当前阶段
+            spec_context = self.context_loader.dynamic_load_context()
+            stage_id = spec_context.get("current_stage_id", "unknown")
+        
+        # 加载现有上下文
+        existing = self.context_manager.load_context(stage_id) or {}
+        
+        # 深度合并
+        merged = self._deep_merge(existing, context_updates)
+        
+        # 保存
+        self.context_manager.save_context(stage_id, merged)
+
+    def _deep_merge(self, base: Dict, updates: Dict) -> Dict:
+        """深度合并字典，列表追加而非覆盖。"""
+        result = base.copy()
+        for key, value in updates.items():
+            if key in result and isinstance(result[key], list) and isinstance(value, list):
+                # 列表去重追加
+                result[key] = list(dict.fromkeys(result[key] + value))
+            elif key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = self._deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
 
     def planning_phase(self, task: str, context: Dict[str, Any]) -> AgentPlan:
         """Planning 阶段。

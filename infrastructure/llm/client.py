@@ -66,6 +66,16 @@ class NanoLLMClient:
         self.log_responses = logging_config.get("log_responses", False)
         self.log_latency = logging_config.get("log_latency", True)
 
+        # 读取 Mock 配置
+        mock_config = llm_config.get("mock", {})
+        self.mock_enabled = mock_config.get("enabled", False)
+        self.mock_mode = mock_config.get("mode", "random")  # "random" or "hash"
+        self.mock_responses_file = mock_config.get("responses_file", "tests/fixtures/llm_mock_responses.json")
+        self._mock_index = 0  # 用于循环返回
+
+        if self.mock_enabled:
+            logger.warning(f"⚠️ LLM Mock Mode Enabled: {self.mock_mode}")
+
         logger.info(
             f"Initialized LLM client with model: {model}, temperature: {temperature}, max_tokens: {max_tokens}"
         )
@@ -82,6 +92,33 @@ class NanoLLMClient:
             # gpt-5 只支持 temperature=1
             return 1.0
         return override_temp or self.temperature
+
+    def _get_mock_response(self) -> str:
+        """获取 Mock 响应（从 JSON Fixture 读取）"""
+        import os
+        import random
+        
+        file_path = self.mock_responses_file
+        if not os.path.exists(file_path):
+            logger.error(f"Mock responses file not found: {file_path}")
+            return '{"action": "complete", "reason": "Mock file missing"}'
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                responses = json.load(f)
+            
+            if self.mock_mode == "random":
+                response = random.choice(responses)
+            else:
+                # Round-robin
+                response = responses[self._mock_index % len(responses)]
+                self._mock_index += 1
+            
+            logger.info(f"🎭 Mock Response: {response.get('action', 'unknown')}")
+            return json.dumps(response, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Error reading mock responses: {e}")
+            return '{"action": "complete", "reason": "Mock error"}'
 
     def _extract_text_from_responses_api(self, response: Any) -> str:
         """从 Responses API 格式中提取文本内容"""
@@ -133,18 +170,11 @@ class NanoLLMClient:
         max_tokens: Optional[int] = None,
         return_usage: bool = False,
     ) -> Union[str, Dict[str, Any]]:
-        """基础聊天调用（非流式）
+        """基础聊天调用（非流式）"""
+        # Mock 模式检查
+        if self.mock_enabled:
+            return self._get_mock_response()
 
-        Args:
-            messages: 消息列表
-            temperature: 温度参数
-            max_tokens: 最大输出 token 数
-            return_usage: 是否返回使用统计信息
-
-        Returns:
-            如果 return_usage=False，返回文本内容
-            如果 return_usage=True，返回 {"content": str, "usage": dict}
-        """
         try:
             # 使用 Chat Completions API
             response = litellm.completion(
@@ -244,16 +274,17 @@ class NanoLLMClient:
         response_model: Type[T],
         temperature: Optional[float] = None,
     ) -> T:
-        """结构化输出（返回 Pydantic 模型）
+        """结构化输出（返回 Pydantic 模型）"""
+        # Mock 模式检查
+        if self.mock_enabled:
+            mock_str = self._get_mock_response()
+            try:
+                data = json.loads(mock_str)
+                return response_model.model_validate(data)
+            except Exception as e:
+                logger.warning(f"Mock validation failed: {e}. Returning empty model.")
+                return response_model() # Return empty instance
 
-        Args:
-            messages: 消息列表
-            response_model: 目标 Pydantic 模型类型
-            temperature: 温度参数
-
-        Returns:
-            解析后的 Pydantic 模型实例
-        """
         try:
             # 使用 Chat Completions API
             response = litellm.completion(
@@ -402,19 +433,32 @@ class NanoLLMClient:
         temperature: Optional[float] = None,
         tool_choice: str = "auto",
     ) -> Dict[str, Any]:
-        """工具调用支持
+        """工具调用支持"""
+        # Mock 模式检查
+        if self.mock_enabled:
+            mock_str = self._get_mock_response()
+            try:
+                data = json.loads(mock_str)
+                # Construct a fake tool_call response
+                if data.get("action") == "tool_call":
+                    return {
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": "mock_call_123",
+                                "type": "function",
+                                "function": {
+                                    "name": data.get("tool", "unknown"),
+                                    "arguments": json.dumps(data.get("arguments", {})),
+                                },
+                            }
+                        ],
+                        "usage": {},
+                    }
+                return {"content": mock_str, "tool_calls": [], "usage": {}}
+            except Exception:
+                return {"content": mock_str, "tool_calls": [], "usage": {}}
 
-        注意：工具调用使用 Chat Completions API
-
-        Args:
-            messages: 消息列表
-            tools: 工具定义列表
-            temperature: 温度参数
-            tool_choice: 工具选择策略
-
-        Returns:
-            {"content": str, "tool_calls": list, "usage": dict}
-        """
         try:
             actual_temp = self._get_temperature(temperature)
 

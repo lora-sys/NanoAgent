@@ -150,6 +150,19 @@ class ThinkingPhase(BasePhase):
             prompt += "\n\n【当前阶段约束】\n"
             prompt += context["current_stage_spec"]
 
+        # 显示已经积累的决策和交付物，确保 Agent 记住之前的工作
+        accumulated_decisions = context.get("accumulated_decisions", [])
+        accumulated_artifacts = context.get("accumulated_artifacts", [])
+        if accumulated_decisions:
+            prompt += "\n\n【已确定的决策】\n"
+            for i, d in enumerate(accumulated_decisions[-5:], 1):
+                prompt += f"{i}. {d[:150]}\n"
+        if accumulated_artifacts:
+            prompt += "\n\n【已创建的交付物】\n"
+            for a in accumulated_artifacts:
+                prompt += f"- {a}\n"
+            prompt += "\n⚠️ 不要重复创建上述已存在的文件！"
+
         if context.get("constraints"):
             constraints = context["constraints"]
             if isinstance(constraints, list):
