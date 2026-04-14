@@ -1,15 +1,20 @@
-# Infrastructure 层 - 外部依赖实现
-
 """
-基础设施层包含：
-- LLM 客户端实现 (llm/)
-- 持久化实现 (persistence/)
+基础设施层 - 外部依赖实现
+
+包含：
+- LLM 客户端 (llm/)
 - 配置管理 (config/)
-- 缓存实现 (cache/)
-- 工具实现 (tools/)
-
-特点：
-- 实现领域层定义的接口
-- 依赖外部服务（如 LLM API）
-- 处理 I/O 操作
+- 持久化 (persistence/)
+- 工具 (tools/)
 """
+
+from .llm.client import NanoLLMClient
+from .config.manager import ConfigManager, get_config_manager
+from .persistence.manager import PersistenceManager
+from .persistence.context import ContextManager
+from .tools.registry import ToolRegistry
+
+__all__ = [
+    "NanoLLMClient", "ConfigManager", "get_config_manager",
+    "PersistenceManager", "ContextManager", "ToolRegistry",
+]

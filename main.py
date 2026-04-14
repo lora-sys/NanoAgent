@@ -1,11 +1,17 @@
 """NanoAgent CLI entry point."""
 
-import sys
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from core.agent_loop import NanoAgent  # noqa: E402
+import typer
+from core.agent_loop import NanoAgent
+
+app = typer.Typer(
+    name="nanoagent",
+    help="NanoAgent - 智能任务执行系统",
+    add_completion=False,
+)
 
 DEFAULT_TASK = (
     "我要为一个名为'SmartHome AI'的智能家居公司开发一个完整的商业计划书和产品展示网站。"
@@ -25,11 +31,37 @@ DEFAULT_TASK = (
 )
 
 
-def get_task() -> str:
-    return " ".join(sys.argv[1:]) if len(sys.argv) > 1 else DEFAULT_TASK
+@app.command()
+def run(
+    task: str = typer.Argument(
+        DEFAULT_TASK,
+        help="任务描述",
+    ),
+) -> None:
+    """执行 AI 代理任务。
+
+    示例:
+        nanoagent run "帮我写一个 Python 快速排序"
+        nanoagent run "分析这份数据并生成报告"
+    """
+    agent = NanoAgent()
+    result = agent.run(task)
+
+    # 打印关键结果
+    typer.echo("\n" + "=" * 60)
+    typer.echo("执行结果摘要")
+    typer.echo("=" * 60)
+    typer.echo(f"状态: {result.get('status', 'unknown')}")
+    typer.echo(f"步骤数: {result.get('steps_executed', 0)}")
+    typer.echo(f"交付物: {', '.join(result.get('artifacts', ['无']))}")
+    typer.echo("=" * 60)
+
+
+@app.command()
+def version() -> None:
+    """显示版本信息。"""
+    typer.echo("NanoAgent v1.0.0")
 
 
 if __name__ == "__main__":
-    agent = NanoAgent()
-    result = agent.run(get_task())
-    print(result)
+    app()

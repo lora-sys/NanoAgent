@@ -2,7 +2,11 @@
 异常层次单元测试
 """
 
-from core.exceptions import (
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from domain.exceptions.exceptions import (
     NanoAgentError,
     LLMError,
     LLMRateLimitError,

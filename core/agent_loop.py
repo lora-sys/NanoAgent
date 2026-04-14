@@ -10,30 +10,22 @@ from application.services.spec_initializer import SpecInitializer
 
 class NanoAgent:
     def __init__(self, config: Dict[str, Any] = None):
-        # 加载配置
-        if config:
-            self.config = config
-        else:
-            self.config = self._load_all_configs(get_config_manager())
-
-        # 初始化组件
+        self.config = config or self._load_all_configs(get_config_manager())
         self._initialize_components()
         logger.info("NanoAgent initialized")
 
     def _load_all_configs(self, config_manager) -> Dict[str, Any]:
         config = {}
-        for module_name in ["core", "agent", "llm", "cache", "logging", "tools"]:
+        for module_name in ["core", "agent", "llm"]:
             config[module_name] = config_manager.get_module_config(module_name)
         return config
 
     def _initialize_components(self):
-        # Lazy imports to avoid circular dependency and speed up startup
         from infrastructure.llm.client import NanoLLMClient
         from application.services.router import HybridRouter
         from application.services.manifest import ManifestManager
         from spec.context import ContextLoader
         from infrastructure.persistence.context import ContextManager
-        from spec.generator import SpecGenerator
         from infrastructure.tools.registry import ToolRegistry
         from .agent_state import AgentState
         from .executor import AgentExecutor
@@ -46,74 +38,36 @@ class NanoAgent:
         self.tools = ToolRegistry()
         self.manifest_manager = ManifestManager()
         self.context_loader = ContextLoader(self.manifest_manager)
-        # We also have ContextManager for persistent storage if needed, but context_loader is for specs
-        self.spec_generator = SpecGenerator(self.llm)
         self.spec_initializer = SpecInitializer(llm_client=self.llm)
         self.state = AgentState()
 
         self.executor = AgentExecutor(
-            llm_client=self.llm,
-            router=self.router,
+            llm_client=self.llm, router=self.router,
             manifest_manager=self.manifest_manager,
             context_loader=self.context_loader,
-            spec_generator=self.spec_generator,
-            tool_registry=self.tools,
-            config=self.config,
-            state=self.state,
+            tool_registry=self.tools, config=self.config, state=self.state,
         )
 
     def run(self, task: str) -> Dict[str, Any]:
-        """
-        主执行循环 - 纯粹的协调逻辑
-
-        Args:
-            task: 用户任务
-
-        Returns:
-            执行结果
-        """
-        # 重置状态，避免重用之前的数据
+        """主执行循环"""
         self.state.reset()
-
-        # 记录任务开始
         logger.info(f"开始任务: {task[:100]}")
 
-        # 初始化CLI
-        from cli_interface import get_cli
-
+        from presentation.cli.interface import get_cli
         cli = get_cli()
         cli.display_header()
-        logger.info("=== Starting new task ===", task=task[:100])
 
         # === 阶段1: 路由 ===
         cli.display_phase("任务分析")
-        logger.info("开始任务路由分析")
-        routing_decision = self.executor.route_task(task)
-        logger.info(
-            f"路由结果: {routing_decision.task_type}, "
-            f"置信度: {routing_decision.confidence:.2%}"
-        )
-        cli.display_result(f"任务类型: {routing_decision.task_type}", True)
-        cli.display_result(f"置信度: {routing_decision.confidence:.2%}", True)
+        routing = self.executor.route_task(task)
+        cli.display_result(f"任务类型: {routing.task_type}", True)
 
         # === 阶段2: Spec管理 ===
-        if self.executor.should_init_spec(task, routing_decision):
-            logger.info("开始Spec初始化")
-            self.manifest = self.executor.init_spec(
-                task, routing_decision, self.spec_initializer
-            )
+        if self.executor.should_init_spec(task, routing):
+            self.manifest = self.executor.init_spec(task, routing, self.spec_initializer)
             if self.manifest:
-                logger.info(
-                    f"Spec初始化完成: {self.manifest.project_name}, "
-                    f"阶段: {self.manifest.current_stage}"
-                )
                 cli.display_phase("Spec 初始化")
-                print("\n📋 Spec 概要")
-                print(f"{'=' * 60}")
-                print(f"项目名称: {self.manifest.project_name}")
-                print(f"当前阶段: {self.manifest.current_stage}")
-                print(f"总阶段数: {len(self.manifest.pipeline)}")
-                print(f"{'=' * 60}\n")
+                print(f"📋 项目: {self.manifest.project_name}, 阶段: {self.manifest.current_stage}")
         else:
             self.manifest = self.executor.load_existing_manifest()
             if self.manifest:
@@ -121,250 +75,215 @@ class NanoAgent:
 
         # === 阶段3: 上下文加载 ===
         context = self.executor.load_context()
-        system_prompt = self.executor.build_system_prompt(context)
-        self.state.add_message("system", system_prompt)
+        self.state.add_message("system", self.executor.build_system_prompt(context))
 
         # === 阶段4: Planning ===
         cli.display_phase("Planning Phase")
         plan = self.executor.planning_phase(task, context)
-
-        # 保存plan到state
         self.state.current_plan = plan
 
         # === 阶段5: ReAct主循环 ===
         return self._main_react_loop(task, plan, cli, context)
 
-    def _main_react_loop(
-        self, task: str, plan, cli, context: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """主ReAct循环"""
-        max_steps = (
-            self.config.get("core", {}).get("performance", {}).get("max_steps", 20)
-        )
-        reflection_interval = (
-            self.config.get("agent", {})
-            .get("behavior", {})
-            .get("reflection_interval", 5)
-        )
+    def _main_react_loop(self, task, plan, cli, context) -> Dict[str, Any]:
+        """简化的主ReAct循环 - 内层/外层结构"""
+        max_steps = self.config.get("core", {}).get("performance", {}).get("max_steps", 20)
+        reflection_interval = self.config.get("agent", {}).get("behavior", {}).get("reflection_interval", 5)
 
         cli.display_phase("Execution Phase")
 
+        # 外层循环：用户交互和任务管理
         for step in range(max_steps):
             self.state.step_count = step + 1
-            
-            # 打印仪表盘 (每 3 步打印一次，避免刷屏)
+
+            # 打印仪表盘 (每 3 步)
             if step % 3 == 0:
                 try:
-                    artifacts = self.state.get_artifacts()
                     cli.print_dashboard(
                         stage_name=self.state.current_stage,
                         step_info=f"{step + 1}/{max_steps}",
-                        artifacts=artifacts,
+                        artifacts=self.state.get_artifacts(),
                         last_action="Thinking..."
                     )
-                except: pass
+                except:
+                    pass
 
             cli.display_progress(step + 1, max_steps, f"步骤 {step + 1}")
-
-            # 重新加载上下文
             context = self.executor.load_context()
 
-            # Think -> Act -> Observe
-            think_result = self.executor.think_phase(
-                task, context, self.state.observations, step
+            # 内层循环：LLM调用和工具执行链
+            tool_chain_result = self._inner_llm_loop(task, context, cli, step)
+            
+            if tool_chain_result["should_break"]:
+                return self._finalize(cli, plan, tool_chain_result["reason"])
+            
+            # 保存步骤上下文
+            self._save_step_context(
+                tool_chain_result["think_result"], 
+                tool_chain_result["action_result"], 
+                tool_chain_result["observation"]
             )
-
-            # 处理不同的动作类型
-            action = think_result.get("action", "")
-
-            if action == "complete":
-                return self._finalize_execution(cli, plan, "任务完成")
-            elif action == "wait":
-                # 等待用户输入
-                cli.display_result("等待用户输入...", True)
-                return self._finalize_execution(cli, plan, "需要用户输入")
-            elif action == "stage_complete":
-                # 阶段完成
-                cli.display_result("阶段完成", True)
-                # 提取决策和交付物
-                decisions = think_result.get("decisions", [])
-                artifacts = think_result.get("artifacts", [])
-
-                # 如果 think_result 中没有 artifacts，尝试从 AgentState 中提取
-                if not artifacts:
-                    artifacts = self.state.get_artifacts()
-                    logger.info(f"Extracted {len(artifacts)} artifacts from AgentState")
-
-                # 推进到下一阶段
-                try:
-                    current_stage = self.manifest_manager.get_current_stage()
-                    if current_stage:
-                        # 转换 decisions 格式
-                        formatted_decisions = []
-                        for d in decisions:
-                            if isinstance(d, str):
-                                formatted_decisions.append(
-                                    {"decision": d, "rationale": "自动生成"}
-                                )
-                            elif isinstance(d, dict):
-                                formatted_decisions.append(d)
-
-                        self.manifest_manager.sync_and_backfill(
-                            stage_id=current_stage.id,
-                            decisions=formatted_decisions,
-                            completed_artifacts=artifacts,
-                            next_stage=True,
-                        )
-
-                        # 重新加载上下文
-                        context = self.executor.load_context()
-                        self.state.update_context("stage_advanced", True)
-
-                        # 显示新阶段信息
-                        new_stage = self.manifest_manager.get_current_stage()
-                        if new_stage:
-                            cli.display_result(f"已推进到阶段: {new_stage.name}", True)
-                        else:
-                            cli.display_result("所有阶段已完成！", True)
-                            return self._finalize_execution(cli, plan, "所有阶段已完成")
-                except Exception as e:
-                    logger.error(f"Failed to advance stage: {e}")
-                    cli.display_result(f"阶段推进失败: {str(e)}", True)
-
-                # 继续执行，不返回
-                continue
-            else:
-                # 继续执行动作
-                action_result = self.executor.act_phase(think_result)
-                observation = self.executor.observe_phase(think_result, action_result)
-                self.state.observations.append(observation)
-                
-                # 保存执行上下文，确保 Agent 记住之前的决策
-                self._save_step_context(think_result, action_result, observation)
 
             # 定期反思
             if (step + 1) % reflection_interval == 0:
                 cli.display_thinking("反思执行结果...")
                 reflection = self.executor.reflection_phase(self.state.observations)
 
-                # 检查阶段是否完成（优先检查，确保阶段推进逻辑能够执行）
                 if reflection.get("stage_completed"):
-                    cli.display_result("阶段完成，正在推进到下一阶段...", True)
-
-                    # 从 AgentState 中获取决策和交付物
-                    decisions = self.state.get_decisions()
-                    artifacts = self.state.get_artifacts()
-
-                    logger.info(
-                        f"Extracted {len(decisions)} decisions and "
-                        f"{len(artifacts)} artifacts from AgentState"
-                    )
-
-                    # 推进到下一阶段
-                    try:
-                        current_stage = self.manifest_manager.get_current_stage()
-                        if current_stage:
-                            self.manifest_manager.sync_and_backfill(
-                                stage_id=current_stage.id,
-                                decisions=decisions,
-                                completed_artifacts=artifacts,
-                                next_stage=True,
-                            )
-
-                            # 清空当前阶段的决策和交付物
-                            self.state.clear_decisions()
-                            self.state.clear_artifacts()
-
-                            # 重新加载上下文
-                            context = self.executor.load_context()
-                            self.state.update_context("stage_advanced", True)
-
-                            # 显示新阶段信息
-                            new_stage = self.manifest_manager.get_current_stage()
-                            if new_stage:
-                                cli.display_result(
-                                    f"已推进到阶段: {new_stage.name}", True
-                                )
-                            else:
-                                cli.display_result("所有阶段已完成！", True)
-                                return self._finalize_execution(
-                                    cli, plan, "所有阶段已完成"
-                                )
-                    except Exception as e:
-                        logger.error(f"Failed to advance stage: {e}")
-                        cli.display_result(f"阶段推进失败: {str(e)}", True)
-
-                # 检查任务是否完成
+                    self._handle_stage_advance(cli)
                 if reflection.get("task_completed"):
-                    return self._finalize_execution(cli, plan, "反思确认任务完成")
+                    return self._finalize(cli, plan, "反思确认任务完成")
 
-        # 达到最大步数，完成执行
-        return self._finalize_execution(cli, plan, "达到最大步数")
+        return self._finalize(cli, plan, "达到最大步数")
 
-    def _save_step_context(self, think_result: Dict, action_result: Any, observation: Dict):
-        """保存单步执行上下文，确保 Agent 记住之前的决策。
-        
-        同时更新：
-        1. 磁盘上下文 (通过 executor.save_context) - 用于持久化和 LLM 提示词注入
-        2. 内存状态 (通过 self.state) - 用于最终报告生成
+    def _inner_llm_loop(self, task, context, cli, step) -> Dict[str, Any]:
         """
-        # 提取决策：如果思考结果包含 reason，记录为决策
+        内层LLM循环 - 处理工具调用链
+        
+        结构：
+        - 调用LLM获取思考结果
+        - 如果不需要工具，返回响应并跳出循环
+        - 如果需要工具，执行它们，将结果添加到对话，继续循环
+        - 持续循环直到LLM不再请求工具
+        """
+        max_tool_iterations = 5  # 防止无限循环
+        
+        for iteration in range(max_tool_iterations):
+            # Think阶段
+            think_result = self.executor.think_phase(
+                task, context, self.state.observations, step,
+            )
+            action = think_result.get("action", "")
+            
+            # 检查是否需要终止
+            if action == "complete":
+                return {"should_break": True, "reason": "任务完成", "think_result": think_result}
+            elif action == "wait":
+                return {"should_break": True, "reason": "需要用户输入", "think_result": think_result}
+            elif action == "stage_complete":
+                self._handle_stage_advance(cli, think_result)
+                return {"should_break": False, "reason": "阶段完成继续", "think_result": think_result}
+            
+            # Act阶段 - 执行工具
+            if action == "tool_call" and think_result.get("tool"):
+                cli.display_action("tool_call", f"{think_result.get('tool')} - {think_result.get('reason', '')}")
+                action_result = self.executor.act_phase(think_result)
+                
+                # Observe: 记录执行结果
+                observation = {"action": action, "result": str(action_result)[:500]}
+                self.state.observations.append(observation)
+                
+                # 如果工具执行成功，继续循环以允许链式调用
+                if isinstance(action_result, str) and not action_result.startswith("Error"):
+                    cli.display_result(f"工具执行成功: {think_result.get('tool')}", success=True)
+                    # 继续内层循环，让LLM决定下一步
+                    continue
+                else:
+                    cli.display_error(f"工具执行失败: {action_result}")
+                    # 工具失败，跳出内层循环
+                    return {
+                        "should_break": False,
+                        "reason": "工具执行失败",
+                        "think_result": think_result,
+                        "action_result": action_result,
+                        "observation": observation
+                    }
+            else:
+                # 不需要工具调用，跳出内层循环
+                return {
+                    "should_break": False,
+                    "reason": "无需工具调用",
+                    "think_result": think_result,
+                    "action_result": None,
+                    "observation": None
+                }
+        
+        # 达到最大工具迭代次数
+        return {
+            "should_break": False,
+            "reason": "达到最大工具迭代次数",
+            "think_result": think_result,
+            "action_result": None,
+            "observation": None
+        }
+
+    def _handle_stage_advance(self, cli, think_result=None):
+        """处理阶段推进"""
+        cli.display_result("阶段完成，正在推进到下一阶段...", True)
+        decisions = think_result.get("decisions", []) if think_result else self.state.get_decisions()
+        artifacts = think_result.get("artifacts", []) if think_result else self.state.get_artifacts()
+
+        if not artifacts:
+            artifacts = self.state.get_artifacts()
+
+        try:
+            current_stage = self.manifest_manager.get_current_stage()
+            if current_stage:
+                formatted_decisions = [
+                    d if isinstance(d, dict) else {"decision": d, "rationale": "自动生成"}
+                    for d in decisions
+                ]
+                self.manifest_manager.sync_and_backfill(
+                    stage_id=current_stage.id, decisions=formatted_decisions,
+                    completed_artifacts=artifacts, next_stage=True,
+                )
+                self.state.clear_decisions()
+                self.state.clear_artifacts()
+                self.executor.load_context()
+                self.state.update_context("stage_advanced", True)
+
+                new_stage = self.manifest_manager.get_current_stage()
+                if new_stage:
+                    cli.display_result(f"已推进到阶段: {new_stage.name}", True)
+                else:
+                    cli.display_result("所有阶段已完成！", True)
+        except Exception as e:
+            logger.error(f"Failed to advance stage: {e}")
+            cli.display_result(f"阶段推进失败: {str(e)}", True)
+
+    def _save_step_context(self, think_result, action_result, observation):
+        """保存单步执行上下文"""
         new_decisions = []
         reason = think_result.get("reason", "")
         if reason and len(reason) > 20:
             new_decisions.append(reason[:200])
-        
-        # 提取交付物：如果行动是写文件且成功
+
         new_artifacts = []
         if isinstance(action_result, str) and "Successfully wrote" in action_result:
-            # 从结果中提取文件路径
             import re
             match = re.search(r"to (\S+)$", action_result)
             if match:
                 new_artifacts.append(match.group(1))
-        
-        # 保存最近 5 条观察
+
         recent_obs = [str(observation)[:200]] if observation else []
-        
+
         if new_decisions or new_artifacts or recent_obs:
-            # 1. 保存到磁盘 (用于 LLM 上下文加载)
             self.executor.save_context({
                 "accumulated_decisions": new_decisions,
                 "accumulated_artifacts": new_artifacts,
                 "recent_observations": recent_obs,
             })
-            
-            # 2. 同步更新内存状态 (用于最终报告)
-            for artifact_path in new_artifacts:
-                self.state.add_artifact(artifact_path)
-            for decision in new_decisions:
-                self.state.add_decision(decision)
+            for a in new_artifacts:
+                self.state.add_artifact(a)
+            for d in new_decisions:
+                self.state.add_decision(d)
 
-    def _finalize_execution(self, cli, plan, reason: str) -> Dict[str, Any]:
+    def _finalize(self, cli, plan, reason: str) -> Dict[str, Any]:
         """完成执行"""
         cli.display_result(reason, True)
-
-        # 从 AgentState 中获取决策和交付物
         decisions = self.state.get_decisions()
         artifacts = self.state.get_artifacts()
 
-        # 保存执行结果
         self.executor.save_execution_result(decisions, artifacts)
 
         # 触发阶段完成回填
         if self.manifest and hasattr(self, "manifest_manager"):
             current_stage = self.manifest_manager.get_current_stage()
             if current_stage:
-                stage_id = (
-                    current_stage.id
-                    if hasattr(current_stage, "id")
-                    else current_stage.get("id", "unknown")
-                )
+                stage_id = current_stage.id if hasattr(current_stage, "id") else current_stage.get("id", "unknown")
                 self.manifest_manager.sync_and_backfill(
                     stage_id=stage_id,
-                    decisions=[{"decision": d, "rationale": ""} for d in decisions]
-                    if decisions
-                    else [],
+                    decisions=[{"decision": d, "rationale": ""} for d in decisions] if decisions else [],
                     completed_artifacts=artifacts if artifacts else [],
                     next_stage=True,
                 )
@@ -372,8 +291,6 @@ class NanoAgent:
         # 最终反思
         cli.display_phase("Reflection Phase")
         final_reflection = self.executor.reflection_phase(self.state.observations)
-
-        # 显示完成信息
         cli.display_completion(f"执行完成 - 共 {self.state.step_count} 步")
         cli.display_footer()
 
@@ -387,4 +304,3 @@ class NanoAgent:
             "reflection": final_reflection,
             "message": f"Task execution completed: {reason}",
         }
-

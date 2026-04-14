@@ -1,8 +1,10 @@
 """Agent State Tests (Manifest-driven)."""
 
+import sys
 import json
 import pytest
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from core.agent_state import AgentState
 
 

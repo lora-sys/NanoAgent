@@ -3,6 +3,13 @@ version = "1.0.0"
 environment = "development"
 config_dir = "config"
 
+[paths]
+workspace = "agent_workspace"
+spec_dir = ".spec"
+templates = "templates/moubles"
+cache_dir = ".cache"
+log_file = "nanoagent.log"
+
 [modules]
 core = "config/core.toml"
 agent = "config/agent.toml"

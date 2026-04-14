@@ -1,11 +1,10 @@
-# Presentation 层 - 用户界面
-
 """
-表现层包含：
+表现层 - 用户界面
+
+包含：
 - CLI 界面 (cli/)
-
-特点：
-- 处理用户交互
-- 展示信息
-- 接收输入
 """
+
+from .cli.interface import CLIInterface, get_cli
+
+__all__ = ["CLIInterface", "get_cli"]

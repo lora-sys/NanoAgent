@@ -1,0 +1,41 @@
+{
+  "project_name": "file_manager_basic_operations",
+  "status": "active",
+  "current_stage": "stage_2",
+  "storage": {
+    "master": ".spec/master_spec.md",
+    "steps_dir": ".spec/steps/"
+  },
+  "pipeline": [
+    {
+      "id": "stage_1",
+      "name": "需求对齐",
+      "file": "01_requirements.md",
+      "status": "completed"
+    },
+    {
+      "id": "stage_2",
+      "name": "接口设计",
+      "file": "02_api_design.md",
+      "status": "active"
+    },
+    {
+      "id": "stage_3",
+      "name": "逻辑实现",
+      "file": "03_implementation.md",
+      "status": "pending"
+    },
+    {
+      "id": "stage_4",
+      "name": "测试计划",
+      "file": "04_testing.md",
+      "status": "pending"
+    },
+    {
+      "id": "stage_5",
+      "name": "部署指南",
+      "file": "05_deployment.md",
+      "status": "pending"
+    }
+  ]
+}
