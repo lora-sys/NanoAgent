@@ -27,5 +27,5 @@ def _extract_json(text: str) -> str:
             return extracted
     start, end = text.find("{"), text.rfind("}")
     if start != -1 and end > start:
-        return text[start:end + 1]
+        return text[start : end + 1]
     return text

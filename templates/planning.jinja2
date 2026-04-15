@@ -2,8 +2,18 @@
 Spec:{{ task_spec }}
 工具：{{ available_tools }}
 
-返回JSON:
-{
-  "steps": [{"step_id": 1, "goal": "目标", "tools": []}],
-  "overall_goal": "总目标"
-}
+使用标记格式输出你的计划：
+
+<|THINKING|>
+分析任务需求和spec
+<|/THINKING|>
+
+<|PLAN|>
+步骤1: 目标描述
+步骤2: 目标描述
+...
+<|/PLAN|>
+
+<|RESPONSE|>
+总目标：{{ task_description }}
+<|/RESPONSE|>

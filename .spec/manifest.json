@@ -1,4 +1,4 @@
 {
-  "task": "写一个 Python hello world 函数，保存到 agent_workspace/hello.py",
+  "task": "测试任务",
   "status": "running"
 }

@@ -6,7 +6,9 @@ from core.agent import NanoAgent
 
 load_dotenv()
 
-app = typer.Typer(name="nanoagent", help="NanoAgent - 智能任务执行系统", add_completion=False)
+app = typer.Typer(
+    name="nanoagent", help="NanoAgent - 智能任务执行系统", add_completion=False
+)
 
 
 @app.command()

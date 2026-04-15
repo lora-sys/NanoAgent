@@ -22,8 +22,8 @@ def state_file(tmp_path: Path) -> str:
         "decisions": [],
         "stages": [
             {"id": "stage_1", "status": "active"},
-            {"id": "stage_2", "status": "pending"}
-        ]
+            {"id": "stage_2", "status": "pending"},
+        ],
     }
     with open(spec_path, "w") as f:
         json.dump(data, f)

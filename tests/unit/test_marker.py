@@ -1,12 +1,8 @@
 """标记系统单元测试"""
 
-import json
-import pytest
-
 from core.marker import (
     MarkerParser,
     MarkerBuilder,
-    MarkedSection,
     parse_markers,
     build_marker,
     MARKER_TYPES,
@@ -18,7 +14,7 @@ class TestMarkerParser:
 
     def test_parse_simple_marker(self):
         """测试解析简单标记"""
-        text = '<|THINKING|>\n这是思考内容\n<|/THINKING|>'
+        text = "<|THINKING|>\n这是思考内容\n<|/THINKING|>"
         parser = MarkerParser()
         sections = parser.parse(text)
 
@@ -40,7 +36,7 @@ class TestMarkerParser:
 
     def test_parse_multiple_markers(self):
         """测试解析多个标记"""
-        text = '''<|THINKING|>
+        text = """<|THINKING|>
 分析任务
 <|/THINKING|>
 
@@ -51,7 +47,7 @@ class TestMarkerParser:
 
 <|RESPONSE|>
 完成
-<|/RESPONSE|>'''
+<|/RESPONSE|>"""
 
         parser = MarkerParser()
         sections = parser.parse(text)
@@ -63,7 +59,7 @@ class TestMarkerParser:
 
     def test_extract_by_type(self):
         """测试按类型提取"""
-        text = '<|THINKING|>思考1<|/THINKING|>\n<|PLAN|>计划1<|/PLAN|>\n<|THINKING|>思考2<|/THINKING|>'
+        text = "<|THINKING|>思考1<|/THINKING|>\n<|PLAN|>计划1<|/PLAN|>\n<|THINKING|>思考2<|/THINKING|>"
 
         parser = MarkerParser()
         sections = parser.parse(text)
@@ -76,7 +72,7 @@ class TestMarkerParser:
 
     def test_extract_first(self):
         """测试提取第一个"""
-        text = '<|THINKING|>思考1<|/THINKING|><|THINKING|>思考2<|/THINKING|>'
+        text = "<|THINKING|>思考1<|/THINKING|><|THINKING|>思考2<|/THINKING|>"
         parser = MarkerParser()
         sections = parser.parse(text)
 
@@ -86,7 +82,7 @@ class TestMarkerParser:
 
     def test_extract_first_not_found(self):
         """测试提取不存在的类型"""
-        text = '<|THINKING|>思考<|/THINKING|>'
+        text = "<|THINKING|>思考<|/THINKING|>"
         parser = MarkerParser()
         sections = parser.parse(text)
 
@@ -95,7 +91,7 @@ class TestMarkerParser:
 
     def test_remove_markers(self):
         """测试移除标记"""
-        text = '<|THINKING|>\n思考内容\n<|/THINKING|>'
+        text = "<|THINKING|>\n思考内容\n<|/THINKING|>"
         parser = MarkerParser()
         result = parser.remove_markers(text)
 
@@ -103,7 +99,7 @@ class TestMarkerParser:
 
     def test_remove_markers_multiple(self):
         """测试移除多个标记"""
-        text = '<|THINKING|>思考<|/THINKING|><|PLAN|>计划<|/PLAN|>'
+        text = "<|THINKING|>思考<|/THINKING|><|PLAN|>计划<|/PLAN|>"
         parser = MarkerParser()
         result = parser.remove_markers(text)
 
@@ -126,11 +122,11 @@ class TestMarkerParser:
 
     def test_parse_multiline_content(self):
         """测试解析多行内容"""
-        text = '''<|THINKING|>
+        text = """<|THINKING|>
 第一行
 第二行
 第三行
-<|/THINKING|>'''
+<|/THINKING|>"""
 
         parser = MarkerParser()
         sections = parser.parse(text)
@@ -148,13 +144,15 @@ class TestMarkerBuilder:
         """测试构建简单标记"""
         result = MarkerBuilder.build("THINKING", "思考内容")
 
-        assert '<|THINKING|>' in result
-        assert '<|/THINKING|>' in result
+        assert "<|THINKING|>" in result
+        assert "<|/THINKING|>" in result
         assert "思考内容" in result
 
     def test_build_marker_with_metadata(self):
         """测试构建带元数据的标记"""
-        result = MarkerBuilder.build("TOOL", "工具调用", name="test_tool", arg1="value1")
+        result = MarkerBuilder.build(
+            "TOOL", "工具调用", name="test_tool", arg1="value1"
+        )
 
         assert '<|TOOL|name="test_tool" arg1="value1"|>' in result
         assert "工具调用" in result
@@ -163,14 +161,14 @@ class TestMarkerBuilder:
         """测试构建思考标记"""
         result = MarkerBuilder.thinking("思考过程")
 
-        assert '<|THINKING|>' in result
+        assert "<|THINKING|>" in result
         assert "思考过程" in result
 
     def test_plan(self):
         """测试构建计划标记"""
         result = MarkerBuilder.plan("执行计划")
 
-        assert '<|PLAN|>' in result
+        assert "<|PLAN|>" in result
         assert "执行计划" in result
 
     def test_tool(self):
@@ -186,21 +184,21 @@ class TestMarkerBuilder:
         """测试构建观察标记"""
         result = MarkerBuilder.observation("观察结果")
 
-        assert '<|OBSERVATION|>' in result
+        assert "<|OBSERVATION|>" in result
         assert "观察结果" in result
 
     def test_reflection(self):
         """测试构建反思标记"""
         result = MarkerBuilder.reflection("反思内容")
 
-        assert '<|REFLECTION|>' in result
+        assert "<|REFLECTION|>" in result
         assert "反思内容" in result
 
     def test_response(self):
         """测试构建响应标记"""
         result = MarkerBuilder.response("响应内容")
 
-        assert '<|RESPONSE|>' in result
+        assert "<|RESPONSE|>" in result
         assert "响应内容" in result
 
 
@@ -209,7 +207,7 @@ class TestConvenienceFunctions:
 
     def test_parse_markers_convenience(self):
         """测试便捷解析函数"""
-        text = '<|THINKING|>思考<|/THINKING|>'
+        text = "<|THINKING|>思考<|/THINKING|>"
         sections = parse_markers(text)
 
         assert len(sections) == 1
@@ -219,7 +217,7 @@ class TestConvenienceFunctions:
         """测试便捷构建函数"""
         result = build_marker("PLAN", "计划")
 
-        assert '<|PLAN|>' in result
+        assert "<|PLAN|>" in result
         assert "计划" in result
 
 
@@ -255,9 +253,7 @@ class TestIntegration:
 
         # 重新构建
         rebuilt = MarkerBuilder.build(
-            section.marker_type,
-            section.content,
-            **section.metadata
+            section.marker_type, section.content, **section.metadata
         )
 
         assert section.metadata["name"] in rebuilt
@@ -267,7 +263,9 @@ class TestIntegration:
         """测试复杂场景：完整的Agent思考流程"""
         workflow = MarkerBuilder.thinking("用户要求读取文件并分析内容")
         workflow += MarkerBuilder.plan("1. 读取文件\n2. 分析内容\n3. 返回结果")
-        workflow += MarkerBuilder.tool("read_file", {"path": "data.txt"}, "读取数据文件")
+        workflow += MarkerBuilder.tool(
+            "read_file", {"path": "data.txt"}, "读取数据文件"
+        )
         workflow += MarkerBuilder.observation("文件读取成功，内容为：...")
         workflow += MarkerBuilder.reflection("内容分析完成")
         workflow += MarkerBuilder.response("分析完成，文件包含X条记录")
@@ -289,7 +287,14 @@ class TestMarkerTypes:
 
     def test_marker_types_defined(self):
         """测试所有标记类型已定义"""
-        expected_types = ["THINKING", "PLAN", "TOOL", "OBSERVATION", "REFLECTION", "RESPONSE"]
+        expected_types = [
+            "THINKING",
+            "PLAN",
+            "TOOL",
+            "OBSERVATION",
+            "REFLECTION",
+            "RESPONSE",
+        ]
         for mtype in expected_types:
             assert mtype in MARKER_TYPES
 
@@ -305,7 +310,7 @@ class TestEdgeCases:
 
     def test_empty_content(self):
         """测试空内容"""
-        text = '<|THINKING|>\n\n<|/THINKING|>'
+        text = "<|THINKING|>\n\n<|/THINKING|>"
         parser = MarkerParser()
         sections = parser.parse(text)
 
@@ -334,7 +339,7 @@ class TestEdgeCases:
 
     def test_nested_markers_not_supported(self):
         """测试嵌套标记（不支持）"""
-        text = '<|THINKING|>外层<|PLAN|>内层<|/PLAN|><|/THINKING|>'
+        text = "<|THINKING|>外层<|PLAN|>内层<|/PLAN|><|/THINKING|>"
         parser = MarkerParser()
         sections = parser.parse(text)
 
@@ -360,7 +365,7 @@ class TestEdgeCases:
             name="test_tool",
             arg1="value1",
             arg2="value2",
-            arg3="value3"
+            arg3="value3",
         )
         parser = MarkerParser()
         sections = parser.parse(result)

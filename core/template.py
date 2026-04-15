@@ -6,7 +6,9 @@ from jinja2 import Environment, FileSystemLoader
 
 class TemplateManager:
     def __init__(self, template_dir: str = "templates"):
-        self.env = Environment(loader=FileSystemLoader(Path(template_dir)), autoescape=False)
+        self.env = Environment(
+            loader=FileSystemLoader(Path(template_dir)), autoescape=False
+        )
 
     def render(self, name: str, **kwargs) -> str:
         try:

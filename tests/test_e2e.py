@@ -2,7 +2,6 @@
 
 import os
 import sys
-import json
 from pathlib import Path
 
 # 标记测试模式
@@ -26,6 +25,7 @@ def test_llm_mock_works():
 def test_tool_registry():
     """验证工具注册"""
     from tools.registry import get_tool_registry
+
     registry = get_tool_registry()
     tools = registry._tools
     assert "read_file" in tools
@@ -38,6 +38,7 @@ def test_state_basic():
     """验证状态管理"""
     from core.state import AgentState
     import tempfile
+
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
         f.write(b'{"task": "test"}')
         path = f.name

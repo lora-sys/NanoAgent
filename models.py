@@ -5,7 +5,9 @@ from typing import Dict, List, Optional
 
 
 class ThinkAction(BaseModel):
-    action: str = Field(..., description="操作类型: tool_call, complete, wait, stage_complete")
+    action: str = Field(
+        ..., description="操作类型: tool_call, complete, wait, stage_complete"
+    )
     tool: Optional[str] = Field(None, description="工具名称")
     arguments: Optional[Dict[str, object]] = Field(None, description="工具参数")
     reason: Optional[str] = Field(None, description="决策原因")

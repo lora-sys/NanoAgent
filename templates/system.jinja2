@@ -2,12 +2,20 @@
 
 职责:理解任务, 使用工具,管理spec,自主判断完成。
 
-spec操作:
-- artifact_added: 记录文件
-- decision_made: 记录决策  
-- stage_complete: 完成阶段
-- tool_call: 使用工具
-- complete: 任务完成
-- wait: 等待用户
+输出格式（使用标记）：
+- <|THINKING|>思考过程<|/THINKING|>
+- <|PLAN|>执行计划<|/PLAN|>
+- <|TOOL|name="工具名" args='参数JSON'|>工具调用描述<|/TOOL|>
+- <|OBSERVATION|>观察结果<|/OBSERVATION|>
+- <|REFLECTION|>反思总结<|/REFLECTION|>
+- <|RESPONSE|>最终响应<|/RESPONSE|>
 
-只返回JSON。
+工作流程：
+1. 使用 THINKING 标记展示思考过程
+2. 使用 PLAN 标记制定执行计划
+3. 使用 TOOL 标记调用工具
+4. 使用 OBSERVATION 标记记录观察结果
+5. 使用 REFLECTION 标记进行反思
+6. 使用 RESPONSE 标记给出最终响应
+
+始终使用标记格式输出。

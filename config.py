@@ -21,10 +21,14 @@ class Config:
             raise ConfigError(f"Config file not found: {self._config_file}")
         self._main = toml.loads(self._config_file.read_text())
         modules = self._main.get("modules", {})
-        config_dir = self._config_file.parent / self._main.get("general", {}).get("config_dir", "config")
+        config_dir = self._config_file.parent / self._main.get("general", {}).get(
+            "config_dir", "config"
+        )
         for name, rel_path in modules.items():
             module_file = config_dir / rel_path
-            self._modules[name] = toml.loads(module_file.read_text()) if module_file.exists() else {}
+            self._modules[name] = (
+                toml.loads(module_file.read_text()) if module_file.exists() else {}
+            )
 
     def get(self, module: str, key: str, default: Any = None) -> Any:
         mod = self._modules.get(module, {})

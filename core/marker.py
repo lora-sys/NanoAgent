@@ -22,6 +22,7 @@ MARKER_TYPES = {
 @dataclass
 class MarkedSection:
     """标记化的内容块"""
+
     marker_type: str
     content: str
     metadata: Dict[str, str]
@@ -32,10 +33,7 @@ class MarkerParser:
     """标记解析器 - 使用正则表达式解析标记"""
 
     # 匹配 <|TYPE|>content<|/TYPE|> 或 <|TYPE|attr="value"|>content<|/TYPE|>
-    _PATTERN = re.compile(
-        r'<\|(\w+)\|(?:([^>]+)\|)?>(.*?)<\|/\1\|>',
-        re.DOTALL
-    )
+    _PATTERN = re.compile(r"<\|(\w+)\|(?:([^>]+)\|)?>(.*?)<\|/\1\|>", re.DOTALL)
 
     def __init__(self):
         self._sections: List[MarkedSection] = []
@@ -55,10 +53,7 @@ class MarkerParser:
                 metadata = self._parse_attributes(attrs_str)
 
             section = MarkedSection(
-                marker_type=marker_type,
-                content=content,
-                metadata=metadata,
-                raw=raw
+                marker_type=marker_type, content=content, metadata=metadata, raw=raw
             )
             self._sections.append(section)
 
@@ -79,7 +74,7 @@ class MarkerParser:
 
             # 读取key
             key_start = i
-            while i < n and attrs_str[i] != '=' and not attrs_str[i].isspace():
+            while i < n and attrs_str[i] != "=" and not attrs_str[i].isspace():
                 i += 1
             key = attrs_str[key_start:i].strip()
 
@@ -87,7 +82,7 @@ class MarkerParser:
                 break
 
             # 跳过=和空白
-            while i < n and (attrs_str[i] == '=' or attrs_str[i].isspace()):
+            while i < n and (attrs_str[i] == "=" or attrs_str[i].isspace()):
                 i += 1
 
             # 读取value（带引号）
@@ -99,7 +94,7 @@ class MarkerParser:
                 while i < n:
                     if attrs_str[i] == quote:
                         # 检查是否转义
-                        if i == 0 or attrs_str[i-1] != '\\':
+                        if i == 0 or attrs_str[i - 1] != "\\":
                             break
                     i += 1
                 value = attrs_str[value_start:i]
@@ -128,7 +123,7 @@ class MarkerParser:
 
     def remove_markers(self, text: str) -> str:
         """移除所有标记，返回纯文本"""
-        return self._PATTERN.sub(r'\3', text)
+        return self._PATTERN.sub(r"\3", text)
 
 
 class MarkerBuilder:
@@ -150,13 +145,13 @@ class MarkerBuilder:
         attrs = []
         for key, value in metadata.items():
             attrs.append(f'{key}="{value}"')
-        attr_str = ' '.join(attrs) if attrs else ''
+        attr_str = " ".join(attrs) if attrs else ""
 
         # 构建标记
         if attr_str:
-            return f'<|{marker_type}|{attr_str}|>\n{content}\n<|/{marker_type}|>'
+            return f"<|{marker_type}|{attr_str}|>\n{content}\n<|/{marker_type}|>"
         else:
-            return f'<|{marker_type}|>\n{content}\n<|/{marker_type}|>'
+            return f"<|{marker_type}|>\n{content}\n<|/{marker_type}|>"
 
     @staticmethod
     def thinking(content: str) -> str:
@@ -172,6 +167,7 @@ class MarkerBuilder:
     def tool(name: str, args: Dict, description: str = "") -> str:
         """构建工具调用标记"""
         import json
+
         args_str = json.dumps(args, ensure_ascii=False)
         return MarkerBuilder.build("TOOL", description, name=name, args=args_str)
 

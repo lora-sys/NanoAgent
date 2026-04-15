@@ -2,11 +2,15 @@
 约束：{{ task_spec }}
 进度：{{ current_progress }}
 
-返回JSON:
-{
-  "task_completed": false,
-  "stage_completed": false,
-  "summary": "总结",
-  "next_action": "继续/完成",
-  "artifacts": ["文件"]
-}
+使用标记格式输出你的反思：
+
+<|REFLECTION|>
+总结当前进度：
+- 已完成的工作
+- 遇到的问题
+- 下一步计划
+<|/REFLECTION|>
+
+<|RESPONSE|>
+任务完成状态：完成/继续
+<|/RESPONSE|>

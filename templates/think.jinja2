@@ -7,23 +7,36 @@
 - 决策：{{ decisions }}
 
 工具：{{ available_tools }}
-要求：{{ requirements }}
 
-决定下一步：
+使用标记格式输出你的思考过程和下一步操作：
 
-返回JSON:
-{
-  "action": "tool_call|complete|wait|stage_complete|artifact_added|decision_made",
-  "tool": "工具名",
-  "arguments": {},
-  "reason": "原因",
-  "next_stage": "新阶段",
-  "stage_updates": {},
-  "artifact_path": "路径",
-  "description": "描述",
-  "decision": "决策",
-  "rationale": "理由"
-}
+示例格式：
+
+<|THINKING|>
+我需要分析当前任务并决定下一步操作
+<|/THINKING|>
+
+<|PLAN|>
+1. 读取相关文件
+2. 分析内容
+3. 生成结果
+<|/PLAN|>
+
+<|TOOL|name='read_file' args='{"path": "/path/to/file"}'|>
+读取文件内容
+<|/TOOL|>
+
+<|OBSERVATION|>
+文件读取成功，内容为...
+<|/OBSERVATION|>
+
+<|REFLECTION|>
+分析完成，可以继续下一步
+<|/REFLECTION|>
+
+<|RESPONSE|>
+任务完成
+<|/RESPONSE|>
 
 完成检查：
 - 所有功能已实现
