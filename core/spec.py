@@ -64,7 +64,8 @@ class TaskSpec:
     def save(self, filepath: str = None):
         """保存到文件"""
         if filepath is None:
-            filepath = f".spec/{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            # 使用微秒级时间戳避免命名冲突
+            filepath = f".spec/{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.json"
 
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:

@@ -29,7 +29,7 @@ def _get_default_config() -> Dict[str, Any]:
             "mock": {
                 "enabled": True,
                 "mode": "random",
-                "responses_file": "tests/fixtures/llm_mock_simple.json"
-            }
+                "responses_file": "tests/fixtures/llm_mock_simple.json",
+            },
         }
     }

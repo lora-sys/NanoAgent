@@ -52,6 +52,9 @@ tmp/
 temp/
 *.tmp
 .ruff_cache
+
+# Runtime specs (may contain sensitive info)
+.spec/
 # Testing
 .pytest_cache/
 .coverage

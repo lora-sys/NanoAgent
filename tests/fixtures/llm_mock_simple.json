@@ -1,6 +1,1 @@
-[
-  "tool: list_files({\"path\": \".\"})",
-  "tool: read_file({\"filename\": \"README.md\"})",
-  "tool: run_bash({\"command\": \"echo test\"})",
-  "任务完成"
-]
+["tool: list_files({\"path\": \".\"})", "tool: read_file({\"filename\": \"README.md\"})", "这是一个极简的 Agent 框架，包含 LLM 客户端、工具注册表和主循环。"]

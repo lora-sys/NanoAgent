@@ -4,6 +4,6 @@ temperature = 0.7
 max_tokens = 4096
 
 [llm.mock]
-enabled = false
-mode = "random"
+enabled = true
+mode = "sequential"
 responses_file = "tests/fixtures/llm_mock_simple.json"
