@@ -21,19 +21,16 @@ class TaskSpec:
 
     def add_tool_call(self, tool_name: str):
         """记录工具调用"""
-        if tool_name not in self.tools_used:
-            self.tools_used.append(tool_name)
+        self.tools_used = list(dict.fromkeys([*self.tools_used, tool_name]))
         self.steps_executed += 1
 
     def add_artifact(self, artifact: str):
         """记录生成的文件/产物"""
-        if artifact not in self.artifacts:
-            self.artifacts.append(artifact)
+        self.artifacts = list(dict.fromkeys([*self.artifacts, artifact]))
 
     def add_decision(self, decision: str):
         """记录重要决策"""
-        if decision not in self.decisions:
-            self.decisions.append(decision)
+        self.decisions = list(dict.fromkeys([*self.decisions, decision]))
 
     def add_error(self, error: str):
         """记录错误"""

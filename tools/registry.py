@@ -40,26 +40,15 @@ class ToolRegistry:
         self, tool_name: str, arguments: Dict[str, Any]
     ) -> Dict[str, Any]:
         """映射参数名，处理常见的参数名差异"""
-        # 参数映射规则：key 是 LLM 传递的参数名，value 是工具函数期望的参数名
         param_mappings = {
-            "read_file": {
-                "path": "filename",
-                "absolute_path": "filename",
-            },  # path/absolute_path -> filename
-            "list_files": {},  # 无需映射
-            "edit_file": {},  # 无需映射
-            "run_bash": {},  # 无需映射
+            "read_file": {"path": "filename", "absolute_path": "filename"},
+            "list_files": {},
+            "edit_file": {},
+            "run_bash": {},
         }
 
         mapping = param_mappings.get(tool_name, {})
-        mapped_args = {}
-
-        for key, value in arguments.items():
-            # 如果参数名在映射中，使用映射后的名称
-            mapped_key = mapping.get(key, key)
-            mapped_args[mapped_key] = value
-
-        return mapped_args
+        return {mapping.get(key, key): value for key, value in arguments.items()}
 
     def get_tool_descriptions(self) -> str:
         lines = []
@@ -67,36 +56,30 @@ class ToolRegistry:
             lines.append(f"- {name}: {t['description']}")
             props = t.get("schema", {}).get("properties", {})
             required = t.get("schema", {}).get("required", [])
-            for pname, pinfo in props.items():
-                req = (
-                    " (必需)"
-                    if pname in required
-                    else f" (默认: {pinfo.get('default', '无')})"
-                )
-                lines.append(
-                    f"  - {pname}: {pinfo.get('type', 'string')}{req} - {pinfo.get('description', '')}"
-                )
+            lines.extend(
+                f"  - {pname}: {pinfo.get('type', 'string')}"
+                f"{' (必需)' if pname in required else f\" (默认: {pinfo.get('default', '无')})\"}"
+                f" - {pinfo.get('description', '')}"
+                for pname, pinfo in props.items()
+            )
         return "\n".join(lines)
 
     def get_tool_list(self) -> List[Dict[str, Any]]:
-        result = []
-        for name, t in self._tools.items():
-            schema = t["schema"]
-            result.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": name,
-                        "description": t["description"],
-                        "parameters": {
-                            "type": "object",
-                            "properties": schema.get("properties", {}),
-                            "required": schema.get("required", []),
-                        },
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": t["description"],
+                    "parameters": {
+                        "type": "object",
+                        "properties": t["schema"].get("properties", {}),
+                        "required": t["schema"].get("required", []),
                     },
-                }
-            )
-        return result
+                },
+            }
+            for name, t in self._tools.items()
+        ]
 
 
 _registry: ToolRegistry = None
@@ -111,12 +94,7 @@ def get_tool_registry() -> ToolRegistry:
 
 
 def _build_schema(func: Callable) -> dict:
-    sig = inspect.signature(func)
-    properties, required = {}, []
-    for name, param in sig.parameters.items():
-        if name in ("cls", "self"):
-            continue
-        ptype = param.annotation if param.annotation != inspect.Parameter.empty else str
+        sig = inspect.signature(func)
         type_map = {
             str: "string",
             int: "integer",
@@ -125,13 +103,30 @@ def _build_schema(func: Callable) -> dict:
             list: "array",
             dict: "object",
         }
-        properties[name] = {"type": type_map.get(ptype, "string"), "description": ""}
-        if param.default == inspect.Parameter.empty:
-            required.append(name)
-        else:
-            properties[name]["default"] = param.default
-    return {"properties": properties, "required": required}
 
+        properties = {
+            name: {
+                "type": type_map.get(
+                    param.annotation if param.annotation != inspect.Parameter.empty else str,
+                    "string"
+                ),
+                "description": "",
+            }
+            for name, param in sig.parameters.items()
+            if name not in ("cls", "self")
+        }
+
+        required = [
+            name
+            for name, param in sig.parameters.items()
+            if name not in ("cls", "self") and param.default == inspect.Parameter.empty
+        ]
+
+        for name, param in sig.parameters.items():
+            if name not in ("cls", "self") and param.default != inspect.Parameter.empty:
+                properties[name]["default"] = param.default
+
+        return {"properties": properties, "required": required}
 
 def _resolve_path(filepath: str) -> Path:
     path = Path(filepath)
@@ -157,11 +152,13 @@ def _register_tools(registry: ToolRegistry):
         full_path = _resolve_path(path)
         if not full_path.is_dir():
             return {"path": str(full_path), "files": f"Error: Not a directory: {path}"}
-        files = [
-            {"filename": item.name, "type": "file" if item.is_file() else "dir"}
-            for item in sorted(full_path.iterdir())
-        ]
-        return {"path": str(full_path), "files": files}
+        return {
+            "path": str(full_path),
+            "files": [
+                {"filename": item.name, "type": "file" if item.is_file() else "dir"}
+                for item in sorted(full_path.iterdir())
+            ],
+        }
 
     def edit_file(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
         """Replaces first occurrence of old_str with new_str in file."""

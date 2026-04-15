@@ -260,18 +260,16 @@ class NanoAgent:
         """生成系统提示"""
         tool_list = self.tools.get_tool_list()
 
-        tool_descriptions = []
-        for tool in tool_list:
-            func = tool["function"]
-            tool_descriptions.append(
-                f"工具名: {func['name']}\n"
-                f"描述: {func['description']}\n"
-                f"参数: {json.dumps(func['parameters'], ensure_ascii=False, indent=2)}\n"
-            )
+        tool_descriptions = "\n".join(
+            f"工具名: {tool['function']['name']}\n"
+            f"描述: {tool['function']['description']}\n"
+            f"参数: {json.dumps(tool['function']['parameters'], ensure_ascii=False, indent=2)}\n"
+            for tool in tool_list
+        )
 
         return (
             "你是一个通用智能助手，帮助用户完成各种任务。\n\n"
-            "你有以下工具可以使用：\n\n" + "\n".join(tool_descriptions) + "\n"
+            f"你有以下工具可以使用：\n\n{tool_descriptions}\n"
             "当你需要使用工具时，请严格按照以下格式输出（必须独占一行）：\n"
             "tool: 工具名({JSON参数})\n\n"
             "例如：\n"
