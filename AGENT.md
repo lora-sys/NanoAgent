@@ -34,3 +34,4 @@
 *   **Testing**: Heavily mock LLM responses in `tests/`.
 *   **Documentation**: Docstrings and examples in every file.
 *   **Versioning**: Strict semantic versioning from day one.
+6 . More use builtin function

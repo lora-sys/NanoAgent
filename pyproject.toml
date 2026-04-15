@@ -6,15 +6,11 @@ requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0.0",
     "litellm>=1.0.0",
-    "loguru>=0.7.0",
     "python-dotenv>=1.0.0",
     "typer>=0.12.0",
     "toml>=0.10.2",
-    # 预留扩展依赖（按需启用）
-    # "httpx>=0.27.0",   # HTTP 客户端（Web 搜索等）
-    # "jinja2>=3.1.0",   # 模板引擎（未来替换 .md 模板）
-    # "rich>=13.7.0",    # 终端美化（未来替换 print）
-    # "structlog>=24.1.0",  # 结构化日志（未来替换 loguru）
+    "jinja2>=3.1.0",
+    "loguru>=0.7.0",
 ]
 
 [project.optional-dependencies]

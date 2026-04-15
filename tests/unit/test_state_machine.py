@@ -1,46 +1,45 @@
-"""Agent State Tests (Manifest-driven)."""
+"""Agent State Tests (精简版)."""
 
-import sys
 import json
 import pytest
 from pathlib import Path
+import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from core.agent_state import AgentState
+
+from core.state import AgentState
 
 
 @pytest.fixture
-def manifest_file(tmp_path: Path) -> str:
-    """Create a temporary manifest file."""
-    manifest_path = tmp_path / "manifest.json"
+def state_file(tmp_path: Path) -> str:
+    """Create a temporary spec file."""
+    spec_path = tmp_path / "manifest.json"
     data = {
-        "project_name": "test_project",
+        "task": "test_task",
         "current_stage": "stage_1",
         "status": "active",
-        "pipeline": [
+        "artifacts": [],
+        "decisions": [],
+        "stages": [
             {"id": "stage_1", "status": "active"},
             {"id": "stage_2", "status": "pending"}
         ]
     }
-    with open(manifest_path, "w") as f:
+    with open(spec_path, "w") as f:
         json.dump(data, f)
-    return str(manifest_path)
+    return str(spec_path)
 
 
-def test_load_stage(manifest_file):
-    state = AgentState(manifest_file)
-    assert state.current_stage == "stage_1"
-    assert state.status == "active"
+def test_load_stage(state_file):
+    state = AgentState(state_file)
+    assert state.get_current_stage() == "stage_1"
 
 
-def test_update_stage(manifest_file):
-    state = AgentState(manifest_file)
-    state.update_stage_status("stage_2", "active")
-    
+def test_update_stage(state_file):
+    state = AgentState(state_file)
+    state.update_stage("stage_2", "active")
+    assert state.get_current_stage() == "stage_2"
+
     # Reload state
-    state._memory_cache = None
-    assert state.current_stage == "stage_2"
-    
-    # Check file content
-    with open(manifest_file) as f:
-        data = json.load(f)
-        assert data["pipeline"][1]["status"] == "active"
+    state2 = AgentState(state_file)
+    assert state2.get_current_stage() == "stage_2"
