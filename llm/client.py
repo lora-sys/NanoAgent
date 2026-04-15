@@ -22,15 +22,19 @@ T = TypeVar("T", bound=BaseModel)
 class NanoLLMClient:
     def __init__(self, model: Optional[str] = None):
         cfg = get_config()
-        self.model = model or cfg.get("llm", "default.model", "openai/gpt-5-nano")
-        self.temperature = cfg.get("llm", "default.temperature", 0.7)
-        self.max_tokens = cfg.get("llm", "default.max_tokens", 4096)
-        self.max_attempts = cfg.get("llm", "retry.max_attempts", 3)
-        mock = cfg.get_module("llm").get("mock", {})
-        self.mock_enabled = mock.get("enabled", False)
-        self.mock_mode = mock.get("mode", "random")
-        self.mock_file = mock.get(
-            "responses_file", "tests/fixtures/llm_mock_responses.json"
+        llm_cfg = cfg.get("llm", {})
+        self.model = model or llm_cfg.get("model", "openai/gpt-4o")
+        self.temperature = llm_cfg.get("temperature", 0.7)
+        self.max_tokens = llm_cfg.get("max_tokens", 4096)
+
+        retry_cfg = llm_cfg.get("retry", {})
+        self.max_attempts = retry_cfg.get("max_attempts", 3)
+
+        mock_cfg = llm_cfg.get("mock", {})
+        self.mock_enabled = mock_cfg.get("enabled", False)
+        self.mock_mode = mock_cfg.get("mode", "random")
+        self.mock_file = mock_cfg.get(
+            "responses_file", "tests/fixtures/llm_mock_simple.json"
         )
         self._mock_idx = 0
 
@@ -44,7 +48,8 @@ class NanoLLMClient:
         else:
             resp = responses[self._mock_idx % len(responses)]
             self._mock_idx += 1
-        return json.dumps(resp, ensure_ascii=False)
+        # 直接返回字符串，不要再次序列化
+        return resp if isinstance(resp, str) else json.dumps(resp, ensure_ascii=False)
 
     def chat(
         self, messages: List[Dict[str, str]], temperature: Optional[float] = None

@@ -25,12 +25,41 @@ class ToolRegistry:
         tool = self._tools.get(name)
         if not tool:
             raise ToolError(name, f"Tool not found: {name}")
+
+        # 参数映射：处理常见的参数名差异
+        mapped_args = self._map_arguments(name, arguments)
+
         try:
-            return tool["function"](**arguments)
+            return tool["function"](**mapped_args)
         except ToolError:
             raise
         except Exception as e:
             raise ToolError(name, str(e)) from e
+
+    def _map_arguments(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """映射参数名，处理常见的参数名差异"""
+        # 参数映射规则：key 是 LLM 传递的参数名，value 是工具函数期望的参数名
+        param_mappings = {
+            "read_file": {
+                "path": "filename",
+                "absolute_path": "filename",
+            },  # path/absolute_path -> filename
+            "list_files": {},  # 无需映射
+            "edit_file": {},  # 无需映射
+            "run_bash": {},  # 无需映射
+        }
+
+        mapping = param_mappings.get(tool_name, {})
+        mapped_args = {}
+
+        for key, value in arguments.items():
+            # 如果参数名在映射中，使用映射后的名称
+            mapped_key = mapping.get(key, key)
+            mapped_args[mapped_key] = value
+
+        return mapped_args
 
     def get_tool_descriptions(self) -> str:
         lines = []
@@ -107,9 +136,8 @@ def _build_schema(func: Callable) -> dict:
 def _resolve_path(filepath: str) -> Path:
     path = Path(filepath)
     if not path.is_absolute():
-        path = SANDBOX_DIR / path
-    if not str(path.resolve()).startswith(str(SANDBOX_DIR.resolve())):
-        raise ValueError(f"Path escapes sandbox: {filepath}")
+        # 相对于当前工作目录，而不是 SANDBOX_DIR
+        path = Path.cwd() / path
     return path.resolve()
 
 

@@ -1,19 +1,9 @@
-[general]
-version = "1.0.0"
-environment = "development"
-config_dir = "config"
+[llm]
+model = "openai/gpt-4o"
+temperature = 0.7
+max_tokens = 4096
 
-[paths]
-workspace = "agent_workspace"
-spec_dir = ".spec"
-templates = "templates/moubles"
-cache_dir = ".cache"
-log_file = "nanoagent.log"
-
-[modules]
-core = "config/core.toml"
-agent = "config/agent.toml"
-llm = "config/llm.toml"
-cache = "config/cache.toml"
-logging = "config/logging.toml"
-tools = "config/tools.toml"
+[llm.mock]
+enabled = false
+mode = "random"
+responses_file = "tests/fixtures/llm_mock_simple.json"

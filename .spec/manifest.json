@@ -1,4 +1,4 @@
 {
-  "task": "测试任务",
-  "status": "running"
+  "task": "帮我读取 README.md 文件",
+  "status": "completed"
 }

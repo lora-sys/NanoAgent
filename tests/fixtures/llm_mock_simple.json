@@ -1,0 +1,6 @@
+[
+  "tool: list_files({\"path\": \".\"})",
+  "tool: read_file({\"filename\": \"README.md\"})",
+  "tool: run_bash({\"command\": \"echo test\"})",
+  "任务完成"
+]
