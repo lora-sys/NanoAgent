@@ -62,7 +62,7 @@ class TestMarkerParser:
         text = "<|THINKING|>思考1<|/THINKING|>\n<|PLAN|>计划1<|/PLAN|>\n<|THINKING|>思考2<|/THINKING|>"
 
         parser = MarkerParser()
-        sections = parser.parse(text)
+        parser.parse(text)
 
         thinking_sections = parser.extract_by_type("THINKING")
         assert len(thinking_sections) == 2
@@ -74,7 +74,7 @@ class TestMarkerParser:
         """测试提取第一个"""
         text = "<|THINKING|>思考1<|/THINKING|><|THINKING|>思考2<|/THINKING|>"
         parser = MarkerParser()
-        sections = parser.parse(text)
+        parser.parse(text)
 
         first = parser.extract_first("THINKING")
         assert first is not None
@@ -82,9 +82,9 @@ class TestMarkerParser:
 
     def test_extract_first_not_found(self):
         """测试提取不存在的类型"""
-        text = "<|THINKING|>思考<|/THINKING|>"
+        text = '<|THINKING|>思考<|/THINKING|>'
         parser = MarkerParser()
-        sections = parser.parse(text)
+        parser.parse(text)
 
         first = parser.extract_first("PLAN")
         assert first is None

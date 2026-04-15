@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, patch
 
 from core.agent import NanoAgent
-from core.marker import MarkerParser, MarkerBuilder
+from core.marker import MarkerBuilder
 
 
 class TestMarkerIntegration:
@@ -20,7 +20,9 @@ class TestMarkerIntegration:
     def mock_tools_registry(self):
         """模拟工具注册表"""
         mock_registry = Mock()
-        mock_registry.get_tool_descriptions.return_value = "read_file: 读取文件\nwrite_file: 写入文件"
+        mock_registry.get_tool_descriptions.return_value = (
+            "read_file: 读取文件\nwrite_file: 写入文件"
+        )
         mock_registry.execute = Mock(return_value="执行成功")
         return mock_registry
 
@@ -209,9 +211,11 @@ class TestMarkerIntegration:
 
     def test_build_and_parse_roundtrip(self):
         """测试构建和解析的往返测试"""
-        original = (MarkerBuilder.thinking("分析任务") +
-                   MarkerBuilder.plan("执行计划") +
-                   MarkerBuilder.tool("test_tool", {"arg": "value"}, "工具调用"))
+        original = (
+            MarkerBuilder.thinking("分析任务")
+            + MarkerBuilder.plan("执行计划")
+            + MarkerBuilder.tool("test_tool", {"arg": "value"}, "工具调用")
+        )
 
         agent = NanoAgent()
         result = agent._parse_marker_response(original)
@@ -246,7 +250,7 @@ class TestMarkerInAgentWorkflow:
         assert "THINKING" in prompt
         assert "TOOL" in prompt
 
-    @patch('core.agent.NanoLLMClient')
+    @patch("core.agent.NanoLLMClient")
     def test_think_method_returns_parsed_markers(self, mock_llm_class):
         """测试 think 方法返回解析后的标记"""
         mock_llm = Mock()
@@ -273,7 +277,14 @@ class TestMarkerInAgentWorkflow:
         cli = NanoAgent._get_cli()
 
         # 测试不同类型的标记显示
-        marker_types = ["THINKING", "PLAN", "TOOL", "OBSERVATION", "REFLECTION", "RESPONSE"]
+        marker_types = [
+            "THINKING",
+            "PLAN",
+            "TOOL",
+            "OBSERVATION",
+            "REFLECTION",
+            "RESPONSE",
+        ]
 
         for marker_type in marker_types:
             assert marker_type in cli.MARKER_STYLES

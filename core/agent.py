@@ -130,7 +130,7 @@ class NanoAgent:
     def _parse_marker_response(self, response: str) -> Dict[str, Any]:
         """解析标记格式的响应"""
         parser = MarkerParser()
-        sections = parser.parse(response)
+        parser.parse(response)
 
         # 提取不同类型的标记
         thinking = parser.extract_first("THINKING")
