@@ -35,3 +35,10 @@
 *   **Documentation**: Docstrings and examples in every file.
 *   **Versioning**: Strict semantic versioning from day one.
 6 . More use builtin function
+*   python builtin mouble function
+7.  Agent use mark signal communcation protocol
+    example
+    "" 
+    <|thinking|>
+    <|/thinking|>
+    """ 
