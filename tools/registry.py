@@ -56,12 +56,9 @@ class ToolRegistry:
             lines.append(f"- {name}: {t['description']}")
             props = t.get("schema", {}).get("properties", {})
             required = t.get("schema", {}).get("required", [])
-            lines.extend(
-                f"  - {pname}: {pinfo.get('type', 'string')}"
-                f"{' (必需)' if pname in required else f\" (默认: {pinfo.get('default', '无')})\"}"
-                f" - {pinfo.get('description', '')}"
-                for pname, pinfo in props.items()
-            )
+            for pname, pinfo in props.items():
+                req = " (必需)" if pname in required else f' (默认: {pinfo.get("default", "无")})'
+                lines.append(f"  - {pname}: {pinfo.get('type', 'string')}{req} - {pinfo.get('description', '')}")
         return "\n".join(lines)
 
     def get_tool_list(self) -> List[Dict[str, Any]]:
