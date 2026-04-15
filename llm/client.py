@@ -31,7 +31,7 @@ class NanoLLMClient:
         self.max_attempts = retry_cfg.get("max_attempts", 3)
 
         mock_cfg = llm_cfg.get("mock", {})
-        self.mock_enabled = mock_cfg.get("enabled", False)
+        self.mock_enabled = mock_cfg.get("enabled", True)
         self.mock_mode = mock_cfg.get("mode", "random")
         self.mock_file = mock_cfg.get(
             "responses_file", "tests/fixtures/llm_mock_simple.json"
