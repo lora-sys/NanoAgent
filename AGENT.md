@@ -11,6 +11,6 @@ more use asyncio  async
 rule :
    TDD 
    release dependcy
-    every change code after 
-    must run ruff check --fix
+    every change git commit | git push
+    must run ruff check --fix &&
     ruff format
