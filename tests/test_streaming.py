@@ -1,6 +1,5 @@
 """测试流式传输和新的标记类型"""
 
-import re
 from core.agent import NanoAgent
 
 
@@ -70,7 +69,7 @@ def test_stream_chat():
         tokens.append(token)
 
     # 注意：这个测试需要 mock 模式才能正常工作
-    full_content = client.stream_chat(messages, callback=callback)
+    client.stream_chat(messages, callback=callback)
 
     # 验证回调被调用
     if not client.mock_enabled:
@@ -88,6 +87,7 @@ def test_xml_pattern_performance():
         test_text += f'<tool name="tool_{i}" args=\'{{"index": {i}}}\'/>\n'
 
     import time
+
     start = time.time()
     invocations = agent._extract_tool_invocations(test_text)
     end = time.time()
@@ -96,7 +96,9 @@ def test_xml_pattern_performance():
     assert len(invocations) == 100
 
     # 验证性能（应该在 100ms 内完成）
-    assert (end - start) < 0.1, f"解析 100 个工具调用耗时 {end - start:.3f}s，超过 100ms"
+    assert (end - start) < 0.1, (
+        f"解析 100 个工具调用耗时 {end - start:.3f}s，超过 100ms"
+    )
 
     print(f"✅ 性能测试通过：解析 100 个工具调用耗时 {(end - start) * 1000:.2f}ms")
 

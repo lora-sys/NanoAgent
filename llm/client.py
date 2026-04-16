@@ -1,5 +1,6 @@
 """LLM 客户端 - 基于 litellm"""
 
+import asyncio
 import json
 import os
 import random
@@ -15,6 +16,9 @@ from config import get_config
 load_dotenv()
 litellm.drop_params = True
 litellm.telemetry = False
+
+# 防止无限循环的配置
+litellm.REPEATED_STREAMING_CHUNK_LIMIT = 100
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -37,6 +41,9 @@ class NanoLLMClient:
             "responses_file", "tests/fixtures/llm_mock_simple.json"
         )
         self._mock_idx = 0
+
+        # 流式传输的 chunk 存储
+        self._stream_chunks = []
 
     def _get_mock(self) -> str:
         if not os.path.exists(self.mock_file):
@@ -89,6 +96,7 @@ class NanoLLMClient:
             return content
 
         full_content = ""
+        chunks = []
         response = litellm.completion(
             model=self.model,
             messages=messages,
@@ -97,12 +105,113 @@ class NanoLLMClient:
             stream=True,
         )
 
-        for chunk in response:
+        try:
+            for chunk in response:
+                chunks.append(chunk)
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_content += content
+                    if callback:
+                        callback(content)
+        except litellm.InternalServerError as e:
+            # 处理无限循环错误
+            if "repeated chunk" in str(e).lower():
+                print("⚠️ 检测到模型进入无限循环，使用已接收的 chunks 重建响应")
+                # 使用 stream_chunk_builder 重建响应
+                return self.stream_chunk_builder(chunks, messages)
+            raise
+
+        return full_content
+
+    def stream_chunk_builder(self, chunks: List, messages: List[Dict[str, str]]) -> str:
+        """从 chunks 列表重建完整的流式响应
+
+        Args:
+            chunks: 流式传输的 chunk 列表
+            messages: 原始消息列表
+
+        Returns:
+            完整的响应内容
+        """
+        full_content = ""
+        for chunk in chunks:
             if chunk.choices and chunk.choices[0].delta.content:
-                content = chunk.choices[0].delta.content
-                full_content += content
-                if callback:
-                    callback(content)
+                full_content += chunk.choices[0].delta.content
+        return full_content
+
+    async def achat(
+        self, messages: List[Dict[str, str]], temperature: Optional[float] = None
+    ) -> str:
+        """异步聊天
+
+        Args:
+            messages: 消息列表
+            temperature: 温度参数
+
+        Returns:
+            完整的响应内容
+        """
+        if self.mock_enabled:
+            return self._get_mock()
+
+        resp = await litellm.acompletion(
+            model=self.model,
+            messages=messages,
+            temperature=temperature or self.temperature,
+            max_tokens=self.max_tokens,
+        )
+        return resp.choices[0].message.content or ""
+
+    async def astream_chat(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: Optional[float] = None,
+        callback=None,
+    ) -> str:
+        """异步流式聊天
+
+        Args:
+            messages: 消息列表
+            temperature: 温度参数
+            callback: 回调函数，接收每个 token
+
+        Returns:
+            完整的响应内容
+        """
+        if self.mock_enabled:
+            content = self._get_mock()
+            if callback:
+                # 模拟流式输出
+                for char in content:
+                    callback(char)
+                    await asyncio.sleep(0.01)  # 模拟异步
+            return content
+
+        full_content = ""
+        chunks = []
+        response = await litellm.acompletion(
+            model=self.model,
+            messages=messages,
+            temperature=temperature or self.temperature,
+            max_tokens=self.max_tokens,
+            stream=True,
+        )
+
+        try:
+            async for chunk in response:
+                chunks.append(chunk)
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_content += content
+                    if callback:
+                        callback(content)
+        except litellm.InternalServerError as e:
+            # 处理无限循环错误
+            if "repeated chunk" in str(e).lower():
+                print("⚠️ 检测到模型进入无限循环，使用已接收的 chunks 重建响应")
+                # 使用 stream_chunk_builder 重建响应
+                return self.stream_chunk_builder(chunks, messages)
+            raise
 
         return full_content
 
@@ -118,6 +227,44 @@ class NanoLLMClient:
             except Exception:
                 return response_model()
         raw = litellm.completion(
+            model=self.model,
+            messages=messages,
+            temperature=temperature or self.temperature,
+            max_tokens=self.max_tokens,
+            response_format={"type": "json_object"},
+        )
+        content = raw.choices[0].message.content or ""
+        data = _extract_json(content)
+        if isinstance(data, dict) and len(data) == 1:
+            key = list(data.keys())[0]
+            model_name = response_model.__name__
+            if key == model_name or model_name.lower() in key.lower():
+                data = data[key]
+        return response_model.model_validate(data)
+
+    async def astructured_chat(
+        self,
+        messages: List[Dict[str, str]],
+        response_model: Type[T],
+        temperature: Optional[float] = None,
+    ) -> T:
+        """异步结构化聊天
+
+        Args:
+            messages: 消息列表
+            response_model: 响应模型类型
+            temperature: 温度参数
+
+        Returns:
+            结构化的响应对象
+        """
+        if self.mock_enabled:
+            try:
+                return response_model.model_validate(json.loads(self._get_mock()))
+            except Exception:
+                return response_model()
+
+        raw = await litellm.acompletion(
             model=self.model,
             messages=messages,
             temperature=temperature or self.temperature,
