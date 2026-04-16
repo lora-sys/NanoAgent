@@ -16,6 +16,18 @@ from core.router import (
     create_simple_router,
     create_smart_router,
 )
+from core.model_interface import (
+    BaseModelClient,
+    ModelRegistry,
+    ModelInfo,
+    ModelTier,
+    get_global_registry,
+)
+from core.composable import (
+    ComposableAgent,
+    AgentBuilder,
+)
+
 from llm.client import NanoLLMClient
 from tools.registry import get_tool_registry
 
@@ -34,6 +46,13 @@ __all__ = [
     "RouteContext",
     "create_simple_router",
     "create_smart_router",
+    "BaseModelClient",
+    "ModelRegistry",
+    "ModelInfo",
+    "ModelTier",
+    "get_global_registry",
+    "ComposableAgent",
+    "AgentBuilder",
     "NanoLLMClient",
     "get_tool_registry",
 ]

@@ -51,10 +51,11 @@ class NanoAgent:
             "使用建议",
         }
 
+        object_keywords = ("项目", "架构", "代码", "设计", "分析", "框架", "最佳实践")
+
         # 优先级2：包含复杂关键词和具体对象
-        return any(keyword in task for keyword in complex_keywords) and any(
-            obj in task
-            for obj in ("项目", "架构", "代码", "设计", "分析", "框架", "最佳实践")
+        return any(kw in task for kw in complex_keywords) and any(
+            obj in task for obj in object_keywords
         )
 
     def _run_with_chain(self, task: str) -> Dict[str, Any]:
@@ -158,53 +159,18 @@ class NanoAgent:
                 break
 
             # 执行工具调用
-            for tool_name, args in tool_invocations:
-                print(f"\n🔧 {tool_name}({args})")
-                self.spec.add_tool_call(tool_name)
-
-                try:
-                    result = self.tools.execute(tool_name, args)
-                    print(f"👁️ {result}")
-
-                    # 记录产物
-                    if isinstance(result, dict) and "file_path" in result:
-                        # 将绝对路径转换为相对路径
-                        file_path = result["file_path"]
-                        try:
-                            from pathlib import Path
-
-                            cwd = Path.cwd()
-                            abs_path = Path(file_path).resolve()
-                            if abs_path.is_relative_to(cwd):
-                                rel_path = abs_path.relative_to(cwd)
-                                self.spec.add_artifact(str(rel_path))
-                            else:
-                                self.spec.add_artifact(file_path)
-                        except Exception:
-                            # 转换失败，使用原始路径
-                            self.spec.add_artifact(file_path)
-
-                    # 将结果添加到对话
-                    self.conversation.append(
-                        {
-                            "role": "user",
-                            "content": f"tool_result({json.dumps(result, ensure_ascii=False)})",
-                        }
-                    )
-                except Exception as e:
-                    error_msg = f"工具执行失败: {e}"
-                    print(f"❌ {error_msg}")
-                    self.spec.add_error(error_msg)
-                    self.conversation.append(
-                        {
-                            "role": "user",
-                            "content": f"tool_result({json.dumps({'error': error_msg}, ensure_ascii=False)})",
-                        }
-                    )
+            self._execute_tool_invocations(tool_invocations)
 
         # 保存任务规范
         spec_file = self.spec.save()
         print(f"\n💾 任务规范: {spec_file}")
+
+        # 提取最后的 assistant 响应
+        last_response = ""
+        for msg in reversed(self.conversation):
+            if msg.get("role") == "assistant":
+                last_response = msg.get("content", "")
+                break
 
         return {
             "status": self.spec.status,
@@ -213,6 +179,8 @@ class NanoAgent:
             "artifacts": self.spec.artifacts,
             "spec_file": spec_file,
             "execution_mode": "traditional",
+            "conversation": self.conversation,
+            "response": last_response,
         }
 
     def chat(self, max_iterations: Optional[int] = None):
@@ -269,26 +237,73 @@ class NanoAgent:
                     break
 
                 # 执行工具调用
-                for tool_name, args in tool_invocations:
-                    print(f"\n🔧 {tool_name}({args})")
-                    try:
-                        result = self.tools.execute(tool_name, args)
-                        print(f"👁️ {result}")
-                        self.conversation.append(
-                            {
-                                "role": "user",
-                                "content": f"tool_result({json.dumps(result, ensure_ascii=False)})",
-                            }
-                        )
-                    except Exception as e:
-                        error_msg = f"工具执行失败: {e}"
-                        print(f"❌ {error_msg}")
-                        self.conversation.append(
-                            {
-                                "role": "user",
-                                "content": f"tool_result({json.dumps({'error': error_msg}, ensure_ascii=False)})",
-                            }
-                        )
+                self._execute_tool_invocations(tool_invocations)
+
+    def _execute_tool_invocations(
+        self, tool_invocations: List[Tuple[str, Dict[str, Any]]]
+    ) -> None:
+        """执行工具调用列表
+
+        Args:
+            tool_invocations: 工具调用列表，每个元素是 (工具名, 参数) 元组
+        """
+        for tool_name, args in tool_invocations:
+            print(f"\n🔧 {tool_name}({args})")
+
+            # 如果在任务模式下，记录工具调用
+            if self.spec:
+                self.spec.add_tool_call(tool_name)
+
+            try:
+                result = self.tools.execute(tool_name, args)
+                print(f"👁️ {result}")
+
+                # 记录产物（仅在任务模式下）
+                if self.spec and isinstance(result, dict) and "file_path" in result:
+                    self._record_artifact(result["file_path"])
+
+                # 将结果添加到对话
+                self.conversation.append(
+                    {
+                        "role": "user",
+                        "content": f"tool_result({json.dumps(result, ensure_ascii=False)})",
+                    }
+                )
+            except Exception as e:
+                error_msg = f"工具执行失败: {e}"
+                print(f"❌ {error_msg}")
+
+                if self.spec:
+                    self.spec.add_error(error_msg)
+
+                self.conversation.append(
+                    {
+                        "role": "user",
+                        "content": f"tool_result({json.dumps({'error': error_msg}, ensure_ascii=False)})",
+                    }
+                )
+
+    def _record_artifact(self, file_path: str) -> None:
+        """记录产物文件
+
+        Args:
+            file_path: 文件路径（可能是绝对路径或相对路径）
+        """
+        try:
+            from pathlib import Path
+
+            cwd = Path.cwd()
+            abs_path = Path(file_path).resolve()
+
+            # 尝试转换为相对路径
+            if abs_path.is_relative_to(cwd):
+                rel_path = abs_path.relative_to(cwd)
+                self.spec.add_artifact(str(rel_path))
+            else:
+                self.spec.add_artifact(file_path)
+        except Exception:
+            # 转换失败，使用原始路径
+            self.spec.add_artifact(file_path)
 
     def _extract_tool_invocations(self, text: str) -> List[Tuple[str, Dict[str, Any]]]:
         """从文本中提取工具调用，支持 XML 友好的标记格式
@@ -398,33 +413,35 @@ class NanoAgent:
         return (
             "你是一个通用智能助手，帮助用户完成各种任务。\n\n"
             f"你有以下工具可以使用：\n\n{tool_descriptions}\n"
-            "当你需要使用工具时，请使用以下格式输出：\n\n"
-            "工具调用格式（XML 友好，支持流式传输）：\n"
+            "## 工具使用指南\n\n"
+            "### 何时使用工具\n"
+            "1. 用户明确要求读取文件、列出目录、运行命令时\n"
+            "2. 需要获取项目信息、代码内容时\n"
+            "3. 需要执行系统操作时\n\n"
+            "### 工具调用格式\n"
             '<tool name="工具名" args=\'{"参数名": "参数值"}\'/>\n\n'
-            "响应格式：\n"
-            "<response>你的回复内容</response>\n\n"
-            "错误格式：\n"
-            "<error>错误描述</error>\n\n"
-            "提示链模式（用于复杂任务）：\n"
-            "对于复杂的分析、设计、规划任务，可以使用提示链模式将任务拆解为多个步骤：\n"
-            "- 分析需求：提取关键信息、目标和约束条件\n"
-            "- 制定计划：根据分析结果制定详细的执行计划\n"
-            "- 执行分析：按照计划执行分析任务，使用工具获取必要信息\n"
-            "- 总结结果：总结分析结果，提供清晰的结论和建议\n"
-            "提示链模式可以提高任务的可靠性和可控性。\n\n"
-            "例如：\n"
-            '<tool name="read_file" args=\'{"filename": "README.md"}\'/>\n'
-            '<tool name="list_files" args=\'{"path": "."}\'/>\n'
-            '<tool name="edit_file" args=\'{"path": "test.txt", "old_str": "hello", "new_str": "world"}\'/>\n'
+            "### 重要规则\n"
+            "1. **必须使用工具**: 当用户询问文件、目录、代码等信息时，必须先使用工具获取\n"
+            "2. **不要猜测**: 不要凭空猜测文件内容或目录结构\n"
+            "3. **参数格式**: JSON 参数必须使用单引号包裹，内部使用双引号\n"
+            "4. **路径处理**: 支持相对路径和绝对路径，相对路径相对于当前工作目录\n"
+            "5. **错误处理**: 如果工具返回错误，使用 <error> 标记描述问题\n\n"
+            "### 工具示例\n\n"
+            "#### read_file - 读取文件内容\n"
+            '<tool name="read_file" args=\'{"path": "README.md"}\'/>\n\n'
+            "#### list_files - 列出目录文件\n"
+            '<tool name="list_files" args=\'{"path": "."}\'/>\n\n'
+            "#### edit_file - 编辑文件内容\n"
+            '<tool name="edit_file" args=\'{"path": "test.txt", "old_str": "hello", "new_str": "world"}\'/>\n\n'
+            "#### run_bash - 执行系统命令\n"
             '<tool name="run_bash" args=\'{"command": "ls -la"}\'/>\n\n'
-            "重要规则：\n"
-            "1. 当用户询问关于当前项目、代码、文件等信息时，必须先使用工具（list_files、read_file）获取信息，不要凭空猜测\n"
-            "2. 对于复杂的分析、设计、规划任务，考虑使用提示链模式，将任务拆解为多个步骤\n"
-            "3. 推荐使用 XML 格式，便于前端解析和流式传输\n"
-            "4. JSON 参数必须使用单引号包裹，内部使用双引号\n"
-            "5. 一次可以调用多个工具，每个工具一行\n"
-            "6. 不需要工具时，使用 <response> 标记回复用户\n"
-            "7. 遇到错误时，使用 <error> 标记描述问题\n"
-            "8. 收到工具结果后，继续执行任务\n"
-            "9. 直接执行任务，不要询问用户确认\n"
+            "### 响应格式\n"
+            "- 正常响应: <response>你的回复内容</response>\n"
+            "- 错误响应: <error>错误描述</error>\n\n"
+            "### 执行流程\n"
+            "1. 分析用户需求\n"
+            "2. 确定需要使用的工具\n"
+            "3. 调用工具获取信息\n"
+            "4. 基于工具结果提供回复\n"
+            "5. 如果需要，继续调用其他工具\n"
         )

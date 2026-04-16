@@ -107,24 +107,27 @@ class ChainStep:
 
     def _build_llm_input(self, context: ChainContext) -> str:
         """构建 LLM 输入"""
-        # 基础提示
-        llm_input = f"{self.prompt}\n\n"
+        parts = [self.prompt, ""]
 
         # 添加上下文信息
         if context.data:
-            llm_input += "上下文信息：\n"
-            for key, value in context.data.items():
-                llm_input += f"- {key}: {json.dumps(value, ensure_ascii=False)}\n"
-            llm_input += "\n"
+            parts.append("上下文信息：")
+            parts.extend(
+                f"- {key}: {json.dumps(value, ensure_ascii=False)}"
+                for key, value in context.data.items()
+            )
+            parts.append("")
 
-        # 添加历史信息
+        # 添加历史信息（最近3步）
         if context.history:
-            llm_input += "历史步骤：\n"
-            for item in context.history[-3:]:  # 只显示最近3步
-                llm_input += f"- {item['step']}: {str(item['result'])[:100]}...\n"
-            llm_input += "\n"
+            parts.append("历史步骤：")
+            parts.extend(
+                f"- {item['step']}: {str(item['result'])[:100]}..."
+                for item in context.history[-3:]
+            )
+            parts.append("")
 
-        return llm_input
+        return "\n".join(parts)
 
 
 class PromptChain:
