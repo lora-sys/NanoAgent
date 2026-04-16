@@ -57,8 +57,14 @@ class ToolRegistry:
             props = t.get("schema", {}).get("properties", {})
             required = t.get("schema", {}).get("required", [])
             for pname, pinfo in props.items():
-                req = " (必需)" if pname in required else f' (默认: {pinfo.get("default", "无")})'
-                lines.append(f"  - {pname}: {pinfo.get('type', 'string')}{req} - {pinfo.get('description', '')}")
+                req = (
+                    " (必需)"
+                    if pname in required
+                    else f" (默认: {pinfo.get('default', '无')})"
+                )
+                lines.append(
+                    f"  - {pname}: {pinfo.get('type', 'string')}{req} - {pinfo.get('description', '')}"
+                )
         return "\n".join(lines)
 
     def get_tool_list(self) -> List[Dict[str, Any]]:
@@ -91,39 +97,42 @@ def get_tool_registry() -> ToolRegistry:
 
 
 def _build_schema(func: Callable) -> dict:
-        sig = inspect.signature(func)
-        type_map = {
-            str: "string",
-            int: "integer",
-            float: "number",
-            bool: "boolean",
-            list: "array",
-            dict: "object",
+    sig = inspect.signature(func)
+    type_map = {
+        str: "string",
+        int: "integer",
+        float: "number",
+        bool: "boolean",
+        list: "array",
+        dict: "object",
+    }
+
+    properties = {
+        name: {
+            "type": type_map.get(
+                param.annotation
+                if param.annotation != inspect.Parameter.empty
+                else str,
+                "string",
+            ),
+            "description": "",
         }
+        for name, param in sig.parameters.items()
+        if name not in ("cls", "self")
+    }
 
-        properties = {
-            name: {
-                "type": type_map.get(
-                    param.annotation if param.annotation != inspect.Parameter.empty else str,
-                    "string"
-                ),
-                "description": "",
-            }
-            for name, param in sig.parameters.items()
-            if name not in ("cls", "self")
-        }
+    required = [
+        name
+        for name, param in sig.parameters.items()
+        if name not in ("cls", "self") and param.default == inspect.Parameter.empty
+    ]
 
-        required = [
-            name
-            for name, param in sig.parameters.items()
-            if name not in ("cls", "self") and param.default == inspect.Parameter.empty
-        ]
+    for name, param in sig.parameters.items():
+        if name not in ("cls", "self") and param.default != inspect.Parameter.empty:
+            properties[name]["default"] = param.default
 
-        for name, param in sig.parameters.items():
-            if name not in ("cls", "self") and param.default != inspect.Parameter.empty:
-                properties[name]["default"] = param.default
+    return {"properties": properties, "required": required}
 
-        return {"properties": properties, "required": required}
 
 def _resolve_path(filepath: str) -> Path:
     path = Path(filepath)
