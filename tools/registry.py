@@ -190,8 +190,19 @@ def _register_tools(registry: ToolRegistry):
         if not command or not command.strip():
             return "Error: Command is empty"
 
-        forbidden = ["rm -rf /", "sudo", "dd", "mkfs", ":(){:|:&};:"]
-        if any(d in command.lower() for d in forbidden):
+        # 增强的安全检查
+        dangerous_patterns = [
+            r"rm\s+-rf\s+/",
+            r"sudo",
+            r"dd\s+if=",
+            r":\(\)\{\:\|:&\};:",
+            r"mkfs",
+        ]
+        import re
+
+        if any(
+            re.search(pattern, command, re.IGNORECASE) for pattern in dangerous_patterns
+        ):
             return "Error: Command blocked by security policy"
 
         SANDBOX_DIR.mkdir(parents=True, exist_ok=True)
