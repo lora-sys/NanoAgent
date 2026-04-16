@@ -5,12 +5,16 @@
 - 多步骤工具调用的复杂任务
 - 可验证的结果和指标收集
 - 透明的推理过程和错误分析
+- 性能优化和语义验证
 """
 
 import time
 from typing import Any, Dict, List
 from dataclasses import dataclass, field
 from enum import Enum
+
+from core.performance_optimizer import ToolCallOptimizer, ToolResponseCompressor
+from core.semantic_verifier import SemanticVerifier, SemanticMatchType
 
 
 class TaskDifficulty(Enum):
@@ -250,11 +254,19 @@ class Verifier:
         return False
 
     @staticmethod
-    def _semantic_verify(task: EvaluationTask, result: Dict[str, Any]) -> bool:
-        """语义验证（简化版本）"""
-        # 在实际实现中，这里可以使用 LLM 进行语义验证
-        # 目前使用包含匹配作为简化实现
-        return Verifier._contains_match(task.expected_result, result)
+    def _semantic_verify(task: EvaluationTask, result: str) -> bool:
+        """语义验证（使用精确的语义验证器）"""
+        verifier = SemanticVerifier()
+
+        # 使用语义相似度验证
+        semantic_result = verifier.verify_semantic_match(
+            expected=task.expected_result,
+            actual=result,
+            match_type=SemanticMatchType.SEMANTIC_SIMILAR,
+        )
+
+        # 返回是否匹配（置信度阈值0.7）
+        return semantic_result.is_match(threshold=0.7)
 
 
 class EvaluationRunner:
@@ -265,6 +277,8 @@ class EvaluationRunner:
         self.agent = agent
         self.results: List[Dict[str, Any]] = []
         self.metrics: List[EvaluationMetrics] = []
+        self.performance_optimizer = ToolCallOptimizer()
+        self.response_compressor = ToolResponseCompressor()
 
     def run_task(
         self, task: EvaluationTask, force_traditional_mode: bool = True
@@ -333,6 +347,17 @@ class EvaluationRunner:
             if not verification["passed"]:
                 print(f"❌ 验证详情: {verification.get('details', 'N/A')}")
 
+            # 记录性能数据到优化器
+            for tool_name in result.get("tools_used", []):
+                self.performance_optimizer.record_tool_call(
+                    tool_name=tool_name,
+                    execution_time=metrics.total_time
+                    / len(result.get("tools_used", [1])),
+                    success=(result.get("status") == "completed"),
+                    expected=(tool_name in task.expected_tools),
+                    token_cost=0,  # 可以从 LLM 客户端获取
+                )
+
             self.results.append(task_result)
             self.metrics.append(metrics)
 
@@ -365,7 +390,45 @@ class EvaluationRunner:
         print("📊 评估套件完成")
         print(summary)
 
-        return {"tasks": self.results, "summary": summary, "total_time": total_time}
+        # 添加性能优化建议
+        print("\n🚀 性能优化建议")
+        print("=" * 80)
+        optimization_suggestions = self.performance_optimizer.analyze_performance()
+
+        if optimization_suggestions:
+            for i, suggestion in enumerate(optimization_suggestions, 1):
+                print(
+                    f"\n{i}. {suggestion.tool_name} - {suggestion.issue_type.upper()} ({suggestion.severity})"
+                )
+                print(f"   问题: {suggestion.description}")
+                print(f"   建议: {suggestion.suggestion}")
+                print(f"   预期改进: {suggestion.expected_improvement}")
+        else:
+            print("✅ 没有发现明显的性能问题")
+
+        # 添加性能报告
+        performance_report = self.performance_optimizer.get_performance_report()
+        print("\n📊 性能报告摘要:")
+        print(f"   总调用次数: {performance_report['summary']['total_calls']}")
+        print(f"   成功率: {performance_report['summary']['overall_success_rate']:.1%}")
+        print(f"   分析工具数: {performance_report['summary']['tools_analyzed']}")
+
+        return {
+            "tasks": self.results,
+            "summary": summary,
+            "total_time": total_time,
+            "performance_report": performance_report,
+            "optimization_suggestions": [
+                {
+                    "tool": s.tool_name,
+                    "issue": s.issue_type,
+                    "severity": s.severity,
+                    "suggestion": s.suggestion,
+                    "expected_improvement": s.expected_improvement,
+                }
+                for s in optimization_suggestions
+            ],
+        }
 
     def _generate_summary(self, total_time: float) -> Dict[str, Any]:
         """生成汇总报告"""
