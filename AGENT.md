@@ -7,7 +7,9 @@ less dependcy
 keep it code readable and clean
 
 
+
 rule :
+   TDD 
    release dependcy
     every change code after 
     must run ruff check --fix

@@ -64,6 +64,48 @@ class NanoLLMClient:
         )
         return resp.choices[0].message.content or ""
 
+    def stream_chat(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: Optional[float] = None,
+        callback=None,
+    ) -> str:
+        """流式聊天，支持实时输出
+
+        Args:
+            messages: 消息列表
+            temperature: 温度参数
+            callback: 回调函数，接收每个 token
+
+        Returns:
+            完整的响应内容
+        """
+        if self.mock_enabled:
+            content = self._get_mock()
+            if callback:
+                # 模拟流式输出
+                for char in content:
+                    callback(char)
+            return content
+
+        full_content = ""
+        response = litellm.completion(
+            model=self.model,
+            messages=messages,
+            temperature=temperature or self.temperature,
+            max_tokens=self.max_tokens,
+            stream=True,
+        )
+
+        for chunk in response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                full_content += content
+                if callback:
+                    callback(content)
+
+        return full_content
+
     def structured_chat(
         self,
         messages: List[Dict[str, str]],
