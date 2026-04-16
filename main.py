@@ -1,5 +1,7 @@
 """NanoAgent CLI - 极简 Agent 框架"""
 
+import asyncio
+import sys
 from typing import Optional
 from dotenv import load_dotenv
 import typer
@@ -20,20 +22,38 @@ def run(
     ),
 ) -> None:
     """执行任务"""
-    agent = NanoAgent()
-    result = agent.run(task, max_iterations=max_iterations)
+    try:
+        agent = NanoAgent()
+        result = agent.run(task, max_iterations=max_iterations)
 
-    typer.echo(f"✅ 状态: {result.get('status', 'unknown')}")
-    typer.echo(f"🔄 迭代: {result.get('iterations', 0)}")
-    typer.echo(f"🔧 工具: {', '.join(result.get('tools_used', []))}")
-    typer.echo(f"📁 产物: {len(result.get('artifacts', []))} 个")
+        typer.echo(f"✅ 状态: {result.get('status', 'unknown')}")
+        typer.echo(f"🔄 迭代: {result.get('iterations', 0)}")
+        typer.echo(f"🔧 工具: {', '.join(result.get('tools_used', []))}")
+        typer.echo(f"📁 产物: {len(result.get('artifacts', []))} 个")
+    finally:
+        # 确保事件循环正确清理
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.close()
+        except RuntimeError:
+            pass
 
 
 @app.command()
 def chat() -> None:
     """交互式对话模式"""
-    agent = NanoAgent()
-    agent.chat()
+    try:
+        agent = NanoAgent()
+        agent.chat()
+    finally:
+        # 确保事件循环正确清理
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.close()
+        except RuntimeError:
+            pass
 
 
 @app.command()
@@ -43,4 +63,15 @@ def version() -> None:
 
 
 if __name__ == "__main__":
-    app()
+    try:
+        app()
+    except KeyboardInterrupt:
+        sys.exit(0)
+    finally:
+        # 确保资源正确清理
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.close()
+        except RuntimeError:
+            pass

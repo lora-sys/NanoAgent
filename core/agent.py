@@ -30,6 +30,56 @@ class NanoAgent:
         self.conversation: List[Dict[str, str]] = []
         self._stop_condition: Optional[Callable[[], bool]] = None
 
+    def _should_use_chain(self, task: str) -> bool:
+        """判断是否应该使用提示链模式"""
+        complex_keywords = [
+            "分析",
+            "设计",
+            "评估",
+            "规划",
+            "优化",
+            "总结",
+            "架构",
+            "代码",
+            "项目",
+        ]
+        return any(keyword in task for keyword in complex_keywords) and (
+            "项目" in task
+            or "架构" in task
+            or "代码" in task
+            or "设计" in task
+            or "分析" in task
+        )
+
+    def _run_with_chain(self, task: str) -> Dict[str, Any]:
+        """使用提示链模式执行任务"""
+        from core.chain import create_analysis_chain
+
+        print("🔗 使用提示链模式执行任务")
+
+        # 创建分析链
+        chain = create_analysis_chain()
+
+        # 执行提示链
+        result = chain.run_sync(task, self.llm)
+
+        # 显示结果
+        print("✅ 提示链执行完成")
+        print(f"⏱️ 执行时间: {result.execution_time:.2f}秒")
+        print(f"📋 执行步骤: {[h['step'] for h in result.context.history]}")
+        print(f"\n🤖 {result.final_output}")
+
+        return {
+            "status": "completed" if result.success else "failed",
+            "iterations": len(result.context.history),
+            "tools_used": [h["step"] for h in result.context.history],
+            "artifacts": [],
+            "spec_file": None,
+            "execution_mode": "chain",
+            "execution_time": result.execution_time,
+            "chain_result": result.to_dict(),
+        }
+
     def run(
         self,
         task: str,
@@ -47,6 +97,11 @@ class NanoAgent:
         Returns:
             任务执行结果
         """
+        # 智能选择执行模式
+        if self._should_use_chain(task):
+            return self._run_with_chain(task)
+
+        # 传统 Agent 模式
         # 初始化任务跟踪
         self.spec = TaskSpec(task)
         self._stop_condition = stop_condition
@@ -151,6 +206,7 @@ class NanoAgent:
             "tools_used": self.spec.tools_used,
             "artifacts": self.spec.artifacts,
             "spec_file": spec_file,
+            "execution_mode": "traditional",
         }
 
     def chat(self, max_iterations: Optional[int] = None):
@@ -343,6 +399,13 @@ class NanoAgent:
             "<response>你的回复内容</response>\n\n"
             "错误格式：\n"
             "<error>错误描述</error>\n\n"
+            "提示链模式（用于复杂任务）：\n"
+            "对于复杂的分析、设计、规划任务，可以使用提示链模式将任务拆解为多个步骤：\n"
+            "- 分析需求：提取关键信息、目标和约束条件\n"
+            "- 制定计划：根据分析结果制定详细的执行计划\n"
+            "- 执行分析：按照计划执行分析任务，使用工具获取必要信息\n"
+            "- 总结结果：总结分析结果，提供清晰的结论和建议\n"
+            "提示链模式可以提高任务的可靠性和可控性。\n\n"
             "例如：\n"
             '<tool name="read_file" args=\'{"filename": "README.md"}\'/>\n'
             '<tool name="list_files" args=\'{"path": "."}\'/>\n'
@@ -350,11 +413,12 @@ class NanoAgent:
             '<tool name="run_bash" args=\'{"command": "ls -la"}\'/>\n\n'
             "重要规则：\n"
             "1. 当用户询问关于当前项目、代码、文件等信息时，必须先使用工具（list_files、read_file）获取信息，不要凭空猜测\n"
-            "2. 推荐使用 XML 格式，便于前端解析和流式传输\n"
-            "3. JSON 参数必须使用单引号包裹，内部使用双引号\n"
-            "4. 一次可以调用多个工具，每个工具一行\n"
-            "5. 不需要工具时，使用 <response> 标记回复用户\n"
-            "6. 遇到错误时，使用 <error> 标记描述问题\n"
-            "7. 收到工具结果后，继续执行任务\n"
-            "8. 直接执行任务，不要询问用户确认\n"
+            "2. 对于复杂的分析、设计、规划任务，考虑使用提示链模式，将任务拆解为多个步骤\n"
+            "3. 推荐使用 XML 格式，便于前端解析和流式传输\n"
+            "4. JSON 参数必须使用单引号包裹，内部使用双引号\n"
+            "5. 一次可以调用多个工具，每个工具一行\n"
+            "6. 不需要工具时，使用 <response> 标记回复用户\n"
+            "7. 遇到错误时，使用 <error> 标记描述问题\n"
+            "8. 收到工具结果后，继续执行任务\n"
+            "9. 直接执行任务，不要询问用户确认\n"
         )
