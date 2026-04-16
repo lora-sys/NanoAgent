@@ -1,11 +1,12 @@
 """NanoAgent - 极简 Agent 框架"""
 
 import json
+import re
 from typing import Any, Dict, List, Tuple, Callable, Optional
 
 from core.spec import TaskSpec
 from llm.client import NanoLLMClient
-from tools.registry import get_tool_registry
+from tools.registry import ToolRegistry, get_tool_registry
 
 
 class NanoAgent:
@@ -14,7 +15,7 @@ class NanoAgent:
     def __init__(
         self,
         llm_client: Optional[NanoLLMClient] = None,
-        tool_registry: Optional[Any] = None,
+        tool_registry: Optional[ToolRegistry] = None,
     ):
         """
         初始化 Agent
@@ -243,9 +244,6 @@ class NanoAgent:
         invocations = []
 
         # 编译正则表达式以提高性能
-
-        import re
-
         xml_pattern = re.compile(r'<tool\s+name="([^"]+)"\s+args=\'([^\']*)\'\s*/>')
 
         # 优先尝试解析 XML 格式
@@ -308,8 +306,6 @@ class NanoAgent:
         - <response>...</response>
         - <error>...</error>
         """
-        import re
-
         result = {"response": "", "error": ""}
 
         # 提取 response 标记

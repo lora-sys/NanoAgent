@@ -87,7 +87,7 @@ async def main():
     sync_time = demo_sync_chat()
     async_time = await demo_async_chat()
 
-    print(f"\n📊 单个请求对比:")
+    print("\n📊 单个请求对比:")
     print(f"同步: {sync_time * 1000:.2f}ms")
     print(f"异步: {async_time * 1000:.2f}ms")
     print(f"差异: {abs(sync_time - async_time) * 1000:.2f}ms")
@@ -97,7 +97,7 @@ async def main():
     sync_multi_time = demo_multiple_sync_requests()
     async_multi_time = await demo_multiple_async_requests()
 
-    print(f"\n📊 多个请求对比:")
+    print("\n📊 多个请求对比:")
     print(f"同步（串行）: {sync_multi_time * 1000:.2f}ms")
     print(f"异步（并发）: {async_multi_time * 1000:.2f}ms")
     print(f"性能提升: {(sync_multi_time / async_multi_time):.2f}x")

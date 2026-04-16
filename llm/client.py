@@ -42,9 +42,6 @@ class NanoLLMClient:
         )
         self._mock_idx = 0
 
-        # 流式传输的 chunk 存储
-        self._stream_chunks = []
-
     def _get_mock(self) -> str:
         if not os.path.exists(self.mock_file):
             return '{"action": "complete", "reason": "Mock file missing"}'

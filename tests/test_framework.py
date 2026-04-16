@@ -15,7 +15,7 @@ def test_agent_initialization():
 def test_tool_registration():
     """测试工具注册"""
     registry = get_tool_registry()
-    tool_names = [tool["name"] for tool in registry.get_tool_list()]
+    tool_names = [tool["function"]["name"] for tool in registry.get_tool_list()]
 
     # 验证内置工具存在
     assert "read_file" in tool_names
@@ -70,7 +70,7 @@ def test_system_prompt_generation():
     prompt = agent._get_system_prompt()
 
     assert "工具" in prompt
-    assert "tool:" in prompt
+    assert "<tool" in prompt
     assert "read_file" in prompt
     assert "run_bash" in prompt
 
