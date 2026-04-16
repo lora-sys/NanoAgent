@@ -228,31 +228,54 @@ class NanoAgent:
                         )
 
     def _extract_tool_invocations(self, text: str) -> List[Tuple[str, Dict[str, Any]]]:
-        """从文本中提取工具调用"""
+        """从文本中提取工具调用，支持 XML 友好的标记格式
+
+        支持两种格式：
+        1. 新格式（推荐）：<tool name="xxx" args='{"key":"value"}'/>
+        2. 旧格式（兼容）：tool: name({"key": "value"})
+        """
         invocations = []
-        for line in text.splitlines():
-            line = line.strip()
-            if not line.startswith("tool:"):
-                continue
 
+        # 优先尝试解析 XML 格式
+        xml_pattern = r'<tool\s+name="([^"]+)"\s+args=\'([^\']*)\'\s*/>'
+        import re
+
+        for match in re.finditer(xml_pattern, text):
             try:
-                after = line[len("tool:") :].strip()
-                name, rest = after.split("(", 1)
-                name = name.strip()
-
-                if not rest.endswith(")"):
-                    raise ValueError("工具调用格式错误: 缺少右括号")
-
-                json_str = rest[:-1].strip()
-                args = json.loads(json_str)
+                name = match.group(1)
+                args = json.loads(match.group(2))
                 invocations.append((name, args))
             except Exception as e:
-                # 记录解析错误，但不中断整个流程
                 error_invocation = (
                     "__parse_error__",
-                    {"original_line": line, "error": str(e)},
+                    {"original_line": match.group(0), "error": str(e)},
                 )
                 invocations.append(error_invocation)
+
+        # 如果没有找到 XML 格式，尝试旧格式（向后兼容）
+        if not invocations:
+            for line in text.splitlines():
+                line = line.strip()
+                if not line.startswith("tool:"):
+                    continue
+
+                try:
+                    after = line[len("tool:") :].strip()
+                    name, rest = after.split("(", 1)
+                    name = name.strip()
+
+                    if not rest.endswith(")"):
+                        raise ValueError("工具调用格式错误: 缺少右括号")
+
+                    json_str = rest[:-1].strip()
+                    args = json.loads(json_str)
+                    invocations.append((name, args))
+                except Exception as e:
+                    error_invocation = (
+                        "__parse_error__",
+                        {"original_line": line, "error": str(e)},
+                    )
+                    invocations.append(error_invocation)
 
         return invocations
 
@@ -270,17 +293,18 @@ class NanoAgent:
         return (
             "你是一个通用智能助手，帮助用户完成各种任务。\n\n"
             f"你有以下工具可以使用：\n\n{tool_descriptions}\n"
-            "当你需要使用工具时，请严格按照以下格式输出（必须独占一行）：\n"
-            "tool: 工具名({JSON参数})\n\n"
+            "当你需要使用工具时，请使用以下格式输出：\n\n"
+            "推荐格式（XML 友好，支持流式传输）：\n"
+            '<tool name="工具名" args=\'{"参数名": "参数值"}\'/>\n\n'
             "例如：\n"
-            'tool: read_file({"filename": "README.md"})\n'
-            'tool: list_files({"path": "."})\n'
-            'tool: edit_file({"path": "test.txt", "old_str": "hello", "new_str": "world"})\n'
-            'tool: run_bash({"command": "ls -la"})\n\n'
+            '<tool name="read_file" args=\'{"filename": "README.md"}\'/>\n'
+            '<tool name="list_files" args=\'{"path": "."}\'/>\n'
+            '<tool name="edit_file" args=\'{"path": "test.txt", "old_str": "hello", "new_str": "world"}\'/>\n'
+            '<tool name="run_bash" args=\'{"command": "ls -la"}\'/>\n\n'
             "重要规则：\n"
             "1. 当用户询问关于当前项目、代码、文件等信息时，必须先使用工具（list_files、read_file）获取信息，不要凭空猜测\n"
-            "2. 工具调用必须独占一行，格式严格为: tool: 名称({JSON})\n"
-            "3. JSON 必须是单行格式，使用双引号\n"
+            "2. 推荐使用 XML 格式，便于前端解析和流式传输\n"
+            "3. JSON 参数必须使用单引号包裹，内部使用双引号\n"
             "4. 一次可以调用多个工具，每个工具一行\n"
             "5. 不需要工具时，直接回复用户即可\n"
             "6. 收到工具结果后，继续执行任务\n"
