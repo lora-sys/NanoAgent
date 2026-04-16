@@ -1,0 +1,114 @@
+{
+  "summary": {
+    "total": 15,
+    "passed": 15,
+    "failed": 0
+  },
+  "results": [
+    {
+      "test_name": "路由测试: 查询数据库中的用户信息...",
+      "passed": true,
+      "expected": "database",
+      "actual": "database",
+      "details": "关键词匹配: 数据库路由"
+    },
+    {
+      "test_name": "路由测试: 搜索相关的内容...",
+      "passed": true,
+      "expected": "search",
+      "actual": "search",
+      "details": "关键词匹配: 搜索路由"
+    },
+    {
+      "test_name": "路由测试: 分析销售数据...",
+      "passed": true,
+      "expected": "analysis",
+      "actual": "analysis",
+      "details": "关键词匹配: 分析路由"
+    },
+    {
+      "test_name": "路由测试: 创建新订单...",
+      "passed": true,
+      "expected": "order",
+      "actual": "order",
+      "details": "关键词匹配: 订单路由"
+    },
+    {
+      "test_name": "路由测试: 处理支付请求...",
+      "passed": true,
+      "expected": "payment",
+      "actual": "payment",
+      "details": "关键词匹配: 支付路由"
+    },
+    {
+      "test_name": "路由测试: 其他普通任务...",
+      "passed": true,
+      "expected": "general",
+      "actual": "general",
+      "details": "使用默认路由"
+    },
+    {
+      "test_name": "优先级测试: 紧急任务",
+      "passed": true,
+      "expected": "urgent",
+      "actual": "urgent",
+      "details": "关键词匹配: 紧急路由"
+    },
+    {
+      "test_name": "提示链执行状态",
+      "passed": true,
+      "expected": "True",
+      "actual": "True",
+      "details": "执行时间: 0.00秒"
+    },
+    {
+      "test_name": "提示链步骤数量",
+      "passed": true,
+      "expected": "3",
+      "actual": "3",
+      "details": "步骤: ['步骤1', '步骤2', '步骤3']"
+    },
+    {
+      "test_name": "上下文数据保持",
+      "passed": true,
+      "expected": "nanoagent",
+      "actual": "nanoagent",
+      "details": "上下文数据: {'project': 'nanoagent', 'goal': '测试', 'input': '测试任务', '步骤1': '未知步骤', '步骤2': '步骤1完成，项目是 nanoagent'}"
+    },
+    {
+      "test_name": "路由历史记录",
+      "passed": true,
+      "expected": "3",
+      "actual": "3",
+      "details": "历史: [('查询数据库', 'database'), ('搜索内容', 'search'), ('查询数据库', 'database')]"
+    },
+    {
+      "test_name": "上下文用户数据保持",
+      "passed": true,
+      "expected": "123",
+      "actual": "123",
+      "details": ""
+    },
+    {
+      "test_name": "电商系统完整流程",
+      "passed": true,
+      "expected": "True",
+      "actual": "True",
+      "details": "处理了 7 个请求"
+    },
+    {
+      "test_name": "默认路由回退",
+      "passed": true,
+      "expected": "fallback",
+      "actual": "fallback",
+      "details": "使用默认路由"
+    },
+    {
+      "test_name": "提示链错误处理",
+      "passed": true,
+      "expected": "失败",
+      "actual": "失败",
+      "details": "错误信息: 步骤 '错误步骤' 执行失败: 模拟错误"
+    }
+  ]
+}
