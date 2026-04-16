@@ -212,18 +212,16 @@ class PromptChain:
 
     def remove_step(self, step_name: str) -> bool:
         """移除步骤"""
-        for i, step in enumerate(self.steps):
-            if step.name == step_name:
-                self.steps.pop(i)
-                return True
-        return False
+        try:
+            idx = next(i for i, step in enumerate(self.steps) if step.name == step_name)
+            self.steps.pop(idx)
+            return True
+        except StopIteration:
+            return False
 
     def get_step(self, step_name: str) -> Optional[ChainStep]:
         """获取步骤"""
-        for step in self.steps:
-            if step.name == step_name:
-                return step
-        return None
+        return next((step for step in self.steps if step.name == step_name), None)
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""

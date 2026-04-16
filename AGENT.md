@@ -8,6 +8,8 @@ keep it code readable and clean
 more use asyncio  async
 
 
+when create a new feature , add use age to example folder
+
 rule :
    TDD 
    release dependcy

@@ -32,7 +32,11 @@ class NanoAgent:
 
     def _should_use_chain(self, task: str) -> bool:
         """判断是否应该使用提示链模式"""
-        complex_keywords = [
+        # 优先级1：明确提到"提示链"
+        if "提示链" in task:
+            return True
+
+        complex_keywords = {
             "分析",
             "设计",
             "评估",
@@ -42,13 +46,15 @@ class NanoAgent:
             "架构",
             "代码",
             "项目",
-        ]
-        return any(keyword in task for keyword in complex_keywords) and (
-            "项目" in task
-            or "架构" in task
-            or "代码" in task
-            or "设计" in task
-            or "分析" in task
+            "框架",
+            "最佳实践",
+            "使用建议",
+        }
+
+        # 优先级2：包含复杂关键词和具体对象
+        return any(keyword in task for keyword in complex_keywords) and any(
+            obj in task
+            for obj in ("项目", "架构", "代码", "设计", "分析", "框架", "最佳实践")
         )
 
     def _run_with_chain(self, task: str) -> Dict[str, Any]:

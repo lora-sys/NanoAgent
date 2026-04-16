@@ -9,7 +9,6 @@ from typing import Dict, List, Optional, Type, TypeVar
 
 import litellm
 from dotenv import load_dotenv
-from pydantic import BaseModel
 
 from config import get_config
 
@@ -17,10 +16,10 @@ load_dotenv()
 litellm.drop_params = True
 litellm.telemetry = False
 
+T = TypeVar("T")
+
 # 防止无限循环的配置
 litellm.REPEATED_STREAMING_CHUNK_LIMIT = 100
-
-T = TypeVar("T", bound=BaseModel)
 
 
 class NanoLLMClient:
@@ -45,13 +44,19 @@ class NanoLLMClient:
     def _get_mock(self) -> str:
         if not os.path.exists(self.mock_file):
             return '{"action": "complete", "reason": "Mock file missing"}'
+
         with open(self.mock_file, "r", encoding="utf-8") as f:
             responses = json.load(f)
-        if self.mock_mode == "random":
-            resp = random.choice(responses)
-        else:
-            resp = responses[self._mock_idx % len(responses)]
+
+        resp = (
+            random.choice(responses)
+            if self.mock_mode == "random"
+            else responses[self._mock_idx % len(responses)]
+        )
+
+        if self.mock_mode != "random":
             self._mock_idx += 1
+
         # 直接返回字符串，不要再次序列化
         return resp if isinstance(resp, str) else json.dumps(resp, ensure_ascii=False)
 
@@ -130,11 +135,11 @@ class NanoLLMClient:
         Returns:
             完整的响应内容
         """
-        full_content = ""
-        for chunk in chunks:
-            if chunk.choices and chunk.choices[0].delta.content:
-                full_content += chunk.choices[0].delta.content
-        return full_content
+        return "".join(
+            chunk.choices[0].delta.content
+            for chunk in chunks
+            if chunk.choices and chunk.choices[0].delta.content
+        )
 
     async def achat(
         self, messages: List[Dict[str, str]], temperature: Optional[float] = None
@@ -279,10 +284,14 @@ class NanoLLMClient:
 
 
 def _extract_json(text: str) -> dict:
-    m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-    if m:
-        text = m.group(1).strip()
+    # 提取 markdown 代码块中的 JSON
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
+    if match:
+        text = match.group(1).strip()
+
+    # 查找 JSON 对象的起始和结束位置
     start, end = text.find("{"), text.rfind("}")
     if start != -1 and end > start:
         return json.loads(text[start : end + 1])
+
     return json.loads(text)

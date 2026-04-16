@@ -42,9 +42,6 @@ class ToolRegistry:
         """映射参数名，处理常见的参数名差异"""
         param_mappings = {
             "read_file": {"path": "filename", "absolute_path": "filename"},
-            "list_files": {},
-            "edit_file": {},
-            "run_bash": {},
         }
 
         mapping = param_mappings.get(tool_name, {})
