@@ -1,44 +1,35 @@
-"""配置管理"""
+"""极简配置管理"""
 
 import toml
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from exceptions import ConfigError
-
-_global_config: Optional["Config"] = None
+_global_config: Optional[Dict[str, Any]] = None
 
 
-class Config:
-    def __init__(self, config_file: str = "nanoagent.toml"):
-        self._config_file = Path(config_file)
-        self._main: Dict[str, Any] = {}
-        self._modules: Dict[str, Dict[str, Any]] = {}
-        self._load()
-
-    def _load(self):
-        if not self._config_file.exists():
-            raise ConfigError(f"Config file not found: {self._config_file}")
-        self._main = toml.loads(self._config_file.read_text())
-        modules = self._main.get("modules", {})
-        config_dir = self._config_file.parent / self._main.get("general", {}).get("config_dir", "config")
-        for name, rel_path in modules.items():
-            module_file = config_dir / rel_path
-            self._modules[name] = toml.loads(module_file.read_text()) if module_file.exists() else {}
-
-    def get(self, module: str, key: str, default: Any = None) -> Any:
-        mod = self._modules.get(module, {})
-        value = mod
-        for k in key.split("."):
-            value = value.get(k) if isinstance(value, dict) else default
-        return value if value is not None else default
-
-    def get_module(self, module: str) -> Dict[str, Any]:
-        return self._modules.get(module, {})
-
-
-def get_config() -> Config:
+def get_config() -> Dict[str, Any]:
+    """获取配置"""
     global _global_config
     if _global_config is None:
-        _global_config = Config()
+        config_file = Path("nanoagent.toml")
+        if config_file.exists():
+            _global_config = toml.loads(config_file.read_text())
+        else:
+            _global_config = _get_default_config()
     return _global_config
+
+
+def _get_default_config() -> Dict[str, Any]:
+    """默认配置"""
+    return {
+        "llm": {
+            "model": "openai/gpt-4o",
+            "temperature": 0.7,
+            "max_tokens": 4096,
+            "mock": {
+                "enabled": True,
+                "mode": "random",
+                "responses_file": "tests/fixtures/llm_mock_simple.json",
+            },
+        }
+    }

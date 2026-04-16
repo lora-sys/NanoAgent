@@ -1,172 +1,288 @@
-"""NanoAgent - 精简版 Agent 主循环"""
+"""NanoAgent - 极简 Agent 框架"""
 
-from typing import Any, Dict, Optional
+import json
+from typing import Any, Dict, List, Tuple, Callable, Optional
 
-from config import get_config
-from core.state import AgentState
-from core.template import get_template_manager
+from core.spec import TaskSpec
 from llm.client import NanoLLMClient
-from models import ThinkAction
 from tools.registry import get_tool_registry
 
 
 class NanoAgent:
-    def __init__(self):
-        cfg = get_config()
-        self.llm = NanoLLMClient(model=cfg.get("llm", "default.model"))
-        self.tools = get_tool_registry()
-        self.state = AgentState()
-        self.tmpl = get_template_manager()
-        self.max_steps = cfg.get("core", "performance.max_steps", 20)
+    """极简 Agent 框架 - 零魔法，高性能"""
 
-    def run(self, task: str) -> Dict[str, Any]:
-        self.state.reset()
-        self.state.update_spec({"task": task, "status": "running"})
-        self.state.add_message("system", self._system_prompt())
-        self.state.add_message("user", task)
+    def __init__(
+        self,
+        llm_client: Optional[NanoLLMClient] = None,
+        tool_registry: Optional[Any] = None,
+    ):
+        """
+        初始化 Agent
 
-        cli = self._get_cli()
-        cli.display_header()
+        Args:
+            llm_client: LLM 客户端，默认自动创建
+            tool_registry: 工具注册表，默认自动创建
+        """
+        self.llm = llm_client or NanoLLMClient()
+        self.tools = tool_registry or get_tool_registry()
+        self.spec: Optional[TaskSpec] = None
+        self.conversation: List[Dict[str, str]] = []
+        self._stop_condition: Optional[Callable[[], bool]] = None
 
+    def run(
+        self,
+        task: str,
+        max_iterations: Optional[int] = None,
+        stop_condition: Optional[Callable[[], bool]] = None,
+    ) -> Dict[str, Any]:
+        """
+        执行任务
+
+        Args:
+            task: 任务描述
+            max_iterations: 最大迭代次数（可选，默认无限制）
+            stop_condition: 停止条件函数（可选）
+
+        Returns:
+            任务执行结果
+        """
+        # 初始化任务跟踪
+        self.spec = TaskSpec(task)
+        self._stop_condition = stop_condition
+
+        # 初始化对话
+        self.conversation = [
+            {"role": "system", "content": self._get_system_prompt()},
+            {"role": "user", "content": task},
+        ]
+
+        print("🤖 NanoAgent - 极简 Agent 框架")
+        print(f"📋 任务: {task}")
+
+        # 主循环 - 无限制，直到条件满足
+        iteration = 0
         while True:
-            self.state.step_count += 1
-            if self.state.step_count > self.max_steps:
-                cli.display_result(f"达到最大步数 ({self.max_steps})", False)
+            iteration += 1
+
+            # 检查停止条件
+            if max_iterations and iteration > max_iterations:
+                self.spec.fail(f"达到最大迭代次数 ({max_iterations})")
                 break
 
-            response = self._inner_loop(cli)
-            if response.get("task_completed"):
-                cli.display_result(response.get("content", "任务完成"), True)
-                self.state.update_spec({"status": "completed"})
+            if self._stop_condition and self._stop_condition():
+                self.spec.complete()
                 break
 
-            if response.get("content"):
-                cli.display_action("content", response["content"])
-                self.state.add_message("assistant", response["content"])
-
-            user_input = cli.display_question("请继续输入你的问题或任务，或输入'exit'退出：")
-            if user_input.lower() in ("exit", "quit", "退出"):
-                self.state.update_spec({"status": "completed"})
-                cli.display_result("用户退出", True)
+            # 调用 LLM
+            try:
+                assistant_response = self.llm.chat(self.conversation)
+            except Exception as e:
+                self.spec.add_error(f"LLM 错误: {e}")
+                self.spec.fail(f"LLM 调用失败: {e}")
                 break
 
-            if user_input.strip():
-                self.state.add_message("user", user_input)
+            # 保存 assistant 响应到对话
+            self.conversation.append(
+                {"role": "assistant", "content": assistant_response}
+            )
+
+            # 提取工具调用
+            tool_invocations = self._extract_tool_invocations(assistant_response)
+
+            if not tool_invocations:
+                # 没有工具调用，任务完成
+                print(f"\n🤖 {assistant_response}")
+                self.spec.complete()
+                break
+
+            # 执行工具调用
+            for tool_name, args in tool_invocations:
+                print(f"\n🔧 {tool_name}({args})")
+                self.spec.add_tool_call(tool_name)
+
+                try:
+                    result = self.tools.execute(tool_name, args)
+                    print(f"👁️ {result}")
+
+                    # 记录产物
+                    if isinstance(result, dict) and "file_path" in result:
+                        # 将绝对路径转换为相对路径
+                        file_path = result["file_path"]
+                        try:
+                            from pathlib import Path
+
+                            cwd = Path.cwd()
+                            abs_path = Path(file_path).resolve()
+                            if abs_path.is_relative_to(cwd):
+                                rel_path = abs_path.relative_to(cwd)
+                                self.spec.add_artifact(str(rel_path))
+                            else:
+                                self.spec.add_artifact(file_path)
+                        except Exception:
+                            # 转换失败，使用原始路径
+                            self.spec.add_artifact(file_path)
+
+                    # 将结果添加到对话
+                    self.conversation.append(
+                        {
+                            "role": "user",
+                            "content": f"tool_result({json.dumps(result, ensure_ascii=False)})",
+                        }
+                    )
+                except Exception as e:
+                    error_msg = f"工具执行失败: {e}"
+                    print(f"❌ {error_msg}")
+                    self.spec.add_error(error_msg)
+                    self.conversation.append(
+                        {
+                            "role": "user",
+                            "content": f"tool_result({json.dumps({'error': error_msg}, ensure_ascii=False)})",
+                        }
+                    )
+
+        # 保存任务规范
+        spec_file = self.spec.save()
+        print(f"\n💾 任务规范: {spec_file}")
 
         return {
-            "status": "completed",
-            "steps_executed": self.state.step_count,
-            "artifacts": self.state.get_artifacts(),
-            "decisions": self.state.get_decisions(),
-            "current_stage": self.state.get_current_stage(),
+            "status": self.spec.status,
+            "iterations": iteration,
+            "tools_used": self.spec.tools_used,
+            "artifacts": self.spec.artifacts,
+            "spec_file": spec_file,
         }
 
-    def _inner_loop(self, cli) -> Dict[str, Any]:
+    def chat(self, max_iterations: Optional[int] = None):
+        """交互式对话模式"""
+        print("🤖 NanoAgent - 极简 Agent 框架")
+
+        # 初始化对话
+        self.conversation = [{"role": "system", "content": self._get_system_prompt()}]
+
         while True:
-            think_result = self._think()
-            action = think_result.get("action", "")
+            # 获取用户输入
+            try:
+                user_input = input("\n👤 你: ").strip()
+            except (KeyboardInterrupt, EOFError):
+                print("\n👋 再见！")
+                break
 
-            if action == "stage_complete":
-                self.state.update_stage(think_result.get("next_stage", "unknown"), "completed", think_result.get("arguments"))
-                return {"content": "阶段完成", "should_break": True}
-            if action == "artifact_added":
-                args = think_result.get("arguments") or {}
-                self.state.add_artifact(args.get("path", ""), args.get("description", ""))
-                return {"content": "文件已生成", "should_break": True}
-            if action == "decision_made":
-                args = think_result.get("arguments") or {}
-                self.state.add_decision(args.get("decision", ""), args.get("rationale", ""))
-                return {"content": "决策已记录", "should_break": True}
-            if action == "tool_call" and think_result.get("tool"):
-                cli.display_action("tool_call", think_result["tool"])
-                try:
-                    result = self.tools.execute(think_result["tool"], think_result.get("arguments") or {})
-                    self.state.add_message("user", f"工具执行结果: {result}")
-                except Exception as e:
-                    self.state.add_message("user", f"工具执行失败: {e}")
+            if not user_input:
                 continue
-            if action == "complete":
-                return {"content": think_result.get("reason", "任务完成"), "task_completed": True}
-            if action == "wait":
-                return {"content": think_result.get("reason", "等待用户输入"), "should_break": True}
-            return {"content": think_result.get("reason", ""), "should_break": True}
 
-    def _think(self) -> Dict[str, Any]:
-        messages = [
-            {"role": "system", "content": "你是NanoAgent，只返回JSON。"},
-            {"role": "user", "content": self._build_think_prompt()},
-        ]
-        try:
-            return self.llm.structured_chat(messages, ThinkAction, temperature=0.7).model_dump()
-        except Exception as e:
-            return {"action": "wait", "reason": f"LLM 错误: {e}"}
+            if user_input.lower() in ("exit", "quit", "退出"):
+                print("👋 再见！")
+                break
 
-    def _system_prompt(self) -> str:
-        return (
-            "你是NanoAgent，一个专业的数据驱动智能助手。\n\n"
-            "你的职责：\n"
-            "1. 理解用户任务，制定清晰的执行计划\n"
-            "2. 通过工具调用完成具体操作\n"
-            "3. 自动管理spec：记录决策、生成文件、推进阶段\n\n"
-            "工作原则：\n"
-            "- 保持对话简洁，专注于任务执行\n"
-            "- 每次重要操作都要更新spec\n"
-            "- 优先使用工具完成具体操作\n"
-            "- 遇到问题时主动寻求用户指导\n\n"
-            "spec操作：\n"
-            "- 生成文件：artifact_added\n"
-            "- 做出决策：decision_made\n"
-            "- 完成阶段：stage_complete\n"
-            "- 使用工具：tool_call\n\n"
-            "开始执行任务吧！"
+            # 添加用户输入到对话
+            self.conversation.append({"role": "user", "content": user_input})
+
+            # 处理任务
+            iteration = 0
+            while True:
+                iteration += 1
+
+                # 检查迭代限制
+                if max_iterations and iteration > max_iterations:
+                    print("\n⚠️ 达到最大迭代次数")
+                    break
+
+                # 调用 LLM
+                try:
+                    assistant_response = self.llm.chat(self.conversation)
+                except Exception as e:
+                    print(f"\n❌ LLM 错误: {e}")
+                    break
+
+                # 提取工具调用
+                tool_invocations = self._extract_tool_invocations(assistant_response)
+
+                if not tool_invocations:
+                    # 没有工具调用，显示响应
+                    print(f"\n🤖 助手: {assistant_response}")
+                    self.conversation.append(
+                        {"role": "assistant", "content": assistant_response}
+                    )
+                    break
+
+                # 执行工具调用
+                for tool_name, args in tool_invocations:
+                    print(f"\n🔧 {tool_name}({args})")
+                    try:
+                        result = self.tools.execute(tool_name, args)
+                        print(f"👁️ {result}")
+                        self.conversation.append(
+                            {
+                                "role": "user",
+                                "content": f"tool_result({json.dumps(result, ensure_ascii=False)})",
+                            }
+                        )
+                    except Exception as e:
+                        error_msg = f"工具执行失败: {e}"
+                        print(f"❌ {error_msg}")
+                        self.conversation.append(
+                            {
+                                "role": "user",
+                                "content": f"tool_result({json.dumps({'error': error_msg}, ensure_ascii=False)})",
+                            }
+                        )
+
+    def _extract_tool_invocations(self, text: str) -> List[Tuple[str, Dict[str, Any]]]:
+        """从文本中提取工具调用"""
+        invocations = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line.startswith("tool:"):
+                continue
+
+            try:
+                after = line[len("tool:") :].strip()
+                name, rest = after.split("(", 1)
+                name = name.strip()
+
+                if not rest.endswith(")"):
+                    raise ValueError("工具调用格式错误: 缺少右括号")
+
+                json_str = rest[:-1].strip()
+                args = json.loads(json_str)
+                invocations.append((name, args))
+            except Exception as e:
+                # 记录解析错误，但不中断整个流程
+                error_invocation = (
+                    "__parse_error__",
+                    {"original_line": line, "error": str(e)},
+                )
+                invocations.append(error_invocation)
+
+        return invocations
+
+    def _get_system_prompt(self) -> str:
+        """生成系统提示"""
+        tool_list = self.tools.get_tool_list()
+
+        tool_descriptions = "\n".join(
+            f"工具名: {tool['function']['name']}\n"
+            f"描述: {tool['function']['description']}\n"
+            f"参数: {json.dumps(tool['function']['parameters'], ensure_ascii=False, indent=2)}\n"
+            for tool in tool_list
         )
 
-    def _build_think_prompt(self) -> str:
-        tm = self.tmpl
-        try:
-            return tm.get_think_prompt(
-                task_goal=self.state.get_task(),
-                current_step=self.state.step_count,
-                current_stage=self.state.get_current_stage(),
-                artifacts=", ".join(self.state.get_artifacts()[-5:]),
-                decisions=", ".join(self.state.get_decisions()[-3:]),
-                available_tools=self.tools.get_tool_descriptions(),
-            )
-        except Exception:
-            return (
-                f"任务: {self.state.get_task()}\n"
-                f"步骤: {self.state.step_count}\n"
-                f"当前阶段: {self.state.get_current_stage()}\n"
-                f"可用工具:\n{self.tools.get_tool_descriptions()}\n\n"
-                '请决定下一步操作。返回 JSON: {"action": "tool_call|complete|wait|stage_complete|artifact_added|decision_made", ...}'
-            )
-
-    @staticmethod
-    def _get_cli():
-        import sys, os
-
-        class SimpleCLI:
-            @staticmethod
-            def display_header():
-                print("=" * 60 + "\n🤖 NanoAgent - 智能任务执行系统\n" + "=" * 60)
-
-            @staticmethod
-            def display_result(msg: str, ok: bool = True):
-                print(f"{'✅' if ok else '❌'} {msg}")
-
-            @staticmethod
-            def display_action(atype: str, details: str):
-                icon = "🔧" if atype == "tool_call" else "📝"
-                print(f"\n{icon} {details[:200]}")
-
-            @staticmethod
-            def display_question(q: str, options=None) -> str:
-                if not sys.stdin.isatty() or os.environ.get("NANOAGENT_TEST"):
-                    return "继续执行"
-                print(f"\n🤔 {q}")
-                if options:
-                    for i, o in enumerate(options, 1):
-                        print(f"  {i}. {o}")
-                return input("请输入你的回答: ").strip()
-
-        return SimpleCLI()
+        return (
+            "你是一个通用智能助手，帮助用户完成各种任务。\n\n"
+            f"你有以下工具可以使用：\n\n{tool_descriptions}\n"
+            "当你需要使用工具时，请严格按照以下格式输出（必须独占一行）：\n"
+            "tool: 工具名({JSON参数})\n\n"
+            "例如：\n"
+            'tool: read_file({"filename": "README.md"})\n'
+            'tool: list_files({"path": "."})\n'
+            'tool: edit_file({"path": "test.txt", "old_str": "hello", "new_str": "world"})\n'
+            'tool: run_bash({"command": "ls -la"})\n\n'
+            "重要规则：\n"
+            "1. 当用户询问关于当前项目、代码、文件等信息时，必须先使用工具（list_files、read_file）获取信息，不要凭空猜测\n"
+            "2. 工具调用必须独占一行，格式严格为: tool: 名称({JSON})\n"
+            "3. JSON 必须是单行格式，使用双引号\n"
+            "4. 一次可以调用多个工具，每个工具一行\n"
+            "5. 不需要工具时，直接回复用户即可\n"
+            "6. 收到工具结果后，继续执行任务\n"
+            "7. 直接执行任务，不要询问用户确认\n"
+        )

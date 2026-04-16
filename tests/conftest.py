@@ -2,7 +2,6 @@
 
 import sys
 from pathlib import Path
-from typing import Dict, Any
 
 project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
