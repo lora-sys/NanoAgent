@@ -36,13 +36,7 @@ class VerifyType(Enum):
     SEMANTIC = "semantic"
 
 
-# 别名 - 向后兼容
 # 别名 - 向后兼容（必须在 Task 类定义之后定义）
-TaskDifficulty = Difficulty
-VerificationType = VerifyType
-EvaluationTask = Task
-EvaluationRunner = Runner
-EvaluationAnalyzer = Evaluator
 
 
 @dataclass
@@ -57,6 +51,19 @@ class Task:
     expected: Any = None
     expected_tools: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    verification_type: VerifyType = None  # 向后兼容别名
+    expected_result: Any = None  # 向后兼容别名
+
+    def __post_init__(self):
+        # 向后兼容：如果使用了 verification_type，覆盖 verify_type
+        if self.verification_type is not None and self.verify_type is None:
+            self.verify_type = self.verification_type
+        # 向后兼容：如果使用了 expected_result，覆盖 expected
+        if self.expected_result is not None and self.expected is None:
+            self.expected = self.expected_result
+        # 如果 verify_type 是 None，设置默认值
+        if self.verify_type is None:
+            self.verify_type = VerifyType.CONTAINS
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -174,10 +181,10 @@ class Evaluator:
                 )
         return response
 
-    def analyze_results(self, results: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def analyze_results(results: Dict[str, Any]) -> Dict[str, Any]:
         """分析评估结果"""
         tasks = results.get("tasks", [])
-        tool_usage = {}
         failed_tasks = []
         error_list = []
 
@@ -185,10 +192,12 @@ class Evaluator:
             if not task_result.get("success", True):
                 failed_tasks.append(task_result.get("task", {}).get("name", "unknown"))
             if "error" in task_result:
-                error_list.append({
-                    "task": task_result.get("task", {}).get("name", "unknown"),
-                    "error": task_result.get("error", ""),
-                })
+                error_list.append(
+                    {
+                        "task": task_result.get("task", {}).get("name", "unknown"),
+                        "error": task_result.get("error", ""),
+                    }
+                )
 
         return {
             "performance_analysis": {
@@ -308,7 +317,9 @@ class Runner:
         """运行评估套件（向后兼容别名）"""
         return self.run_suite(tasks)
 
-    def _make_summary(self, report: Dict[str, Any], total_time: float) -> Dict[str, Any]:
+    def _make_summary(
+        self, report: Dict[str, Any], total_time: float
+    ) -> Dict[str, Any]:
         """生成与 tests/run_evaluation.py 兼容的 summary"""
         difficulty_stats = {}
         for result in self.results:
@@ -360,3 +371,11 @@ class Runner:
 def create_runner(agent) -> Runner:
     """创建运行器"""
     return Runner(agent)
+
+
+# 别名 - 向后兼容（在 Task 类定义之后）
+TaskDifficulty = Difficulty
+VerificationType = VerifyType
+EvaluationTask = Task
+EvaluationRunner = Runner
+EvaluationAnalyzer = Evaluator

@@ -1,9 +1,9 @@
 [llm]
-model = "openai/gpt-5-nano"
+model = "openai/glm-4.7-flash"
 temperature = 0.7
 max_tokens = 4096
 
 [llm.mock]
-enabled = true
+enabled = false
 mode = "sequential"
 responses_file = "tests/fixtures/llm_mock_simple.json"

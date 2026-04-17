@@ -10,6 +10,7 @@ from exceptions import ToolError
 
 try:
     from core.observability import get_tracer
+
     _HAS_OBSERVABILITY = True
 except ImportError:
     _HAS_OBSERVABILITY = False

@@ -15,6 +15,7 @@ from config import get_config
 
 try:
     from core.observability import get_tracer, calculate_cost
+
     _HAS_OBSERVABILITY = True
 except ImportError:
     _HAS_OBSERVABILITY = False
@@ -86,8 +87,10 @@ class NanoLLMClient:
         if _HAS_OBSERVABILITY and resp.usage is not None:
             tracer = get_tracer()
             usage = resp.usage
-            input_tokens = usage.prompt_tokens if hasattr(usage, 'prompt_tokens') else 0
-            output_tokens = usage.completion_tokens if hasattr(usage, 'completion_tokens') else 0
+            input_tokens = usage.prompt_tokens if hasattr(usage, "prompt_tokens") else 0
+            output_tokens = (
+                usage.completion_tokens if hasattr(usage, "completion_tokens") else 0
+            )
             cost = calculate_cost(self.model, input_tokens, output_tokens)
             tracer.record_llm(
                 model=self.model,
@@ -197,8 +200,10 @@ class NanoLLMClient:
         if _HAS_OBSERVABILITY and resp.usage is not None:
             tracer = get_tracer()
             usage = resp.usage
-            input_tokens = usage.prompt_tokens if hasattr(usage, 'prompt_tokens') else 0
-            output_tokens = usage.completion_tokens if hasattr(usage, 'completion_tokens') else 0
+            input_tokens = usage.prompt_tokens if hasattr(usage, "prompt_tokens") else 0
+            output_tokens = (
+                usage.completion_tokens if hasattr(usage, "completion_tokens") else 0
+            )
             cost = calculate_cost(self.model, input_tokens, output_tokens)
             tracer.record_llm(
                 model=self.model,

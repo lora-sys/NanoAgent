@@ -10,6 +10,7 @@ from tools.registry import ToolRegistry, get_tool_registry
 
 try:
     from core.observability import get_tracer
+
     _HAS_OBSERVABILITY = True
 except ImportError:
     _HAS_OBSERVABILITY = False
@@ -45,8 +46,21 @@ class NanoAgent:
         # 工具调用意图检测（case-insensitive）
         task_lower = task.lower()
         tool_intent_keywords = {
-            "读取", "打开", "list", "read", "read_file", "list_files", "README",
-            "文件", "目录", "列出", "查看", "搜索", "执行", "运行", "命令",
+            "读取",
+            "打开",
+            "list",
+            "read",
+            "read_file",
+            "list_files",
+            "README",
+            "文件",
+            "目录",
+            "列出",
+            "查看",
+            "搜索",
+            "执行",
+            "运行",
+            "命令",
         }
 
         # 如果任务包含工具意图关键词，不使用链模式
@@ -55,8 +69,17 @@ class NanoAgent:
 
         # 复杂分析任务才使用链模式（明确排除工具导向任务）
         complex_keywords = {
-            "分析", "设计", "评估", "规划", "优化", "总结",
-            "架构", "项目", "框架", "最佳实践", "使用建议",
+            "分析",
+            "设计",
+            "评估",
+            "规划",
+            "优化",
+            "总结",
+            "架构",
+            "项目",
+            "框架",
+            "最佳实践",
+            "使用建议",
         }
 
         object_keywords = ("项目", "架构", "设计", "框架", "最佳实践")

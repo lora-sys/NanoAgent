@@ -2,7 +2,6 @@
 
 import json
 import sqlite3
-import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -87,6 +86,7 @@ def _init_db() -> None:
 @dataclass
 class LLMRecord:
     """LLM 调用记录"""
+
     id: str
     trace_id: str
     model: str
@@ -104,16 +104,27 @@ class LLMRecord:
         db_path = _get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO llm_calls
             (id, trace_id, model, input_tokens, output_tokens, total_tokens,
              cost, duration_ms, created_at, input_messages, output_message)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            self.id, self.trace_id, self.model, self.input_tokens,
-            self.output_tokens, self.total_tokens, self.cost, self.duration_ms,
-            self.created_at, self.input_messages, self.output_message
-        ))
+        """,
+            (
+                self.id,
+                self.trace_id,
+                self.model,
+                self.input_tokens,
+                self.output_tokens,
+                self.total_tokens,
+                self.cost,
+                self.duration_ms,
+                self.created_at,
+                self.input_messages,
+                self.output_message,
+            ),
+        )
         conn.commit()
         conn.close()
 
@@ -121,6 +132,7 @@ class LLMRecord:
 @dataclass
 class ToolRecord:
     """工具调用记录"""
+
     id: str
     trace_id: str
     tool_name: str
@@ -135,14 +147,23 @@ class ToolRecord:
         db_path = _get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO tool_calls
             (id, trace_id, tool_name, args, result, duration_ms, created_at, error)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            self.id, self.trace_id, self.tool_name, self.args, self.result,
-            self.duration_ms, self.created_at, self.error
-        ))
+        """,
+            (
+                self.id,
+                self.trace_id,
+                self.tool_name,
+                self.args,
+                self.result,
+                self.duration_ms,
+                self.created_at,
+                self.error,
+            ),
+        )
         conn.commit()
         conn.close()
 
@@ -150,6 +171,7 @@ class ToolRecord:
 @dataclass
 class TraceSession:
     """追踪会话"""
+
     id: str
     task: str
     started_at: str = ""
@@ -189,16 +211,25 @@ class TraceSession:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO traces
                 (id, task, started_at, ended_at, total_tokens, total_cost,
                  status, llm_calls, tool_calls)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                self.id, self.task, self.started_at, self.ended_at,
-                self.total_tokens, self.total_cost, self.status,
-                self.llm_calls_count, self.tool_calls_count
-            ))
+            """,
+                (
+                    self.id,
+                    self.task,
+                    self.started_at,
+                    self.ended_at,
+                    self.total_tokens,
+                    self.total_cost,
+                    self.status,
+                    self.llm_calls_count,
+                    self.tool_calls_count,
+                ),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -310,26 +341,46 @@ class Tracer:
         try:
             # 保存所有 llm_calls
             for record in self._current_session.llm_records:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO llm_calls
                     (id, trace_id, model, input_tokens, output_tokens, total_tokens,
                      cost, duration_ms, created_at, input_messages, output_message)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    record.id, record.trace_id, record.model, record.input_tokens,
-                    record.output_tokens, record.total_tokens, record.cost, record.duration_ms,
-                    record.created_at, record.input_messages, record.output_message
-                ))
+                """,
+                    (
+                        record.id,
+                        record.trace_id,
+                        record.model,
+                        record.input_tokens,
+                        record.output_tokens,
+                        record.total_tokens,
+                        record.cost,
+                        record.duration_ms,
+                        record.created_at,
+                        record.input_messages,
+                        record.output_message,
+                    ),
+                )
             # 保存所有 tool_calls
             for record in self._current_session.tool_records:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO tool_calls
                     (id, trace_id, tool_name, args, result, duration_ms, created_at, error)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    record.id, record.trace_id, record.tool_name, record.args, record.result,
-                    record.duration_ms, record.created_at, record.error
-                ))
+                """,
+                    (
+                        record.id,
+                        record.trace_id,
+                        record.tool_name,
+                        record.args,
+                        record.result,
+                        record.duration_ms,
+                        record.created_at,
+                        record.error,
+                    ),
+                )
             conn.commit()
         finally:
             conn.close()
@@ -344,7 +395,7 @@ def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
     """计算 LLM 调用成本 (近似值)"""
     # OpenAI GPT-4o 价格 (每 1M tokens)
     prices = {
-        "gpt-4o": (5.0, 15.0),      # input, output per 1M
+        "gpt-4o": (5.0, 15.0),  # input, output per 1M
         "gpt-4o-mini": (0.15, 0.6),
         "gpt-4-turbo": (10.0, 30.0),
         "gpt-3.5-turbo": (0.5, 1.5),
@@ -358,18 +409,22 @@ def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
 
 # ---- CLI Viewer Functions ----
 
+
 def list_traces(limit: int = 20) -> list:
     """列出最近的追踪"""
     db_path = _get_db_path()
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT id, task, started_at, total_tokens, total_cost, status,
                llm_calls, tool_calls
         FROM traces
         ORDER BY started_at DESC
         LIMIT ?
-    """, (limit,))
+    """,
+        (limit,),
+    )
     rows = cursor.fetchall()
     conn.close()
     return rows

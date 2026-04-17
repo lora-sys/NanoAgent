@@ -114,7 +114,10 @@ class ChainStep:
         except (KeyError, ValueError) as e:
             # 如果格式化失败，使用原始 prompt
             import warnings
-            warnings.warn(f"ChainStep '{self.name}' prompt format error: {e}. Using raw prompt.")
+
+            warnings.warn(
+                f"ChainStep '{self.name}' prompt format error: {e}. Using raw prompt."
+            )
 
         parts = [formatted_prompt, ""]
 

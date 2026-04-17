@@ -63,7 +63,12 @@ def trace(
     limit: int = typer.Option(20, "--limit", "-n", help="显示数量"),
 ) -> None:
     """查看追踪记录"""
-    from cli.observer import print_trace_list, print_trace_detail, print_stats, delete_trace_by_id
+    from cli.observer import (
+        print_trace_list,
+        print_trace_detail,
+        print_stats,
+        delete_trace_by_id,
+    )
 
     if action == "list":
         print_trace_list(limit)
@@ -81,7 +86,9 @@ def trace(
         delete_trace_by_id(trace_id)
     else:
         typer.echo(f"Unknown action: {action}", err=True)
-        typer.echo("Usage: nanoagent trace [list|show|stats|delete] [trace_id]", err=True)
+        typer.echo(
+            "Usage: nanoagent trace [list|show|stats|delete] [trace_id]", err=True
+        )
         raise typer.Exit(1)
 
 
