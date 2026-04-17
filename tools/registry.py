@@ -2,10 +2,18 @@
 
 import inspect
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 from exceptions import ToolError
+
+try:
+    from core.observability import get_tracer
+
+    _HAS_OBSERVABILITY = True
+except ImportError:
+    _HAS_OBSERVABILITY = False
 
 SANDBOX_DIR = Path.cwd() / "agent_workspace"
 
@@ -29,22 +37,44 @@ class ToolRegistry:
         # 参数映射：处理常见的参数名差异
         mapped_args = self._map_arguments(name, arguments)
 
+        start_time = time.time()
+        error = None
+        result = None
+
         try:
-            return tool["function"](**mapped_args)
+            result = tool["function"](**mapped_args)
         except ToolError:
             raise
         except Exception as e:
-            raise ToolError(name, str(e)) from e
+            error = str(e)
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # 记录工具调用
+        if _HAS_OBSERVABILITY:
+            tracer = get_tracer()
+            tracer.record_tool(
+                tool_name=name,
+                args=mapped_args,
+                result=result,
+                duration_ms=duration_ms,
+                error=error,
+            )
+
+        if error:
+            raise ToolError(name, error)
+
+        return result
 
     def _map_arguments(
         self, tool_name: str, arguments: Dict[str, Any]
     ) -> Dict[str, Any]:
         """映射参数名，处理常见的参数名差异"""
+        # 修复映射逻辑：将外部参数名映射到内部参数名
         param_mappings = {
-            "read_file": {"path": "filename", "absolute_path": "filename"},
-            "list_files": {},
-            "edit_file": {},
-            "run_bash": {},
+            "read_file": {"filename": "path", "absolute_path": "path"},
+            "list_files": {"directory": "path", "dir": "path"},
+            "edit_file": {"file": "path", "filename": "path"},
         }
 
         mapping = param_mappings.get(tool_name, {})
@@ -143,15 +173,18 @@ def _resolve_path(filepath: str) -> Path:
 
 
 def _register_tools(registry: ToolRegistry):
-    def read_file(filename: str) -> Dict[str, Any]:
+    def read_file(path: str) -> Dict[str, Any]:
         """Gets the full content of a file."""
-        path = _resolve_path(filename)
-        if not path.exists():
+        resolved_path = _resolve_path(path)
+        if not resolved_path.exists():
             return {
-                "file_path": str(path),
-                "content": f"Error: File not found: {filename}",
+                "file_path": str(resolved_path),
+                "content": f"Error: File not found: {path}",
             }
-        return {"file_path": str(path), "content": path.read_text(encoding="utf-8")}
+        return {
+            "file_path": str(resolved_path),
+            "content": resolved_path.read_text(encoding="utf-8"),
+        }
 
     def list_files(path: str = ".") -> Dict[str, Any]:
         """Lists the files in a directory."""
