@@ -57,6 +57,35 @@ def chat() -> None:
 
 
 @app.command()
+def trace(
+    action: str = typer.Argument(..., help="操作: list, show, stats, delete"),
+    trace_id: Optional[str] = typer.Argument(None, help="追踪 ID"),
+    limit: int = typer.Option(20, "--limit", "-n", help="显示数量"),
+) -> None:
+    """查看追踪记录"""
+    from cli.observer import print_trace_list, print_trace_detail, print_stats, delete_trace_by_id
+
+    if action == "list":
+        print_trace_list(limit)
+    elif action == "show":
+        if not trace_id:
+            typer.echo("Error: trace_id required for show", err=True)
+            raise typer.Exit(1)
+        print_trace_detail(trace_id)
+    elif action == "stats":
+        print_stats()
+    elif action == "delete":
+        if not trace_id:
+            typer.echo("Error: trace_id required for delete", err=True)
+            raise typer.Exit(1)
+        delete_trace_by_id(trace_id)
+    else:
+        typer.echo(f"Unknown action: {action}", err=True)
+        typer.echo("Usage: nanoagent trace [list|show|stats|delete] [trace_id]", err=True)
+        raise typer.Exit(1)
+
+
+@app.command()
 def version() -> None:
     """显示版本信息"""
     typer.echo("NanoAgent v2.0.0 - 极简 Agent 框架")

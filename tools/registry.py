@@ -2,10 +2,17 @@
 
 import inspect
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 from exceptions import ToolError
+
+try:
+    from core.observability import get_tracer
+    _HAS_OBSERVABILITY = True
+except ImportError:
+    _HAS_OBSERVABILITY = False
 
 SANDBOX_DIR = Path.cwd() / "agent_workspace"
 
@@ -29,12 +36,34 @@ class ToolRegistry:
         # 参数映射：处理常见的参数名差异
         mapped_args = self._map_arguments(name, arguments)
 
+        start_time = time.time()
+        error = None
+        result = None
+
         try:
-            return tool["function"](**mapped_args)
+            result = tool["function"](**mapped_args)
         except ToolError:
             raise
         except Exception as e:
-            raise ToolError(name, str(e)) from e
+            error = str(e)
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # 记录工具调用
+        if _HAS_OBSERVABILITY:
+            tracer = get_tracer()
+            tracer.record_tool(
+                tool_name=name,
+                args=mapped_args,
+                result=result,
+                duration_ms=duration_ms,
+                error=error,
+            )
+
+        if error:
+            raise ToolError(name, error)
+
+        return result
 
     def _map_arguments(
         self, tool_name: str, arguments: Dict[str, Any]

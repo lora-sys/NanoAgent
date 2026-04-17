@@ -8,6 +8,12 @@ from core.spec import TaskSpec
 from llm.client import NanoLLMClient
 from tools.registry import ToolRegistry, get_tool_registry
 
+try:
+    from core.observability import get_tracer
+    _HAS_OBSERVABILITY = True
+except ImportError:
+    _HAS_OBSERVABILITY = False
+
 
 class NanoAgent:
     """极简 Agent 框架 - 零魔法，高性能"""
@@ -104,84 +110,95 @@ class NanoAgent:
         Returns:
             任务执行结果
         """
-        # 智能选择执行模式
-        if self._should_use_chain(task):
-            return self._run_with_chain(task)
+        # 开始追踪会话
+        if _HAS_OBSERVABILITY:
+            tracer = get_tracer()
+            tracer.start_session(task)
 
-        # 传统 Agent 模式
-        # 初始化任务跟踪
-        self.spec = TaskSpec(task)
-        self._stop_condition = stop_condition
+        try:
+            # 智能选择执行模式
+            if self._should_use_chain(task):
+                return self._run_with_chain(task)
 
-        # 初始化对话
-        self.conversation = [
-            {"role": "system", "content": self._get_system_prompt()},
-            {"role": "user", "content": task},
-        ]
+            # 传统 Agent 模式
+            # 初始化任务跟踪
+            self.spec = TaskSpec(task)
+            self._stop_condition = stop_condition
 
-        print("🤖 NanoAgent - 极简 Agent 框架")
-        print(f"📋 任务: {task}")
+            # 初始化对话
+            self.conversation = [
+                {"role": "system", "content": self._get_system_prompt()},
+                {"role": "user", "content": task},
+            ]
 
-        # 主循环 - 无限制，直到条件满足
-        iteration = 0
-        while True:
-            iteration += 1
+            print("🤖 NanoAgent - 极简 Agent 框架")
+            print(f"📋 任务: {task}")
 
-            # 检查停止条件
-            if max_iterations and iteration > max_iterations:
-                self.spec.fail(f"达到最大迭代次数 ({max_iterations})")
-                break
+            # 主循环 - 无限制，直到条件满足
+            iteration = 0
+            while True:
+                iteration += 1
 
-            if self._stop_condition and self._stop_condition():
-                self.spec.complete()
-                break
+                # 检查停止条件
+                if max_iterations and iteration > max_iterations:
+                    self.spec.fail(f"达到最大迭代次数 ({max_iterations})")
+                    break
 
-            # 调用 LLM
-            try:
-                assistant_response = self.llm.chat(self.conversation)
-            except Exception as e:
-                self.spec.add_error(f"LLM 错误: {e}")
-                self.spec.fail(f"LLM 调用失败: {e}")
-                break
+                if self._stop_condition and self._stop_condition():
+                    self.spec.complete()
+                    break
 
-            # 保存 assistant 响应到对话
-            self.conversation.append(
-                {"role": "assistant", "content": assistant_response}
-            )
+                # 调用 LLM
+                try:
+                    assistant_response = self.llm.chat(self.conversation)
+                except Exception as e:
+                    self.spec.add_error(f"LLM 错误: {e}")
+                    self.spec.fail(f"LLM 调用失败: {e}")
+                    break
 
-            # 提取工具调用
-            tool_invocations = self._extract_tool_invocations(assistant_response)
+                # 保存 assistant 响应到对话
+                self.conversation.append(
+                    {"role": "assistant", "content": assistant_response}
+                )
 
-            if not tool_invocations:
-                # 没有工具调用，任务完成
-                print(f"\n🤖 {assistant_response}")
-                self.spec.complete()
-                break
+                # 提取工具调用
+                tool_invocations = self._extract_tool_invocations(assistant_response)
 
-            # 执行工具调用
-            self._execute_tool_invocations(tool_invocations)
+                if not tool_invocations:
+                    # 没有工具调用，任务完成
+                    print(f"\n🤖 {assistant_response}")
+                    self.spec.complete()
+                    break
 
-        # 保存任务规范
-        spec_file = self.spec.save()
-        print(f"\n💾 任务规范: {spec_file}")
+                # 执行工具调用
+                self._execute_tool_invocations(tool_invocations)
 
-        # 提取最后的 assistant 响应
-        last_response = ""
-        for msg in reversed(self.conversation):
-            if msg.get("role") == "assistant":
-                last_response = msg.get("content", "")
-                break
+            # 保存任务规范
+            spec_file = self.spec.save()
+            print(f"\n💾 任务规范: {spec_file}")
 
-        return {
-            "status": self.spec.status,
-            "iterations": iteration,
-            "tools_used": self.spec.tools_used,
-            "artifacts": self.spec.artifacts,
-            "spec_file": spec_file,
-            "execution_mode": "traditional",
-            "conversation": self.conversation,
-            "response": last_response,
-        }
+            # 提取最后的 assistant 响应
+            last_response = ""
+            for msg in reversed(self.conversation):
+                if msg.get("role") == "assistant":
+                    last_response = msg.get("content", "")
+                    break
+
+            return {
+                "status": self.spec.status,
+                "iterations": iteration,
+                "tools_used": self.spec.tools_used,
+                "artifacts": self.spec.artifacts,
+                "spec_file": spec_file,
+                "execution_mode": "traditional",
+                "conversation": self.conversation,
+                "response": last_response,
+            }
+        finally:
+            # 结束追踪会话
+            if _HAS_OBSERVABILITY:
+                tracer = get_tracer()
+                tracer.end_session(self.spec.status if self.spec else "completed")
 
     def chat(self, max_iterations: Optional[int] = None):
         """交互式对话模式"""

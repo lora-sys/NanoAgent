@@ -5,12 +5,19 @@ import json
 import os
 import random
 import re
+import time
 from typing import Dict, List, Optional, Type, TypeVar
 
 import litellm
 from dotenv import load_dotenv
 
 from config import get_config
+
+try:
+    from core.observability import get_tracer, calculate_cost
+    _HAS_OBSERVABILITY = True
+except ImportError:
+    _HAS_OBSERVABILITY = False
 
 load_dotenv()
 litellm.drop_params = True
@@ -65,12 +72,33 @@ class NanoLLMClient:
     ) -> str:
         if self.mock_enabled:
             return self._get_mock()
+
+        start_time = time.time()
         resp = litellm.completion(
             model=self.model,
             messages=messages,
             temperature=temperature or self.temperature,
             max_tokens=self.max_tokens,
         )
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # 记录 LLM 调用
+        if _HAS_OBSERVABILITY:
+            tracer = get_tracer()
+            usage = resp.usage or {}
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+            cost = calculate_cost(self.model, input_tokens, output_tokens)
+            tracer.record_llm(
+                model=self.model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                duration_ms=duration_ms,
+                input_messages=messages,
+                output_message=resp.choices[0].message.content or "",
+                cost=cost,
+            )
+
         return resp.choices[0].message.content or ""
 
     def stream_chat(
@@ -156,12 +184,32 @@ class NanoLLMClient:
         if self.mock_enabled:
             return self._get_mock()
 
+        start_time = time.time()
         resp = await litellm.acompletion(
             model=self.model,
             messages=messages,
             temperature=temperature or self.temperature,
             max_tokens=self.max_tokens,
         )
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # 记录 LLM 调用
+        if _HAS_OBSERVABILITY:
+            tracer = get_tracer()
+            usage = resp.usage or {}
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+            cost = calculate_cost(self.model, input_tokens, output_tokens)
+            tracer.record_llm(
+                model=self.model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                duration_ms=duration_ms,
+                input_messages=messages,
+                output_message=resp.choices[0].message.content or "",
+                cost=cost,
+            )
+
         return resp.choices[0].message.content or ""
 
     async def astream_chat(
