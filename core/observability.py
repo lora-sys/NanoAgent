@@ -159,6 +159,8 @@ class TraceSession:
     status: str = "running"
     llm_calls_count: int = 0
     tool_calls_count: int = 0
+    llm_records: list = field(default_factory=list)
+    tool_records: list = field(default_factory=list)
 
     def __post_init__(self):
         if not self.started_at:
@@ -174,28 +176,32 @@ class TraceSession:
         self.total_tokens += record.total_tokens
         self.total_cost += record.cost
         self.llm_calls_count += 1
+        self.llm_records.append(record)
 
     def add_tool_call(self, record: ToolRecord) -> None:
         """添加工具调用"""
         self.tool_calls_count += 1
+        self.tool_records.append(record)
 
     def save(self) -> None:
         """保存到数据库"""
         db_path = _get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT OR REPLACE INTO traces
-            (id, task, started_at, ended_at, total_tokens, total_cost,
-             status, llm_calls, tool_calls)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            self.id, self.task, self.started_at, self.ended_at,
-            self.total_tokens, self.total_cost, self.status,
-            self.llm_calls_count, self.tool_calls_count
-        ))
-        conn.commit()
-        conn.close()
+        try:
+            cursor.execute("""
+                INSERT OR REPLACE INTO traces
+                (id, task, started_at, ended_at, total_tokens, total_cost,
+                 status, llm_calls, tool_calls)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                self.id, self.task, self.started_at, self.ended_at,
+                self.total_tokens, self.total_cost, self.status,
+                self.llm_calls_count, self.tool_calls_count
+            ))
+            conn.commit()
+        finally:
+            conn.close()
 
 
 class Tracer:
@@ -224,6 +230,7 @@ class Tracer:
         """结束当前追踪会话"""
         if self._current_session:
             self._current_session.end(status)
+            self.flush()  # 批量保存所有记录
             self._current_session.save()
             self._current_session = None
 
@@ -258,7 +265,6 @@ class Tracer:
             input_messages=json.dumps(input_messages, ensure_ascii=False)[:5000],
             output_message=output_message[:5000] if output_message else "",
         )
-        record.save()
         self._current_session.add_llm_call(record)
         return record
 
@@ -274,7 +280,11 @@ class Tracer:
         if not self._current_session:
             return None
 
-        result_str = json.dumps(result, ensure_ascii=False)[:5000] if result else ""
+        # 避免重复序列化：如果 result 已经是字符串，直接使用
+        if isinstance(result, str):
+            result_str = result[:5000]
+        else:
+            result_str = json.dumps(result, ensure_ascii=False)[:5000] if result else ""
         error_str = str(error)[:5000] if error else ""
 
         record = ToolRecord(
@@ -287,9 +297,42 @@ class Tracer:
             created_at=datetime.now().isoformat(),
             error=error_str,
         )
-        record.save()
         self._current_session.add_tool_call(record)
         return record
+
+    def flush(self) -> None:
+        """批量保存当前会话的所有记录到数据库"""
+        if not self._current_session:
+            return
+        db_path = _get_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        try:
+            # 保存所有 llm_calls
+            for record in self._current_session.llm_records:
+                cursor.execute("""
+                    INSERT INTO llm_calls
+                    (id, trace_id, model, input_tokens, output_tokens, total_tokens,
+                     cost, duration_ms, created_at, input_messages, output_message)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    record.id, record.trace_id, record.model, record.input_tokens,
+                    record.output_tokens, record.total_tokens, record.cost, record.duration_ms,
+                    record.created_at, record.input_messages, record.output_message
+                ))
+            # 保存所有 tool_calls
+            for record in self._current_session.tool_records:
+                cursor.execute("""
+                    INSERT INTO tool_calls
+                    (id, trace_id, tool_name, args, result, duration_ms, created_at, error)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    record.id, record.trace_id, record.tool_name, record.args, record.result,
+                    record.duration_ms, record.created_at, record.error
+                ))
+            conn.commit()
+        finally:
+            conn.close()
 
 
 def get_tracer() -> Tracer:
@@ -391,10 +434,12 @@ def delete_trace(trace_id: str) -> bool:
     db_path = _get_db_path()
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM llm_calls WHERE trace_id = ?", (trace_id,))
-    cursor.execute("DELETE FROM tool_calls WHERE trace_id = ?", (trace_id,))
-    cursor.execute("DELETE FROM traces WHERE id = ?", (trace_id,))
-    deleted = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("DELETE FROM llm_calls WHERE trace_id = ?", (trace_id,))
+        cursor.execute("DELETE FROM tool_calls WHERE trace_id = ?", (trace_id,))
+        cursor.execute("DELETE FROM traces WHERE id = ?", (trace_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+    finally:
+        conn.close()
     return deleted
