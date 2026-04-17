@@ -108,11 +108,13 @@ class ChainStep:
     def _build_llm_input(self, context: ChainContext) -> str:
         """构建 LLM 输入"""
         # 格式化 prompt 使用上下文数据
+        formatted_prompt = self.prompt
         try:
             formatted_prompt = self.prompt.format(**context.data)
-        except (KeyError, ValueError):
+        except (KeyError, ValueError) as e:
             # 如果格式化失败，使用原始 prompt
-            formatted_prompt = self.prompt
+            import warnings
+            warnings.warn(f"ChainStep '{self.name}' prompt format error: {e}. Using raw prompt.")
 
         parts = [formatted_prompt, ""]
 

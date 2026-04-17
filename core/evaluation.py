@@ -37,46 +37,12 @@ class VerifyType(Enum):
 
 
 # 别名 - 向后兼容
+# 别名 - 向后兼容（必须在 Task 类定义之后定义）
 TaskDifficulty = Difficulty
 VerificationType = VerifyType
 EvaluationTask = Task
 EvaluationRunner = Runner
 EvaluationAnalyzer = Evaluator
-
-
-@dataclass
-class EvaluationTask:
-    """评估任务（向后兼容别名）"""
-
-    name: str
-    description: str
-    prompt: str
-    difficulty: Difficulty = Difficulty.BASIC
-    verify_type: VerifyType = VerifyType.CONTAINS
-    expected: Any = None
-    expected_tools: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    verification_type: VerifyType = VerifyType.CONTAINS
-    expected_result: Any = None
-
-    def __post_init__(self):
-        """向后兼容：如果没有提供 verify_type，使用 verification_type"""
-        if self.verify_type is None and self.verification_type is not None:
-            self.verify_type = self.verification_type
-        if self.expected is None and self.expected_result is not None:
-            self.expected = self.expected_result
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "name": self.name,
-            "description": self.description,
-            "prompt": self.prompt,
-            "difficulty": self.difficulty.value,
-            "verify_type": self.verify_type.value,
-            "expected": self.expected,
-            "expected_tools": self.expected_tools,
-            "metadata": self.metadata,
-        }
 
 
 @dataclass

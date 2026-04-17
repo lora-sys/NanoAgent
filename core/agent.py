@@ -42,14 +42,15 @@ class NanoAgent:
         if "提示链" in task:
             return True
 
-        # 工具调用意图检测 - 这些关键词的任务应该使用传统工具模式
+        # 工具调用意图检测（case-insensitive）
+        task_lower = task.lower()
         tool_intent_keywords = {
-            "读取", "打开", "list", "read", "README", "文件", "目录",
-            "列出", "查看", "搜索", "执行", "运行", "命令",
+            "读取", "打开", "list", "read", "read_file", "list_files", "README",
+            "文件", "目录", "列出", "查看", "搜索", "执行", "运行", "命令",
         }
 
         # 如果任务包含工具意图关键词，不使用链模式
-        if any(kw in task for kw in tool_intent_keywords):
+        if any(kw.lower() in task_lower for kw in tool_intent_keywords):
             return False
 
         # 复杂分析任务才使用链模式（明确排除工具导向任务）
