@@ -38,28 +38,28 @@ class NanoAgent:
 
     def _should_use_chain(self, task: str) -> bool:
         """判断是否应该使用提示链模式"""
-        # 优先级1：明确提到"提示链"
+        # 明确提到"提示链"才使用链模式
         if "提示链" in task:
             return True
 
-        complex_keywords = {
-            "分析",
-            "设计",
-            "评估",
-            "规划",
-            "优化",
-            "总结",
-            "架构",
-            "代码",
-            "项目",
-            "框架",
-            "最佳实践",
-            "使用建议",
+        # 工具调用意图检测 - 这些关键词的任务应该使用传统工具模式
+        tool_intent_keywords = {
+            "读取", "打开", "list", "read", "README", "文件", "目录",
+            "列出", "查看", "搜索", "执行", "运行", "命令",
         }
 
-        object_keywords = ("项目", "架构", "代码", "设计", "分析", "框架", "最佳实践")
+        # 如果任务包含工具意图关键词，不使用链模式
+        if any(kw in task for kw in tool_intent_keywords):
+            return False
 
-        # 优先级2：包含复杂关键词和具体对象
+        # 复杂分析任务才使用链模式（明确排除工具导向任务）
+        complex_keywords = {
+            "分析", "设计", "评估", "规划", "优化", "总结",
+            "架构", "项目", "框架", "最佳实践", "使用建议",
+        }
+
+        object_keywords = ("项目", "架构", "设计", "框架", "最佳实践")
+
         return any(kw in task for kw in complex_keywords) and any(
             obj in task for obj in object_keywords
         )

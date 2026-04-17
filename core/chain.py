@@ -107,7 +107,14 @@ class ChainStep:
 
     def _build_llm_input(self, context: ChainContext) -> str:
         """构建 LLM 输入"""
-        parts = [self.prompt, ""]
+        # 格式化 prompt 使用上下文数据
+        try:
+            formatted_prompt = self.prompt.format(**context.data)
+        except (KeyError, ValueError):
+            # 如果格式化失败，使用原始 prompt
+            formatted_prompt = self.prompt
+
+        parts = [formatted_prompt, ""]
 
         # 添加上下文信息
         if context.data:

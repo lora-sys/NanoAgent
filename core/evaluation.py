@@ -23,6 +23,7 @@ class Difficulty(Enum):
     BASIC = "basic"  # 1-2次工具调用
     INTERMEDIATE = "intermediate"  # 3-5次工具调用
     ADVANCED = "advanced"  # 6-10次工具调用
+    EXPERT = "expert"  # 10+次工具调用
 
 
 class VerifyType(Enum):
@@ -31,20 +32,39 @@ class VerifyType(Enum):
     EXACT = "exact"
     CONTAINS = "contains"
     TOOLS = "tools"
+    TOOL_CALLS = "tool_calls"  # 别名
     SEMANTIC = "semantic"
 
 
+# 别名 - 向后兼容
+TaskDifficulty = Difficulty
+VerificationType = VerifyType
+EvaluationTask = Task
+EvaluationRunner = Runner
+EvaluationAnalyzer = Evaluator
+
+
 @dataclass
-class Task:
-    """评估任务"""
+class EvaluationTask:
+    """评估任务（向后兼容别名）"""
 
     name: str
     description: str
     prompt: str
-    difficulty: Difficulty
-    verify_type: VerifyType
-    expected: Any
+    difficulty: Difficulty = Difficulty.BASIC
+    verify_type: VerifyType = VerifyType.CONTAINS
+    expected: Any = None
     expected_tools: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    verification_type: VerifyType = VerifyType.CONTAINS
+    expected_result: Any = None
+
+    def __post_init__(self):
+        """向后兼容：如果没有提供 verify_type，使用 verification_type"""
+        if self.verify_type is None and self.verification_type is not None:
+            self.verify_type = self.verification_type
+        if self.expected is None and self.expected_result is not None:
+            self.expected = self.expected_result
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -55,6 +75,33 @@ class Task:
             "verify_type": self.verify_type.value,
             "expected": self.expected,
             "expected_tools": self.expected_tools,
+            "metadata": self.metadata,
+        }
+
+
+@dataclass
+class Task:
+    """评估任务"""
+
+    name: str
+    description: str
+    prompt: str
+    difficulty: Difficulty = Difficulty.BASIC
+    verify_type: VerifyType = VerifyType.CONTAINS
+    expected: Any = None
+    expected_tools: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "prompt": self.prompt,
+            "difficulty": self.difficulty.value,
+            "verify_type": self.verify_type.value,
+            "expected": self.expected,
+            "expected_tools": self.expected_tools,
+            "metadata": self.metadata,
         }
 
 
@@ -100,7 +147,7 @@ class Evaluator:
             match_result = self.verifier.verify(
                 task.expected, response_text, MatchType.CONTAINS
             )
-        elif task.verify_type == VerifyType.TOOLS:
+        elif task.verify_type in (VerifyType.TOOLS, VerifyType.TOOL_CALLS):
             match_result = self.verifier.verify_tool_sequence(
                 task.expected_tools, result.get("tools_used", [])
             )
@@ -160,6 +207,35 @@ class Evaluator:
                     response["content"]
                 )
         return response
+
+    def analyze_results(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        """分析评估结果"""
+        tasks = results.get("tasks", [])
+        tool_usage = {}
+        failed_tasks = []
+        error_list = []
+
+        for task_result in tasks:
+            if not task_result.get("success", True):
+                failed_tasks.append(task_result.get("task", {}).get("name", "unknown"))
+            if "error" in task_result:
+                error_list.append({
+                    "task": task_result.get("task", {}).get("name", "unknown"),
+                    "error": task_result.get("error", ""),
+                })
+
+        return {
+            "performance_analysis": {
+                "average_execution_time": 0,
+                "average_iterations": 0,
+                "average_tool_calls": 0,
+            },
+            "error_analysis": {
+                "failed_tasks": failed_tasks,
+                "error_list": error_list,
+            },
+            "improvement_suggestions": [],
+        }
 
 
 class Runner:
@@ -257,8 +333,35 @@ class Runner:
         return {
             "tasks": self.results,
             "report": report,
+            "summary": self._make_summary(report, total_time),
             "suggestions": suggestions,
             "total_time": total_time,
+        }
+
+    def run_evaluation_suite(self, tasks: List[Task]) -> Dict[str, Any]:
+        """运行评估套件（向后兼容别名）"""
+        return self.run_suite(tasks)
+
+    def _make_summary(self, report: Dict[str, Any], total_time: float) -> Dict[str, Any]:
+        """生成与 tests/run_evaluation.py 兼容的 summary"""
+        difficulty_stats = {}
+        for result in self.results:
+            diff = result.get("task", {}).get("difficulty", "unknown")
+            if diff not in difficulty_stats:
+                difficulty_stats[diff] = {"total": 0, "passed": 0}
+            difficulty_stats[diff]["total"] += 1
+            if result.get("verification", {}).get("passed", False):
+                difficulty_stats[diff]["passed"] += 1
+
+        return {
+            "total_tasks": report.get("total_tasks", 0),
+            "successful_tasks": report.get("passed", 0),
+            "success_rate": report.get("success_rate", 0),
+            "total_time": total_time,
+            "average_time_per_task": report.get("avg_time", 0),
+            "difficulty_stats": difficulty_stats,
+            "tool_usage": report.get("tool_usage", {}),
+            "performance": report.get("performance", {}),
         }
 
     def _generate_report(self, total_time: float) -> Dict[str, Any]:
