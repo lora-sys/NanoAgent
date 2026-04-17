@@ -1,5 +1,5 @@
 [llm]
-model = "openai/qwen3-coder-plus"
+model = "openai/gpt-5-nano"
 temperature = 0.7
 max_tokens = 4096
 

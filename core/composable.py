@@ -1,6 +1,7 @@
 """可组合模块 - 灵活拼装各种功能"""
 
 from typing import Any, Dict, Optional
+
 from core.router import Router
 from core.chain import PromptChain
 from core.agent import NanoAgent
