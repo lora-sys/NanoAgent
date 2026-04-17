@@ -15,6 +15,13 @@ try:
 except ImportError:
     _HAS_OBSERVABILITY = False
 
+try:
+    from core.session import Session, get_session_manager
+
+    _HAS_SESSION = True
+except ImportError:
+    _HAS_SESSION = False
+
 
 class NanoAgent:
     """极简 Agent 框架 - 零魔法，高性能"""
@@ -23,6 +30,8 @@ class NanoAgent:
         self,
         llm_client: Optional[NanoLLMClient] = None,
         tool_registry: Optional[ToolRegistry] = None,
+        session_id: Optional[str] = None,
+        session_name: Optional[str] = None,
     ):
         """
         初始化 Agent
@@ -30,12 +39,33 @@ class NanoAgent:
         Args:
             llm_client: LLM 客户端，默认自动创建
             tool_registry: 工具注册表，默认自动创建
+            session_id: 会话 ID，用于恢复跨会话对话
+            session_name: 会话名称，用于创建新会话
         """
         self.llm = llm_client or NanoLLMClient()
         self.tools = tool_registry or get_tool_registry()
         self.spec: Optional[TaskSpec] = None
         self.conversation: List[Dict[str, str]] = []
         self._stop_condition: Optional[Callable[[], bool]] = None
+        self.session: Optional[Session] = None
+
+        # 会话管理
+        if _HAS_SESSION:
+            sm = get_session_manager()
+            if session_id:
+                # 恢复已有会话
+                self.session = sm.get_session(session_id)
+                if self.session:
+                    self.conversation = self.session.get_conversation()
+            elif session_name:
+                # 创建新会话
+                self.session = sm.create_session(name=session_name)
+                self.conversation = [{"role": "system", "content": self._get_system_prompt()}]
+                self.session.add_message("system", self._get_system_prompt())
+                self.session.save()
+            else:
+                # 无会话模式，内存对话
+                self.conversation = []
 
     def _should_use_chain(self, task: str) -> bool:
         """判断是否应该使用提示链模式"""
@@ -150,10 +180,17 @@ class NanoAgent:
             self._stop_condition = stop_condition
 
             # 初始化对话
-            self.conversation = [
-                {"role": "system", "content": self._get_system_prompt()},
-                {"role": "user", "content": task},
-            ]
+            if self.session:
+                # 有会话：从 session 恢复对话
+                if not self.conversation:
+                    self.conversation = [{"role": "system", "content": self._get_system_prompt()}]
+                self.conversation.append({"role": "user", "content": task})
+            else:
+                # 无会话：初始化新对话
+                self.conversation = [
+                    {"role": "system", "content": self._get_system_prompt()},
+                    {"role": "user", "content": task},
+                ]
 
             print("🤖 NanoAgent - 极简 Agent 框架")
             print(f"📋 任务: {task}")
@@ -208,6 +245,18 @@ class NanoAgent:
                     last_response = msg.get("content", "")
                     break
 
+            # 持久化会话
+            if _HAS_SESSION and self.session:
+                sm = get_session_manager()
+                # 保存新增的消息到 session
+                for msg in self.conversation[len(self.session.messages) :]:
+                    self.session.add_message(msg["role"], msg["content"])
+                self.session.save_messages()
+                sm.increment_task_count(self.session.id)
+                session_id = self.session.id
+            else:
+                session_id = None
+
             return {
                 "status": self.spec.status,
                 "iterations": iteration,
@@ -217,6 +266,7 @@ class NanoAgent:
                 "execution_mode": "traditional",
                 "conversation": self.conversation,
                 "response": last_response,
+                "session_id": session_id,
             }
         finally:
             # 结束追踪会话
@@ -226,16 +276,28 @@ class NanoAgent:
 
     def chat(self, max_iterations: Optional[int] = None):
         """交互式对话模式"""
+        session_mode = _HAS_SESSION and self.session is not None
         print("🤖 NanoAgent - 极简 Agent 框架")
+        if session_mode:
+            print(f"📌 会话: {self.session.name} ({self.session.id})")
 
         # 初始化对话
-        self.conversation = [{"role": "system", "content": self._get_system_prompt()}]
+        if self.session:
+            # 有会话：从 session 恢复对话
+            if not self.conversation:
+                self.conversation = [{"role": "system", "content": self._get_system_prompt()}]
+        else:
+            self.conversation = [{"role": "system", "content": self._get_system_prompt()}]
 
         while True:
             # 获取用户输入
             try:
                 user_input = input("\n👤 你: ").strip()
             except (KeyboardInterrupt, EOFError):
+                # 退出时保存会话
+                if session_mode:
+                    self._persist_session()
+                    print(f"\n💾 会话已保存: {self.session.name}")
                 print("\n👋 再见！")
                 break
 
@@ -243,6 +305,9 @@ class NanoAgent:
                 continue
 
             if user_input.lower() in ("exit", "quit", "退出"):
+                if session_mode:
+                    self._persist_session()
+                    print(f"\n💾 会话已保存: {self.session.name}")
                 print("👋 再见！")
                 break
 
@@ -323,6 +388,14 @@ class NanoAgent:
                         "content": f"tool_result({json.dumps({'error': error_msg}, ensure_ascii=False)})",
                     }
                 )
+
+    def _persist_session(self) -> None:
+        """持久化当前对话到会话"""
+        if _HAS_SESSION and self.session:
+            existing_count = len(self.session.messages)
+            for msg in self.conversation[existing_count:]:
+                self.session.add_message(msg["role"], msg["content"])
+            self.session.save_messages()
 
     def _record_artifact(self, file_path: str) -> None:
         """记录产物文件

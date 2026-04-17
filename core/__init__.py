@@ -31,6 +31,13 @@ from core.composable import (
 from llm.client import NanoLLMClient
 from tools.registry import get_tool_registry
 
+from core.session import (
+    Session,
+    SessionMessage,
+    SessionManager,
+    get_session_manager,
+)
+
 __all__ = [
     "NanoAgent",
     "TaskSpec",
@@ -55,4 +62,8 @@ __all__ = [
     "AgentBuilder",
     "NanoLLMClient",
     "get_tool_registry",
+    "Session",
+    "SessionMessage",
+    "SessionManager",
+    "get_session_manager",
 ]
