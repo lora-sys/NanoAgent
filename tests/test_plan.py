@@ -11,35 +11,35 @@ if str(project_root) not in sys.path:
 
 
 class TestExtractJson:
-    """测试 JSON 解析（复用 llm.client 的逻辑）"""
+    """测试 JSON 解析（复用 core.utils 的逻辑）"""
 
     def test_extract_json_basic(self):
-        from llm.client import _extract_json
+        from core.utils import extract_json
 
         text = '{"steps": [{"step": 1}], "total": 1}'
-        result = _extract_json(text)
+        result = extract_json(text)
         assert result["total"] == 1
         assert len(result["steps"]) == 1
 
     def test_extract_json_with_prefix_suffix(self):
-        from llm.client import _extract_json
+        from core.utils import extract_json
 
         text = 'Here is the plan:\n{"steps": [{"step": 1}], "total_steps": 1}\nDone.'
-        result = _extract_json(text)
+        result = extract_json(text)
         assert result["total_steps"] == 1
 
     def test_extract_json_markdown_code_block(self):
-        from llm.client import _extract_json
+        from core.utils import extract_json
 
         text = '```json\n{"steps": [{"step": 1}], "total_steps": 1}\n```'
-        result = _extract_json(text)
+        result = extract_json(text)
         assert result["total_steps"] == 1
 
     def test_extract_json_invalid(self):
-        from llm.client import _extract_json
+        from core.utils import extract_json
 
         with pytest.raises(Exception):
-            _extract_json("no json here")
+            extract_json("no json here")
 
 
 class _MockLLM:
@@ -59,7 +59,6 @@ class _MockLLM:
 
 def _patch_llm(monkeypatch, response_or_error):
     mock = _MockLLM(response_or_error)
-    from llm.client import _extract_json as ej
 
     class MockNanoLLMClient:
         def __init__(self, model=None):
@@ -73,9 +72,12 @@ def _patch_llm(monkeypatch, response_or_error):
 
     class MockModule:
         NanoLLMClient = MockNanoLLMClient
-        _extract_json = ej
 
     monkeypatch.setitem(sys.modules, "llm.client", MockModule())
+    # 清除 plan.py 的缓存 client
+    import tools.plan as plan_module
+
+    monkeypatch.setattr(plan_module, "_llm_client", None)
 
 
 class TestPlanInputValidation:
@@ -223,9 +225,7 @@ class TestPlanAsync:
         _patch_llm(monkeypatch, mock_response)
         from tools.plan import aplan
 
-        result = asyncio.get_event_loop().run_until_complete(
-            aplan("异步规划测试")
-        )
+        result = asyncio.run(aplan("异步规划测试"))
 
         assert "plan_id" in result
         assert result["total_steps"] == 1
@@ -235,7 +235,7 @@ class TestPlanAsync:
         _patch_llm(monkeypatch, "unexpected")
         from tools.plan import aplan
 
-        result = asyncio.get_event_loop().run_until_complete(aplan(""))
+        result = asyncio.run(aplan(""))
         assert "error" in result
         assert "empty" in result["error"]
 
@@ -243,9 +243,7 @@ class TestPlanAsync:
         _patch_llm(monkeypatch, RuntimeError("async error"))
         from tools.plan import aplan
 
-        result = asyncio.get_event_loop().run_until_complete(
-            aplan("分析项目")
-        )
+        result = asyncio.run(aplan("分析项目"))
         assert "error" in result
         assert "LLM" in result["error"]
 
@@ -267,7 +265,9 @@ class TestPlanRegistration:
         reg = registry_module.get_tool_registry()
 
         tool_list = reg.get_tool_list()
-        plan_tool = next((t for t in tool_list if t["function"]["name"] == "plan"), None)
+        plan_tool = next(
+            (t for t in tool_list if t["function"]["name"] == "plan"), None
+        )
         assert plan_tool is not None
         props = plan_tool["function"]["parameters"]["properties"]
         assert "goal" in props

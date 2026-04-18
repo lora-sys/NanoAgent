@@ -27,6 +27,8 @@ from core.composable import (
     ComposableAgent,
     AgentBuilder,
 )
+from core.context import ExecutionContext
+from core.utils import extract_json
 
 from llm.client import NanoLLMClient
 from tools.registry import get_tool_registry
@@ -53,6 +55,8 @@ __all__ = [
     "get_global_registry",
     "ComposableAgent",
     "AgentBuilder",
+    "ExecutionContext",
+    "extract_json",
     "NanoLLMClient",
     "get_tool_registry",
 ]

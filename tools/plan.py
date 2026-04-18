@@ -3,6 +3,22 @@
 import uuid
 from typing import Any, Dict, List, Optional
 
+from core.utils import extract_json
+
+# 模块级 LLM client，复用避免每次调用重新初始化
+_llm_client: Optional[Any] = None
+
+
+def _get_llm() -> Any:
+    """获取复用的 LLM client"""
+    global _llm_client
+    if _llm_client is None:
+        from llm.client import NanoLLMClient
+
+        _llm_client = NanoLLMClient()
+    return _llm_client
+
+
 PLANNER_PROMPT = """将目标分解为 3-8 个可执行步骤。
 
 目标: {goal}
@@ -45,9 +61,7 @@ def _validate_and_build_prompt(
         else ""
     )
     const_str = (
-        "\n约束: " + ", ".join(f"{c}" for c in constraints)
-        if constraints
-        else ""
+        "\n约束: " + ", ".join(f"{c}" for c in constraints) if constraints else ""
     )
 
     prompt = PLANNER_PROMPT.format(
@@ -101,10 +115,7 @@ def plan(
 
     # 调用 LLM
     try:
-        from llm.client import NanoLLMClient
-
-        llm = NanoLLMClient()
-        response = llm.chat([{"role": "user", "content": prompt}])
+        response = _get_llm().chat([{"role": "user", "content": prompt}])
     except Exception as e:
         return {
             "error": f"LLM 调用失败: {e}",
@@ -115,9 +126,7 @@ def plan(
 
     # 解析 JSON
     try:
-        import llm.client as _llm_client
-
-        result = _llm_client._extract_json(response)
+        result = extract_json(response)
         if "steps" not in result or not isinstance(result.get("steps"), list):
             result["steps"] = []
         result["total_steps"] = len(result["steps"])
@@ -174,10 +183,7 @@ async def aplan(
     prompt, plan_id = _validate_and_build_prompt(goal, current_state, constraints)
 
     try:
-        from llm.client import NanoLLMClient
-
-        llm = NanoLLMClient()
-        response = await llm.achat([{"role": "user", "content": prompt}])
+        response = await _get_llm().achat([{"role": "user", "content": prompt}])
     except Exception as e:
         return {
             "error": f"LLM 调用失败: {e}",
@@ -187,9 +193,7 @@ async def aplan(
         }
 
     try:
-        import llm.client as _llm_client
-
-        result = _llm_client._extract_json(response)
+        result = extract_json(response)
         if "steps" not in result or not isinstance(result.get("steps"), list):
             result["steps"] = []
         result["total_steps"] = len(result["steps"])
