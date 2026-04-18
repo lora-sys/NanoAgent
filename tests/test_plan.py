@@ -3,11 +3,23 @@
 import json
 import pytest
 import sys
+import tempfile
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+
+
+@pytest.fixture(autouse=True)
+def clean_todo_file(monkeypatch):
+    """Use a temp file for todo persistence during plan tests."""
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        tmp = Path(f.name)
+    monkeypatch.setattr("tools.todo.TODO_FILE", tmp)
+    yield tmp
+    if tmp.exists():
+        tmp.unlink()
 
 
 class TestExtractJson:
@@ -153,6 +165,7 @@ class TestPlanLLMIntegration:
         assert result["total_steps"] == 1
         assert len(result["steps"]) == 1
         assert result["steps"][0]["description"] == "Read project structure"
+        assert "todo_id" in result
 
     def test_plan_with_current_state(self, monkeypatch):
         mock_response = '{"steps": [{"step": 1, "description": "Continue", "reasoning": "ok", "complexity": "低"}], "total_steps": 1, "reasoning": "test", "estimated_difficulty": "低", "potential_risks": []}'
@@ -237,6 +250,7 @@ class TestPlanAsync:
         assert "plan_id" in result
         assert result["total_steps"] == 1
         assert result["steps"][0]["description"] == "Async step"
+        assert "todo_id" in result
 
     @pytest.mark.asyncio
     async def test_aplan_input_validation(self, monkeypatch):
