@@ -1,8 +1,8 @@
-"""测试规划工具"""
+"""Test plan tool."""
 
+import json
 import pytest
 import sys
-import asyncio
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent
@@ -38,20 +38,23 @@ class TestExtractJson:
     def test_extract_json_invalid(self):
         from core.utils import extract_json
 
-        with pytest.raises(Exception):
+        with pytest.raises(json.JSONDecodeError):
             extract_json("no json here")
 
 
 class _MockLLM:
     def __init__(self, response_or_error):
         self._response = response_or_error
+        self.last_msgs = None
 
     def chat(self, msgs):
+        self.last_msgs = msgs
         if isinstance(self._response, Exception):
             raise self._response
         return self._response
 
     async def achat(self, msgs):
+        self.last_msgs = msgs
         if isinstance(self._response, Exception):
             raise self._response
         return self._response
@@ -61,6 +64,8 @@ def _patch_llm(monkeypatch, response_or_error):
     mock = _MockLLM(response_or_error)
 
     class MockNanoLLMClient:
+        _mock = mock
+
         def __init__(self, model=None):
             self._mock = mock
 
@@ -78,6 +83,7 @@ def _patch_llm(monkeypatch, response_or_error):
     import tools.plan as plan_module
 
     monkeypatch.setattr(plan_module, "_llm_client", None)
+    return mock
 
 
 class TestPlanInputValidation:
@@ -218,32 +224,35 @@ class TestPlanLLMIntegration:
 
 
 class TestPlanAsync:
-    """测试异步版本"""
+    """Test async version."""
 
-    def test_aplan_returns_structure(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_aplan_returns_structure(self, monkeypatch):
         mock_response = '{"steps": [{"step": 1, "description": "Async step", "reasoning": "ok", "complexity": "低"}], "total_steps": 1, "reasoning": "test", "estimated_difficulty": "低", "potential_risks": []}'
         _patch_llm(monkeypatch, mock_response)
         from tools.plan import aplan
 
-        result = asyncio.run(aplan("异步规划测试"))
+        result = await aplan("异步规划测试")
 
         assert "plan_id" in result
         assert result["total_steps"] == 1
         assert result["steps"][0]["description"] == "Async step"
 
-    def test_aplan_input_validation(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_aplan_input_validation(self, monkeypatch):
         _patch_llm(monkeypatch, "unexpected")
         from tools.plan import aplan
 
-        result = asyncio.run(aplan(""))
+        result = await aplan("")
         assert "error" in result
         assert "empty" in result["error"]
 
-    def test_aplan_llm_error(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_aplan_llm_error(self, monkeypatch):
         _patch_llm(monkeypatch, RuntimeError("async error"))
         from tools.plan import aplan
 
-        result = asyncio.run(aplan("分析项目"))
+        result = await aplan("分析项目")
         assert "error" in result
         assert "LLM" in result["error"]
 

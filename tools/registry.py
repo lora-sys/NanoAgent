@@ -5,7 +5,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Union
 
 from exceptions import ToolError
 
@@ -126,8 +126,26 @@ def get_tool_registry() -> ToolRegistry:
     return _registry
 
 
-def _build_schema(func: Callable) -> dict:
-    sig = inspect.signature(func)
+def _get_json_type(annotation) -> str:
+    """Map a Python type annotation to JSON Schema type, handling Optional/Dict/List."""
+    # Unwrap Optional (Union[..., NoneType])
+    origin = getattr(annotation, "__origin__", None)
+    if origin is Union:
+        args = getattr(annotation, "__args__", ())
+        # Filter out NoneType, recurse on the rest
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            return _get_json_type(non_none[0])
+
+    # Map container origins
+    from collections.abc import Mapping, Sequence, Iterable
+
+    if origin in (dict, Mapping) or annotation is dict:
+        return "object"
+    if origin in (list, Sequence, Iterable) or annotation is list:
+        return "array"
+
+    # Fall back to direct type_map lookup
     type_map = {
         str: "string",
         int: "integer",
@@ -136,14 +154,16 @@ def _build_schema(func: Callable) -> dict:
         list: "array",
         dict: "object",
     }
+    return type_map.get(annotation, "string")
+
+
+def _build_schema(func: Callable) -> dict:
+    sig = inspect.signature(func)
 
     properties = {
         name: {
-            "type": type_map.get(
-                param.annotation
-                if param.annotation != inspect.Parameter.empty
-                else str,
-                "string",
+            "type": _get_json_type(
+                param.annotation if param.annotation != inspect.Parameter.empty else str
             ),
             "description": "",
         }

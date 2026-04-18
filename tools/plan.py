@@ -89,7 +89,7 @@ def plan(
         Dict with steps, reasoning, and metadata
     """
     # 输入验证
-    if not goal or not goal.strip():
+    if not isinstance(goal, str) or not goal.strip():
         return {
             "error": "goal cannot be empty",
             "steps": [],
@@ -158,7 +158,7 @@ async def aplan(
     Returns:
         Dict with steps, reasoning, and metadata
     """
-    if not goal or not goal.strip():
+    if not isinstance(goal, str) or not goal.strip():
         return {
             "error": "goal cannot be empty",
             "steps": [],
