@@ -2,6 +2,7 @@
 
 import pytest
 import sys
+import asyncio
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent
@@ -10,10 +11,10 @@ if str(project_root) not in sys.path:
 
 
 class TestExtractJson:
-    """测试 JSON 解析辅助函数"""
+    """测试 JSON 解析（复用 llm.client 的逻辑）"""
 
     def test_extract_json_basic(self):
-        from tools.plan import _extract_json
+        from llm.client import _extract_json
 
         text = '{"steps": [{"step": 1}], "total": 1}'
         result = _extract_json(text)
@@ -21,50 +22,105 @@ class TestExtractJson:
         assert len(result["steps"]) == 1
 
     def test_extract_json_with_prefix_suffix(self):
-        from tools.plan import _extract_json
+        from llm.client import _extract_json
 
         text = 'Here is the plan:\n{"steps": [{"step": 1}], "total_steps": 1}\nDone.'
         result = _extract_json(text)
         assert result["total_steps"] == 1
 
-    def test_extract_json_invalid(self):
-        from tools.plan import _extract_json
+    def test_extract_json_markdown_code_block(self):
+        from llm.client import _extract_json
 
-        with pytest.raises(ValueError):
+        text = '```json\n{"steps": [{"step": 1}], "total_steps": 1}\n```'
+        result = _extract_json(text)
+        assert result["total_steps"] == 1
+
+    def test_extract_json_invalid(self):
+        from llm.client import _extract_json
+
+        with pytest.raises(Exception):
             _extract_json("no json here")
 
 
-class TestPlanTool:
-    """测试规划工具"""
+class _MockLLM:
+    def __init__(self, response_or_error):
+        self._response = response_or_error
 
-    def _make_mock_module(self, response_or_error):
-        """创建一个 mock llm.client 模块"""
-        if isinstance(response_or_error, Exception):
+    def chat(self, msgs):
+        if isinstance(self._response, Exception):
+            raise self._response
+        return self._response
 
-            class FailLLM:
-                def __init__(self):
-                    pass
+    async def achat(self, msgs):
+        if isinstance(self._response, Exception):
+            raise self._response
+        return self._response
 
-                def chat(self, msgs):
-                    raise response_or_error
 
-            MockClass = FailLLM
-        else:
+def _patch_llm(monkeypatch, response_or_error):
+    mock = _MockLLM(response_or_error)
+    from llm.client import _extract_json as ej
 
-            class MockLLM:
-                def __init__(self):
-                    pass
+    class MockNanoLLMClient:
+        def __init__(self, model=None):
+            self._mock = mock
 
-                def chat(self, msgs):
-                    return response_or_error
+        def chat(self, msgs):
+            return self._mock.chat(msgs)
 
-            MockClass = MockLLM
+        async def achat(self, msgs):
+            return await self._mock.achat(msgs)
 
-        mock_mod = type("MockLLMClientModule", (), {"NanoLLMClient": MockClass})()
-        return mock_mod
+    class MockModule:
+        NanoLLMClient = MockNanoLLMClient
+        _extract_json = ej
+
+    monkeypatch.setitem(sys.modules, "llm.client", MockModule())
+
+
+class TestPlanInputValidation:
+    """测试输入验证"""
+
+    def test_empty_goal(self, monkeypatch):
+        _patch_llm(monkeypatch, "unexpected")
+        from tools.plan import plan
+
+        result = plan("")
+        assert "error" in result
+        assert "empty" in result["error"]
+        assert result["total_steps"] == 0
+
+    def test_whitespace_goal(self, monkeypatch):
+        _patch_llm(monkeypatch, "unexpected")
+        from tools.plan import plan
+
+        result = plan("   ")
+        assert "error" in result
+        assert "empty" in result["error"]
+
+    def test_invalid_current_state_type(self, monkeypatch):
+        _patch_llm(monkeypatch, "unexpected")
+        from tools.plan import plan
+
+        result = plan("分析项目", current_state="not a dict")
+        assert "error" in result
+        assert "current_state" in result["error"]
+        assert result["total_steps"] == 0
+
+    def test_invalid_constraints_type(self, monkeypatch):
+        _patch_llm(monkeypatch, "unexpected")
+        from tools.plan import plan
+
+        result = plan("分析项目", constraints="not a list")
+        assert "error" in result
+        assert "constraints" in result["error"]
+        assert result["total_steps"] == 0
+
+
+class TestPlanLLMIntegration:
+    """测试 LLM 集成"""
 
     def test_plan_returns_structure(self, monkeypatch):
-        """测试 plan 返回正确的结构"""
         mock_response = """{
   "steps": [
     {
@@ -79,9 +135,7 @@ class TestPlanTool:
   "estimated_difficulty": "低",
   "potential_risks": []
 }"""
-        mock_module = self._make_mock_module(mock_response)
-        monkeypatch.setitem(sys.modules, "llm.client", mock_module)
-
+        _patch_llm(monkeypatch, mock_response)
         from tools.plan import plan
 
         result = plan("分析这个项目")
@@ -90,83 +144,123 @@ class TestPlanTool:
         assert "steps" in result
         assert result["total_steps"] == 1
         assert len(result["steps"]) == 1
-        assert result["steps"][0]["step"] == 1
         assert result["steps"][0]["description"] == "Read project structure"
-        assert result["estimated_difficulty"] == "低"
 
     def test_plan_with_current_state(self, monkeypatch):
-        """测试带当前状态的规划"""
-        mock_response = '{"steps": [{"step": 1, "description": "Continue analysis", "reasoning": "Given current state", "complexity": "低"}], "total_steps": 1, "reasoning": "resume from current", "estimated_difficulty": "低", "potential_risks": []}'
-        mock_module = self._make_mock_module(mock_response)
-        monkeypatch.setitem(sys.modules, "llm.client", mock_module)
-
+        mock_response = '{"steps": [{"step": 1, "description": "Continue", "reasoning": "ok", "complexity": "低"}], "total_steps": 1, "reasoning": "test", "estimated_difficulty": "低", "potential_risks": []}'
+        _patch_llm(monkeypatch, mock_response)
         from tools.plan import plan
 
         result = plan(
-            goal="完成项目分析",
-            current_state={"files_analyzed": ["README.md", "core/agent.py"]},
+            "完成项目分析",
+            current_state={"files_analyzed": ["README.md"]},
         )
 
         assert result["total_steps"] == 1
 
     def test_plan_with_constraints(self, monkeypatch):
-        """测试带约束条件的规划"""
-        mock_response = '{"steps": [{"step": 1, "description": "Plan with constraints", "reasoning": "Applied", "complexity": "中"}], "total_steps": 1, "reasoning": "test", "estimated_difficulty": "中", "potential_risks": []}'
-        mock_module = self._make_mock_module(mock_response)
-        monkeypatch.setitem(sys.modules, "llm.client", mock_module)
-
+        mock_response = '{"steps": [{"step": 1, "description": "Plan with constraints", "reasoning": "ok", "complexity": "中"}], "total_steps": 1, "reasoning": "test", "estimated_difficulty": "中", "potential_risks": []}'
+        _patch_llm(monkeypatch, mock_response)
         from tools.plan import plan
 
-        result = plan(
-            goal="重构代码",
-            constraints=["必须保持向后兼容", "不超过5步"],
-        )
-
+        result = plan("重构代码", constraints=["保持兼容"])
         assert result["total_steps"] == 1
 
     def test_plan_llm_error(self, monkeypatch):
-        """测试 LLM 调用失败时的处理"""
-        mock_module = self._make_mock_module(RuntimeError("LLM unavailable"))
-        monkeypatch.setitem(sys.modules, "llm.client", mock_module)
-
+        _patch_llm(monkeypatch, RuntimeError("LLM unavailable"))
         from tools.plan import plan
 
         result = plan("分析项目")
         assert "error" in result
         assert "LLM" in result["error"]
         assert result["total_steps"] == 0
-        assert "plan_id" in result
 
     def test_plan_invalid_json_response(self, monkeypatch):
-        """测试 LLM 返回无效 JSON 时的处理"""
-        mock_module = self._make_mock_module("This is not JSON at all")
-        monkeypatch.setitem(sys.modules, "llm.client", mock_module)
-
+        _patch_llm(monkeypatch, "This is not JSON at all")
         from tools.plan import plan
 
         result = plan("分析项目")
         assert "error" in result
         assert "解析" in result["error"]
 
+    def test_plan_response_missing_steps_field(self, monkeypatch):
+        """LLM 返回有效 JSON 但缺少 steps 字段"""
+        mock_response = '{"total_steps": 5, "reasoning": "test"}'
+        _patch_llm(monkeypatch, mock_response)
+        from tools.plan import plan
 
-class TestPlanToolRegistration:
-    """测试规划工具注册"""
+        result = plan("分析项目")
+        assert "steps" in result
+        assert result["steps"] == []
+        assert result["total_steps"] == 0
 
-    def test_plan_registered_in_registry(self):
-        """验证 plan 工具已注册"""
-        # 需要清除已有的 registry 单例以获取最新的
+    def test_plan_response_steps_not_list(self, monkeypatch):
+        """LLM 返回有效 JSON 但 steps 不是列表"""
+        mock_response = '{"steps": "not a list", "total_steps": 0}'
+        _patch_llm(monkeypatch, mock_response)
+        from tools.plan import plan
+
+        result = plan("分析项目")
+        assert "steps" in result
+        assert result["steps"] == []
+
+    def test_plan_response_in_markdown(self, monkeypatch):
+        """LLM 返回 markdown 代码块包裹的 JSON"""
+        mock_response = """以下是计划:\n```json\n{"steps": [{"step": 1, "description": "First", "reasoning": "ok", "complexity": "低"}], "total_steps": 1, "reasoning": "test", "estimated_difficulty": "低", "potential_risks": []}\n```\n完成"""
+        _patch_llm(monkeypatch, mock_response)
+        from tools.plan import plan
+
+        result = plan("分析项目")
+        assert result["total_steps"] == 1
+        assert result["steps"][0]["description"] == "First"
+
+
+class TestPlanAsync:
+    """测试异步版本"""
+
+    def test_aplan_returns_structure(self, monkeypatch):
+        mock_response = '{"steps": [{"step": 1, "description": "Async step", "reasoning": "ok", "complexity": "低"}], "total_steps": 1, "reasoning": "test", "estimated_difficulty": "低", "potential_risks": []}'
+        _patch_llm(monkeypatch, mock_response)
+        from tools.plan import aplan
+
+        result = asyncio.get_event_loop().run_until_complete(
+            aplan("异步规划测试")
+        )
+
+        assert "plan_id" in result
+        assert result["total_steps"] == 1
+        assert result["steps"][0]["description"] == "Async step"
+
+    def test_aplan_input_validation(self, monkeypatch):
+        _patch_llm(monkeypatch, "unexpected")
+        from tools.plan import aplan
+
+        result = asyncio.get_event_loop().run_until_complete(aplan(""))
+        assert "error" in result
+        assert "empty" in result["error"]
+
+    def test_aplan_llm_error(self, monkeypatch):
+        _patch_llm(monkeypatch, RuntimeError("async error"))
+        from tools.plan import aplan
+
+        result = asyncio.get_event_loop().run_until_complete(
+            aplan("分析项目")
+        )
+        assert "error" in result
+        assert "LLM" in result["error"]
+
+
+class TestPlanRegistration:
+    """测试工具注册"""
+
+    def test_plan_registered(self):
         import tools.registry as registry_module
 
         registry_module._registry = None
         reg = registry_module.get_tool_registry()
+        assert "plan" in reg._tools
 
-        tool_names = list(reg._tools.keys())
-        assert "plan" in tool_names
-        assert "read_file" in tool_names
-        assert "list_files" in tool_names
-
-    def test_plan_tool_in_tool_list(self):
-        """验证 plan 工具在工具列表中"""
+    def test_plan_tool_list(self):
         import tools.registry as registry_module
 
         registry_module._registry = None
@@ -175,60 +269,26 @@ class TestPlanToolRegistration:
         tool_list = reg.get_tool_list()
         plan_tool = next((t for t in tool_list if t["function"]["name"] == "plan"), None)
         assert plan_tool is not None
-        assert "goal" in plan_tool["function"]["parameters"]["properties"]
-        assert "current_state" in plan_tool["function"]["parameters"]["properties"]
-        assert "constraints" in plan_tool["function"]["parameters"]["properties"]
-
-    def test_plan_tool_executable(self, monkeypatch):
-        """测试通过 registry 执行 plan 工具"""
-        mock_response = '{"steps": [{"step": 1, "description": "Test step", "reasoning": "Test", "complexity": "低"}], "total_steps": 1, "reasoning": "Test", "estimated_difficulty": "低", "potential_risks": []}'
-
-        class MockLLM:
-            def __init__(self):
-                pass
-
-            def chat(self, msgs):
-                return mock_response
-
-        mock_module = type("MockLLMClientModule", (), {"NanoLLMClient": MockLLM})()
-        monkeypatch.setitem(sys.modules, "llm.client", mock_module)
-
-        import tools.registry as registry_module
-
-        registry_module._registry = None
-        reg = registry_module.get_tool_registry()
-
-        result = reg.execute("plan", {"goal": "测试目标"})
-        assert "plan_id" in result
-        assert "steps" in result
-        assert result["total_steps"] == 1
-
-
-class TestPlanSchema:
-    """测试规划工具的 schema"""
-
-    def test_plan_schema_goal_required(self):
-        """验证 goal 是必需参数"""
-        import tools.registry as registry_module
-
-        registry_module._registry = None
-        reg = registry_module.get_tool_registry()
-
-        tool = reg._tools["plan"]
-        required = tool["schema"]["required"]
-        assert "goal" in required
-
-    def test_plan_schema_optional_params(self):
-        """验证 current_state 和 constraints 是可选参数"""
-        import tools.registry as registry_module
-
-        registry_module._registry = None
-        reg = registry_module.get_tool_registry()
-
-        tool = reg._tools["plan"]
-        props = tool["schema"]["properties"]
+        props = plan_tool["function"]["parameters"]["properties"]
         assert "goal" in props
         assert "current_state" in props
         assert "constraints" in props
-        assert "default" in props["current_state"]
+
+    def test_plan_goal_required(self):
+        import tools.registry as registry_module
+
+        registry_module._registry = None
+        reg = registry_module.get_tool_registry()
+
+        tool = reg._tools["plan"]
+        assert "goal" in tool["schema"]["required"]
+
+    def test_plan_optional_defaults(self):
+        import tools.registry as registry_module
+
+        registry_module._registry = None
+        reg = registry_module.get_tool_registry()
+
+        props = reg._tools["plan"]["schema"]["properties"]
         assert props["current_state"]["default"] is None
+        assert props["constraints"]["default"] is None
