@@ -4,7 +4,8 @@ import asyncio
 import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Union
-from datetime import datetime
+
+from core.context import RouteContext
 
 
 @dataclass
@@ -17,7 +18,6 @@ class RouteDecision:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
         return {
             "target": self.target,
             "reasoning": self.reasoning,
@@ -37,43 +37,11 @@ class Route:
     description: str = ""
 
     def matches(self, task: str) -> bool:
-        """检查任务是否匹配此路由"""
         if isinstance(self.condition, str):
             return self.condition.lower() in task.lower()
         elif callable(self.condition):
             return self.condition(task)
         return False
-
-
-class RouteContext:
-    """路由上下文"""
-
-    def __init__(self, initial_data: Optional[Dict[str, Any]] = None):
-        self.data: Dict[str, Any] = initial_data or {}
-        self.history: List[Dict[str, Any]] = []
-        self.metadata: Dict[str, Any] = {}
-
-    def set(self, key: str, value: Any) -> None:
-        """设置上下文数据"""
-        self.data[key] = value
-
-    def get(self, key: str, default: Any = None) -> Any:
-        """获取上下文数据"""
-        return self.data.get(key, default)
-
-    def add_history(self, decision: RouteDecision, task: str) -> None:
-        """添加路由历史"""
-        self.history.append(
-            {
-                "task": task,
-                "decision": decision.to_dict(),
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
-        return {"data": self.data, "history": self.history, "metadata": self.metadata}
 
 
 class Router:

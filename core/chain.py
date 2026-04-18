@@ -3,38 +3,8 @@
 import asyncio
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
-from datetime import datetime
 
-
-class ChainContext:
-    """链式执行上下文"""
-
-    def __init__(self, initial_data: Optional[Dict[str, Any]] = None):
-        self.data: Dict[str, Any] = initial_data or {}
-        self.history: List[Dict[str, Any]] = []
-        self.metadata: Dict[str, Any] = {}
-
-    def set(self, key: str, value: Any) -> None:
-        """设置上下文数据"""
-        self.data[key] = value
-
-    def get(self, key: str, default: Any = None) -> Any:
-        """获取上下文数据"""
-        return self.data.get(key, default)
-
-    def add_history(self, step_name: str, result: Any) -> None:
-        """添加执行历史"""
-        self.history.append(
-            {
-                "step": step_name,
-                "result": result,
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
-        return {"data": self.data, "history": self.history, "metadata": self.metadata}
+from core.context import ChainContext
 
 
 class ChainResult:

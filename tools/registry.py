@@ -1,6 +1,7 @@
 """工具注册表 - 精简版"""
 
 import inspect
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -70,7 +71,6 @@ class ToolRegistry:
         self, tool_name: str, arguments: Dict[str, Any]
     ) -> Dict[str, Any]:
         """映射参数名，处理常见的参数名差异"""
-        # 修复映射逻辑：将外部参数名映射到内部参数名
         param_mappings = {
             "read_file": {"filename": "path", "absolute_path": "path"},
             "list_files": {"directory": "path", "dir": "path"},
@@ -231,7 +231,6 @@ def _register_tools(registry: ToolRegistry):
             r":\(\)\{\:\|:&\};:",
             r"mkfs",
         ]
-        import re
 
         if any(
             re.search(pattern, command, re.IGNORECASE) for pattern in dangerous_patterns
@@ -267,3 +266,12 @@ def _register_tools(registry: ToolRegistry):
         "Replaces first occurrence of old_str with new_str in file",
     )
     registry.register("run_bash", run_bash, "Executes bash command in sandbox")
+
+    # 注册规划工具
+    from tools.plan import plan
+
+    registry.register(
+        "plan",
+        plan,
+        "Decomposes a complex goal into structured execution steps",
+    )

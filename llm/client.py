@@ -4,9 +4,8 @@ import asyncio
 import json
 import os
 import random
-import re
 import time
-from typing import Dict, List, Optional, Type, TypeVar
+from typing import Dict, List, Optional, Type, TypeVar  # noqa: E402, F401
 
 import litellm
 from dotenv import load_dotenv
@@ -336,15 +335,4 @@ class NanoLLMClient:
         return response_model.model_validate(data)
 
 
-def _extract_json(text: str) -> dict:
-    # 提取 markdown 代码块中的 JSON
-    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-    if match:
-        text = match.group(1).strip()
-
-    # 查找 JSON 对象的起始和结束位置
-    start, end = text.find("{"), text.rfind("}")
-    if start != -1 and end > start:
-        return json.loads(text[start : end + 1])
-
-    return json.loads(text)
+from core.utils import extract_json as _extract_json  # noqa: E402
