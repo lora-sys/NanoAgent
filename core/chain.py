@@ -120,10 +120,12 @@ class PromptChain:
         steps: List[ChainStep],
         name: str = "default_chain",
         stop_on_error: bool = True,
+        todo_list_id: Optional[str] = None,
     ):
         self.steps = steps
         self.name = name
         self.stop_on_error = stop_on_error
+        self.todo_list_id = todo_list_id
 
     async def run(
         self,
@@ -150,7 +152,7 @@ class PromptChain:
         final_output = None
         error = None
 
-        for step in self.steps:
+        for step_idx, step in enumerate(self.steps):
             try:
                 # 执行步骤
                 result = await step.execute(context, llm_client)
@@ -163,6 +165,14 @@ class PromptChain:
 
                 # 更新最终输出
                 final_output = result
+
+                # Auto-update todo if chain has todo_list_id
+                if self.todo_list_id:
+                    try:
+                        from tools.todo import todo_update_status
+                        todo_update_status(self.todo_list_id, step_idx, "done")
+                    except Exception:
+                        pass  # Don't fail chain execution on todo errors
 
             except Exception as e:
                 error = f"步骤 '{step.name}' 执行失败: {str(e)}"

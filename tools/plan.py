@@ -131,6 +131,15 @@ def plan(
             result["steps"] = []
         result["total_steps"] = len(result["steps"])
         result["plan_id"] = plan_id
+
+        # Auto-create todo list from plan steps
+        if result.get("steps"):
+            from tools.todo import create_todo_from_plan
+
+            todo = create_todo_from_plan(result, f"Plan for: {goal[:30]}")
+            if todo:
+                result["todo_id"] = todo["id"]
+
         return result
     except Exception as e:
         return {
@@ -198,6 +207,15 @@ async def aplan(
             result["steps"] = []
         result["total_steps"] = len(result["steps"])
         result["plan_id"] = plan_id
+
+        # Auto-create todo list from plan steps
+        if result.get("steps"):
+            from tools.todo import create_todo_from_plan
+
+            todo = create_todo_from_plan(result, f"Plan for: {goal[:30]}")
+            if todo:
+                result["todo_id"] = todo["id"]
+
         return result
     except Exception as e:
         return {

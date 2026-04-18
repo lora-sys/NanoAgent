@@ -295,3 +295,44 @@ def _register_tools(registry: ToolRegistry):
         plan,
         "Decomposes a complex goal into structured execution steps",
     )
+
+    # Register todo tools
+    from tools.todo import (
+        todo_create,
+        todo_add,
+        todo_done,
+        todo_show,
+        todo_list_all,
+        todo_delete,
+    )
+
+    registry.register(
+        "todo_create",
+        todo_create,
+        "Create a new todo list with items",
+    )
+    registry.register(
+        "todo_add",
+        todo_add,
+        "Add an item to an existing todo list",
+    )
+    registry.register(
+        "todo_done",
+        todo_done,
+        "Mark a todo item as done",
+    )
+    registry.register(
+        "todo_show",
+        todo_show,
+        "Show a todo list as a formatted table",
+    )
+    registry.register(
+        "todo_list_all",
+        todo_list_all,
+        "List all todo lists",
+    )
+    registry.register(
+        "todo_delete",
+        todo_delete,
+        "Delete a todo list",
+    )
