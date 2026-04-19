@@ -468,7 +468,8 @@ class NanoAgent:
             "### 何时使用工具\n"
             "1. 用户明确要求读取文件、列出目录、运行命令时\n"
             "2. 需要获取项目信息、代码内容时\n"
-            "3. 需要执行系统操作时\n\n"
+            "3. 需要搜索文件内容、代码模式时（使用 grep）\n"
+            "4. 需要执行系统操作时\n\n"
             "### 工具调用格式\n"
             '<tool name="工具名" args=\'{"参数名": "参数值"}\'/>\n\n'
             "### 重要规则\n"
@@ -486,6 +487,8 @@ class NanoAgent:
             '<tool name="edit_file" args=\'{"path": "test.txt", "old_str": "hello", "new_str": "world"}\'/>\n\n'
             "#### run_bash - 执行系统命令\n"
             '<tool name="run_bash" args=\'{"command": "ls -la"}\'/>\n\n'
+            "#### grep - 搜索文件和代码\n"
+            '<tool name="grep" args=\'{"pattern": "def run", "path": "core", "file_type": "py", "max_count": 20}\'/>\n\n'
             "### 响应格式\n"
             "- 正常响应: <response>你的回复内容</response>\n"
             "- 错误响应: <error>错误描述</error>\n\n"
