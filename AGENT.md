@@ -33,8 +33,22 @@ Result analysis: Analyze the results to identify specific areas where the agent 
 
 optinal: Building an evaluation measure the performance of your tools,You can  automatically optimize your tools against this evaluation.
 rule :
-   TDD 
+   TDD
    release dependcy
     every change git commit | git push
     must run ruff check --fix &&
     ruff format
+
+## Testing
+
+测试框架：`tests/agent/`
+
+```bash
+# unit (mock): uv run pytest tests/agent/ -m unit -v
+# integration (real): uv run pytest tests/agent/ -m integration -v
+```
+
+新工具测试：
+1. `tools/<tool>.py` → 注册 → `core/agent.py` 示例 → `tests/agent/test_<tool>.py`
+2. `@mark.unit` + `@mark.integration` 双模式测试
+3. `AgentTestHarness.assert_tool_called("tool_name")` 验证工具被调用
