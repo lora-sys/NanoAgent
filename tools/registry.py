@@ -293,6 +293,15 @@ def _register_tools(registry: ToolRegistry):
     )
     registry.register("run_bash", run_bash, "Executes bash command in sandbox")
 
+    # 注册 grep 工具
+    from tools.grep import grep
+
+    registry.register(
+        "grep",
+        grep,
+        "Searches for pattern in files using ripgrep (rg)",
+    )
+
     # 注册规划工具
     from tools.plan import plan
 

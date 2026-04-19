@@ -9,6 +9,13 @@ dependencies = [
     "typer>=0.12.0",
     "toml>=0.10.2",
 ]
+# System dependency: ripgrep (rg) - install via:
+#   macOS: brew install ripgrep
+#   Ubuntu/Debian: apt install ripgrep
+#   Fedora: dnf install ripgrep
+#   Arch: pacman -S ripgrep
+#   Windows: winget install BurntSushi.ripgrep.MSI
+#   Or via cargo: cargo install ripgrep
 
 [project.optional-dependencies]
 dev = [
