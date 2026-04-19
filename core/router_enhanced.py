@@ -200,9 +200,11 @@ class EnhancedRouter:
                 },
             )
 
-        except (json.JSONDecodeError, ValueError, KeyError):
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            print(f"⚠️ LLM 路由解析失败: {e}")
             return None
-        except Exception:
+        except Exception as e:
+            print(f"⚠️ LLM 路由调用失败: {e}")
             return None
 
     def _select_model_by_complexity(self, complexity: str) -> str:

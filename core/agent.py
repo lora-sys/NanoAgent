@@ -94,13 +94,23 @@ class NanoAgent:
 
         print("🔗 使用提示链模式执行任务")
 
-        # 创建分析链
         chain = create_analysis_chain()
 
-        # 执行提示链
-        result = chain.run_sync(task, self.llm)
+        try:
+            result = chain.run_sync(task, self.llm)
+        except Exception as e:
+            print(f"❌ 提示链执行失败: {e}")
+            return {
+                "status": "failed",
+                "error": str(e),
+                "iterations": 0,
+                "tools_used": [],
+                "artifacts": [],
+                "spec_file": None,
+                "execution_mode": "chain",
+                "execution_time": 0,
+            }
 
-        # 显示结果
         print("✅ 提示链执行完成")
         print(f"⏱️ 执行时间: {result.execution_time:.2f}秒")
         print(f"📋 执行步骤: {[h['step'] for h in result.context.history]}")

@@ -73,35 +73,47 @@ class NanoLLMClient:
         if self.mock_enabled:
             return self._get_mock()
 
-        start_time = time.time()
-        resp = litellm.completion(
-            model=self.model,
-            messages=messages,
-            temperature=temperature or self.temperature,
-            max_tokens=self.max_tokens,
-        )
-        duration_ms = int((time.time() - start_time) * 1000)
+        last_error = None
+        for attempt in range(self.max_attempts):
+            try:
+                start_time = time.time()
+                resp = litellm.completion(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature or self.temperature,
+                    max_tokens=self.max_tokens,
+                )
+                duration_ms = int((time.time() - start_time) * 1000)
 
-        # 记录 LLM 调用
-        if _HAS_OBSERVABILITY and resp.usage is not None:
-            tracer = get_tracer()
-            usage = resp.usage
-            input_tokens = usage.prompt_tokens if hasattr(usage, "prompt_tokens") else 0
-            output_tokens = (
-                usage.completion_tokens if hasattr(usage, "completion_tokens") else 0
-            )
-            cost = calculate_cost(self.model, input_tokens, output_tokens)
-            tracer.record_llm(
-                model=self.model,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                duration_ms=duration_ms,
-                input_messages=messages,
-                output_message=resp.choices[0].message.content or "",
-                cost=cost,
-            )
+                if _HAS_OBSERVABILITY and resp.usage is not None:
+                    tracer = get_tracer()
+                    usage = resp.usage
+                    input_tokens = (
+                        usage.prompt_tokens if hasattr(usage, "prompt_tokens") else 0
+                    )
+                    output_tokens = (
+                        usage.completion_tokens
+                        if hasattr(usage, "completion_tokens")
+                        else 0
+                    )
+                    cost = calculate_cost(self.model, input_tokens, output_tokens)
+                    tracer.record_llm(
+                        model=self.model,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        duration_ms=duration_ms,
+                        input_messages=messages,
+                        output_message=resp.choices[0].message.content or "",
+                        cost=cost,
+                    )
 
-        return resp.choices[0].message.content or ""
+                return resp.choices[0].message.content or ""
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_attempts - 1:
+                    time.sleep(min(2**attempt, 8))
+
+        raise last_error
 
     def stream_chat(
         self,
@@ -166,47 +178,51 @@ class NanoLLMClient:
     async def achat(
         self, messages: List[Dict[str, str]], temperature: Optional[float] = None
     ) -> str:
-        """异步聊天
-
-        Args:
-            messages: 消息列表
-            temperature: 温度参数
-
-        Returns:
-            完整的响应内容
-        """
+        """异步聊天"""
         if self.mock_enabled:
             return self._get_mock()
 
-        start_time = time.time()
-        resp = await litellm.acompletion(
-            model=self.model,
-            messages=messages,
-            temperature=temperature or self.temperature,
-            max_tokens=self.max_tokens,
-        )
-        duration_ms = int((time.time() - start_time) * 1000)
+        last_error = None
+        for attempt in range(self.max_attempts):
+            try:
+                start_time = time.time()
+                resp = await litellm.acompletion(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature or self.temperature,
+                    max_tokens=self.max_tokens,
+                )
+                duration_ms = int((time.time() - start_time) * 1000)
 
-        # 记录 LLM 调用
-        if _HAS_OBSERVABILITY and resp.usage is not None:
-            tracer = get_tracer()
-            usage = resp.usage
-            input_tokens = usage.prompt_tokens if hasattr(usage, "prompt_tokens") else 0
-            output_tokens = (
-                usage.completion_tokens if hasattr(usage, "completion_tokens") else 0
-            )
-            cost = calculate_cost(self.model, input_tokens, output_tokens)
-            tracer.record_llm(
-                model=self.model,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                duration_ms=duration_ms,
-                input_messages=messages,
-                output_message=resp.choices[0].message.content or "",
-                cost=cost,
-            )
+                if _HAS_OBSERVABILITY and resp.usage is not None:
+                    tracer = get_tracer()
+                    usage = resp.usage
+                    input_tokens = (
+                        usage.prompt_tokens if hasattr(usage, "prompt_tokens") else 0
+                    )
+                    output_tokens = (
+                        usage.completion_tokens
+                        if hasattr(usage, "completion_tokens")
+                        else 0
+                    )
+                    cost = calculate_cost(self.model, input_tokens, output_tokens)
+                    tracer.record_llm(
+                        model=self.model,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        duration_ms=duration_ms,
+                        input_messages=messages,
+                        output_message=resp.choices[0].message.content or "",
+                        cost=cost,
+                    )
 
-        return resp.choices[0].message.content or ""
+                return resp.choices[0].message.content or ""
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_attempts - 1:
+                    await asyncio.sleep(min(2**attempt, 8))
+
+        raise last_error
 
     async def astream_chat(
         self,

@@ -157,11 +157,11 @@ class Router:
                 metadata={"route_type": "llm", "raw_response": response},
             )
 
-        except (json.JSONDecodeError, ValueError, KeyError):
-            # 解析失败
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            print(f"⚠️ LLM 路由解析失败 [{self.name}]: {e}")
             return None
-        except Exception:
-            # LLM 调用失败
+        except Exception as e:
+            print(f"⚠️ LLM 路由调用失败 [{self.name}]: {e}")
             return None
 
     async def route(

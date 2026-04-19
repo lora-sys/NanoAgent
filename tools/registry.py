@@ -238,12 +238,11 @@ def _register_tools(registry: ToolRegistry):
         full_path.write_text(edited, encoding="utf-8")
         return {"path": str(full_path), "action": "edited"}
 
-    def run_bash(command: str, timeout: int = 60) -> str:
+    def run_bash(command: str, timeout: int = 60) -> dict:
         """Executes bash command in sandbox."""
         if not command or not command.strip():
-            return "Error: Command is empty"
+            return {"error": "Command is empty", "output": ""}
 
-        # 增强的安全检查
         dangerous_patterns = [
             r"rm\s+-rf\s+/",
             r"sudo",
@@ -255,7 +254,7 @@ def _register_tools(registry: ToolRegistry):
         if any(
             re.search(pattern, command, re.IGNORECASE) for pattern in dangerous_patterns
         ):
-            return "Error: Command blocked by security policy"
+            return {"error": "Command blocked by security policy", "output": ""}
 
         SANDBOX_DIR.mkdir(parents=True, exist_ok=True)
         try:
@@ -272,11 +271,18 @@ def _register_tools(registry: ToolRegistry):
             )
             if len(output) > 4000:
                 output = output[:4000] + f"\n... [truncated, {len(output)} chars]"
-            return f"[exit code: {result.returncode}]\n{output}".strip()
+            return {
+                "output": output,
+                "exit_code": result.returncode,
+            }
         except subprocess.TimeoutExpired:
-            return f"Error: Command timeout ({timeout}s)"
+            return {
+                "error": f"Command timeout ({timeout}s)",
+                "output": "",
+                "exit_code": -1,
+            }
         except Exception as e:
-            return f"Error: {e}"
+            return {"error": str(e), "output": "", "exit_code": -1}
 
     registry.register("read_file", read_file, "Gets the full content of a file")
     registry.register("list_files", list_files, "Lists the files in a directory")
