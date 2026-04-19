@@ -5,6 +5,7 @@ import re
 from typing import Any, Dict, List, Tuple, Callable, Optional
 
 from core.spec import TaskSpec
+from core.tool_cache import get_tool_cache
 from llm.client import NanoLLMClient
 from tools.registry import ToolRegistry, get_tool_registry
 
@@ -313,11 +314,13 @@ class NanoAgent:
                 if self.spec and isinstance(result, dict) and "file_path" in result:
                     self._record_artifact(result["file_path"])
 
-                # 将结果添加到对话
+                # 摘要后加入 context（减少 token 消耗）
+                cache = get_tool_cache()
+                summarized = cache.summarize(tool_name, result)
                 self.conversation.append(
                     {
                         "role": "user",
-                        "content": f"tool_result({json.dumps(result, ensure_ascii=False)})",
+                        "content": f"tool_result({json.dumps(summarized, ensure_ascii=False)})",
                     }
                 )
             except Exception as e:
@@ -330,7 +333,7 @@ class NanoAgent:
                 self.conversation.append(
                     {
                         "role": "user",
-                        "content": f"tool_result({json.dumps({'error': error_msg}, ensure_ascii=False)})",
+                        "content": f"tool_result({json.dumps({'tool': tool_name, 'status': 'error', 'error': error_msg}, ensure_ascii=False)})",
                     }
                 )
 
