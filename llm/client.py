@@ -150,21 +150,13 @@ class NanoLLMClient:
             if "repeated chunk" in str(e).lower():
                 print("⚠️ 检测到模型进入无限循环，使用已接收的 chunks 重建响应")
                 # 使用 stream_chunk_builder 重建响应
-                return self.stream_chunk_builder(chunks, messages)
+                return self.stream_chunk_builder(chunks)
             raise
 
         return full_content
 
-    def stream_chunk_builder(self, chunks: List, messages: List[Dict[str, str]]) -> str:
-        """从 chunks 列表重建完整的流式响应
-
-        Args:
-            chunks: 流式传输的 chunk 列表
-            messages: 原始消息列表
-
-        Returns:
-            完整的响应内容
-        """
+    def stream_chunk_builder(self, chunks: List) -> str:
+        """从 chunks 列表重建完整的流式响应"""
         return "".join(
             chunk.choices[0].delta.content
             for chunk in chunks
@@ -264,54 +256,17 @@ class NanoLLMClient:
             if "repeated chunk" in str(e).lower():
                 print("⚠️ 检测到模型进入无限循环，使用已接收的 chunks 重建响应")
                 # 使用 stream_chunk_builder 重建响应
-                return self.stream_chunk_builder(chunks, messages)
+                return self.stream_chunk_builder(chunks)
             raise
 
         return full_content
 
-    def structured_chat(
+    async def _structured_chat_impl(
         self,
         messages: List[Dict[str, str]],
         response_model: Type[T],
         temperature: Optional[float] = None,
     ) -> T:
-        if self.mock_enabled:
-            try:
-                return response_model.model_validate(json.loads(self._get_mock()))
-            except Exception:
-                return response_model()
-        raw = litellm.completion(
-            model=self.model,
-            messages=messages,
-            temperature=temperature or self.temperature,
-            max_tokens=self.max_tokens,
-            response_format={"type": "json_object"},
-        )
-        content = raw.choices[0].message.content or ""
-        data = _extract_json(content)
-        if isinstance(data, dict) and len(data) == 1:
-            key = list(data.keys())[0]
-            model_name = response_model.__name__
-            if key == model_name or model_name.lower() in key.lower():
-                data = data[key]
-        return response_model.model_validate(data)
-
-    async def astructured_chat(
-        self,
-        messages: List[Dict[str, str]],
-        response_model: Type[T],
-        temperature: Optional[float] = None,
-    ) -> T:
-        """异步结构化聊天
-
-        Args:
-            messages: 消息列表
-            response_model: 响应模型类型
-            temperature: 温度参数
-
-        Returns:
-            结构化的响应对象
-        """
         if self.mock_enabled:
             try:
                 return response_model.model_validate(json.loads(self._get_mock()))
@@ -333,6 +288,25 @@ class NanoLLMClient:
             if key == model_name or model_name.lower() in key.lower():
                 data = data[key]
         return response_model.model_validate(data)
+
+    def structured_chat(
+        self,
+        messages: List[Dict[str, str]],
+        response_model: Type[T],
+        temperature: Optional[float] = None,
+    ) -> T:
+        return asyncio.run(
+            self._structured_chat_impl(messages, response_model, temperature)
+        )
+
+    async def astructured_chat(
+        self,
+        messages: List[Dict[str, str]],
+        response_model: Type[T],
+        temperature: Optional[float] = None,
+    ) -> T:
+        """异步结构化聊天"""
+        return await self._structured_chat_impl(messages, response_model, temperature)
 
 
 from core.utils import extract_json as _extract_json  # noqa: E402

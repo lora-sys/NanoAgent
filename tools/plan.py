@@ -1,5 +1,6 @@
 """规划工具 - 将复杂目标分解为结构化执行步骤"""
 
+import asyncio
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -72,7 +73,7 @@ def _validate_and_build_prompt(
     return prompt, plan_id
 
 
-def plan(
+async def aplan(
     goal: str,
     current_state: Optional[Dict[str, Any]] = None,
     constraints: Optional[List[str]] = None,
@@ -89,75 +90,6 @@ def plan(
         Dict with steps, reasoning, and metadata
     """
     # 输入验证
-    if not isinstance(goal, str) or not goal.strip():
-        return {
-            "error": "goal cannot be empty",
-            "steps": [],
-            "total_steps": 0,
-            "plan_id": str(uuid.uuid4())[:8],
-        }
-    if current_state is not None and not isinstance(current_state, dict):
-        return {
-            "error": "current_state must be a dict",
-            "steps": [],
-            "total_steps": 0,
-            "plan_id": str(uuid.uuid4())[:8],
-        }
-    if constraints is not None and not isinstance(constraints, list):
-        return {
-            "error": "constraints must be a list",
-            "steps": [],
-            "total_steps": 0,
-            "plan_id": str(uuid.uuid4())[:8],
-        }
-
-    prompt, plan_id = _validate_and_build_prompt(goal, current_state, constraints)
-
-    # 调用 LLM
-    try:
-        response = _get_llm().chat([{"role": "user", "content": prompt}])
-    except Exception as e:
-        return {
-            "error": f"LLM 调用失败: {e}",
-            "steps": [],
-            "total_steps": 0,
-            "plan_id": plan_id,
-        }
-
-    # 解析 JSON
-    try:
-        result = extract_json(response)
-        if "steps" not in result or not isinstance(result.get("steps"), list):
-            result["steps"] = []
-        result["total_steps"] = len(result["steps"])
-        result["plan_id"] = plan_id
-        return result
-    except Exception as e:
-        return {
-            "error": f"解析计划失败: {e}",
-            "raw_response": response[:500],
-            "steps": [],
-            "total_steps": 0,
-            "plan_id": plan_id,
-        }
-
-
-async def aplan(
-    goal: str,
-    current_state: Optional[Dict[str, Any]] = None,
-    constraints: Optional[List[str]] = None,
-) -> Dict[str, Any]:
-    """
-    Async version of plan - decomposes a complex goal into structured execution steps.
-
-    Args:
-        goal: The high-level goal to decompose
-        current_state: Current context
-        constraints: List of constraints
-
-    Returns:
-        Dict with steps, reasoning, and metadata
-    """
     if not isinstance(goal, str) or not goal.strip():
         return {
             "error": "goal cannot be empty",
@@ -207,3 +139,12 @@ async def aplan(
             "total_steps": 0,
             "plan_id": plan_id,
         }
+
+
+def plan(
+    goal: str,
+    current_state: Optional[Dict[str, Any]] = None,
+    constraints: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """同步版本，委托给 async 版本"""
+    return asyncio.run(aplan(goal, current_state, constraints))

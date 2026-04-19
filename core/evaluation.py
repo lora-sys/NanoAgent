@@ -371,11 +371,3 @@ class Runner:
 def create_runner(agent) -> Runner:
     """创建运行器"""
     return Runner(agent)
-
-
-# 别名 - 向后兼容（在 Task 类定义之后）
-TaskDifficulty = Difficulty
-VerificationType = VerifyType
-EvaluationTask = Task
-EvaluationRunner = Runner
-EvaluationAnalyzer = Evaluator

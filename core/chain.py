@@ -2,26 +2,21 @@
 
 import asyncio
 import json
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from core.context import ChainContext
 
 
+@dataclass
 class ChainResult:
     """链式执行结果"""
 
-    def __init__(
-        self,
-        success: bool,
-        final_output: Any,
-        context: ChainContext,
-        error: Optional[str] = None,
-    ):
-        self.success = success
-        self.final_output = final_output
-        self.context = context
-        self.error = error
-        self.execution_time: Optional[float] = None
+    success: bool
+    final_output: Any
+    context: ChainContext
+    error: Optional[str] = None
+    execution_time: Optional[float] = field(default=None)
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
