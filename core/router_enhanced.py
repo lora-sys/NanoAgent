@@ -2,55 +2,9 @@
 
 import asyncio
 import json
-from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Union
 
-
-@dataclass
-class RouteDecision:
-    """路由决策结果"""
-
-    target: str
-    reasoning: str
-    confidence: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    gate_check: Optional[Callable[[str], bool]] = None  # 门控检查函数
-
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
-        return {
-            "target": self.target,
-            "reasoning": self.reasoning,
-            "confidence": self.confidence,
-            "metadata": self.metadata,
-        }
-
-
-@dataclass
-class Route:
-    """路由规则"""
-
-    name: str
-    target: str
-    condition: Union[str, Callable[[str], bool]]
-    priority: int = 0
-    description: str = ""
-    model_preference: Optional[str] = None  # 模型偏好
-    gate_check: Optional[Callable[[str], bool]] = None  # 门控检查
-
-    def matches(self, task: str) -> bool:
-        """检查任务是否匹配此路由"""
-        if isinstance(self.condition, str):
-            return self.condition.lower() in task.lower()
-        elif callable(self.condition):
-            return self.condition(task)
-        return False
-
-    def validate_gate(self, task: str) -> bool:
-        """验证门控条件"""
-        if self.gate_check is None:
-            return True
-        return self.gate_check(task)
+from core.router import RouteDecision, Route
 
 
 class EnhancedRouter:

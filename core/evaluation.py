@@ -187,6 +187,7 @@ class Evaluator:
         tasks = results.get("tasks", [])
         failed_tasks = []
         error_list = []
+        total_time = total_iterations = total_tool_calls = 0
 
         for task_result in tasks:
             if not task_result.get("success", True):
@@ -198,12 +199,17 @@ class Evaluator:
                         "error": task_result.get("error", ""),
                     }
                 )
+            metrics = task_result.get("metrics", {})
+            total_time += metrics.get("total_time", 0)
+            total_iterations += metrics.get("iterations", 0)
+            total_tool_calls += metrics.get("tool_calls", 0)
 
+        n = len(tasks) or 1
         return {
             "performance_analysis": {
-                "average_execution_time": 0,
-                "average_iterations": 0,
-                "average_tool_calls": 0,
+                "average_execution_time": round(total_time / n, 2),
+                "average_iterations": round(total_iterations / n, 1),
+                "average_tool_calls": round(total_tool_calls / n, 1),
             },
             "error_analysis": {
                 "failed_tasks": failed_tasks,

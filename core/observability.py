@@ -8,8 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-TRACE_DB_PATH = Path.home() / ".nanoagent" / "traces.db"
-
 
 def _get_db_path() -> Path:
     """获取数据库路径"""

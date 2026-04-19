@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Union
 from datetime import datetime
 
+from core.context import ChainContext
+
 
 @dataclass
 class GateResult:
@@ -43,23 +45,13 @@ class QualityCheck:
         }
 
 
-class EnhancedChainContext:
+class EnhancedChainContext(ChainContext):
     """增强链式执行上下文"""
 
     def __init__(self, initial_data: Optional[Dict[str, Any]] = None):
-        self.data: Dict[str, Any] = initial_data or {}
-        self.history: List[Dict[str, Any]] = []
-        self.metadata: Dict[str, Any] = {}
+        super().__init__(initial_data)
         self.gate_results: List[GateResult] = []
         self.quality_checks: List[QualityCheck] = []
-
-    def set(self, key: str, value: Any) -> None:
-        """设置上下文数据"""
-        self.data[key] = value
-
-    def get(self, key: str, default: Any = None) -> Any:
-        """获取上下文数据"""
-        return self.data.get(key, default)
 
     def add_history(
         self, step_name: str, result: Any, gate_result: Optional[GateResult] = None
@@ -84,13 +76,14 @@ class EnhancedChainContext:
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
-        return {
-            "data": self.data,
-            "history": self.history,
-            "metadata": self.metadata,
-            "gate_results": [r.to_dict() for r in self.gate_results],
-            "quality_checks": [c.to_dict() for c in self.quality_checks],
-        }
+        base = super().to_dict()
+        base.update(
+            {
+                "gate_results": [r.to_dict() for r in self.gate_results],
+                "quality_checks": [c.to_dict() for c in self.quality_checks],
+            }
+        )
+        return base
 
 
 class EnhancedChainStep:
