@@ -4,6 +4,7 @@ import json
 import re
 from typing import Any, Dict, List, Tuple, Callable, Optional
 
+from core.lifecycle import Lifecycle, event_to_dict
 from core.spec import TaskSpec
 from core.tool_cache import get_tool_cache
 from llm.client import NanoLLMClient
@@ -34,6 +35,7 @@ class NanoAgent:
         """
         self.llm = llm_client or NanoLLMClient()
         self.tools = tool_registry or get_tool_registry()
+        self.lifecycle = Lifecycle()
         self.spec: Optional[TaskSpec] = None
         self.conversation: List[Dict[str, str]] = []
         self._stop_condition: Optional[Callable[[], bool]] = None
@@ -150,6 +152,10 @@ class NanoAgent:
             tracer = get_tracer()
             tracer.start_session(task)
 
+        from core.lifecycle import AgentStartEvent, AgentEndEvent
+
+        self.lifecycle.emit(AgentStartEvent(task=task))
+
         try:
             # 智能选择执行模式
             if self._should_use_chain(task):
@@ -230,7 +236,14 @@ class NanoAgent:
                 "response": last_response,
             }
         finally:
-            # 结束追踪会话
+            total_turns, total_tools = self.lifecycle.get_totals()
+            self.lifecycle.emit(
+                AgentEndEvent(
+                    status=self.spec.status if self.spec else "completed",
+                    total_turns=total_turns,
+                    total_tools=total_tools,
+                )
+            )
             if _HAS_OBSERVABILITY:
                 tracer = get_tracer()
                 tracer.end_session(self.spec.status if self.spec else "completed")

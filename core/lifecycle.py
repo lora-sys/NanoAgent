@@ -154,12 +154,12 @@ class Lifecycle:
         EventType.TURN_START: 1,
         EventType.MESSAGE_START: 2,
         EventType.TOOL_EXECUTION_START: 2,
-        EventType.MESSAGE_UPDATE: 3,
-        EventType.TOOL_EXECUTION_UPDATE: 3,
-        EventType.MESSAGE_END: 3,
-        EventType.TOOL_EXECUTION_END: 3,
+        EventType.MESSAGE_UPDATE: 2,
+        EventType.TOOL_EXECUTION_UPDATE: 2,
+        EventType.MESSAGE_END: 2,
+        EventType.TOOL_EXECUTION_END: 2,
         EventType.TURN_END: 1,
-        EventType.AGENT_END: 0,
+        EventType.AGENT_END: 1,
     }
 
     def __init__(self):
@@ -179,6 +179,20 @@ class Lifecycle:
 
     def emit(self, event: AgentEvent) -> None:
         """分发事件到所有 handler。"""
+        is_start = event.type in (
+            EventType.AGENT_START,
+            EventType.TURN_START,
+            EventType.MESSAGE_START,
+            EventType.TOOL_EXECUTION_START,
+        )
+        is_end = event.type in (
+            EventType.AGENT_END,
+            EventType.TURN_END,
+            EventType.MESSAGE_END,
+            EventType.TOOL_EXECUTION_END,
+        )
+
+        # 验证：检查深度是否符合预期（在深度更新前）
         expected = self._EXPECTED_DEPTH.get(event.type)
         if expected is not None and expected != self._depth:
             raise RuntimeError(
@@ -187,19 +201,9 @@ class Lifecycle:
             )
 
         # 更新嵌套深度
-        if event.type in (
-            EventType.AGENT_START,
-            EventType.TURN_START,
-            EventType.MESSAGE_START,
-            EventType.TOOL_EXECUTION_START,
-        ):
+        if is_start:
             self._depth += 1
-        elif event.type in (
-            EventType.AGENT_END,
-            EventType.TURN_END,
-            EventType.MESSAGE_END,
-            EventType.TOOL_EXECUTION_END,
-        ):
+        elif is_end:
             self._depth -= 1
 
         # 统计
