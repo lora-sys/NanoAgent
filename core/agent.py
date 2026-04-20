@@ -152,7 +152,13 @@ class NanoAgent:
             tracer = get_tracer()
             tracer.start_session(task)
 
-        from core.lifecycle import AgentStartEvent, AgentEndEvent
+        from core.lifecycle import (
+            AgentStartEvent,
+            AgentEndEvent,
+            TurnStartEvent,
+            TurnEndEvent,
+            TurnContext,
+        )
 
         self.lifecycle.emit(AgentStartEvent(task=task))
 
@@ -180,13 +186,38 @@ class NanoAgent:
             while True:
                 iteration += 1
 
+                self.lifecycle.emit(
+                    TurnStartEvent(
+                        turn_context=TurnContext(
+                            turn_number=self.lifecycle.get_turn_number() + 1,
+                            iteration=iteration,
+                        )
+                    )
+                )
+
                 # 检查停止条件
                 if max_iterations and iteration > max_iterations:
                     self.spec.fail(f"达到最大迭代次数 ({max_iterations})")
+                    self.lifecycle.emit(
+                        TurnEndEvent(
+                            turn_context=TurnContext(
+                                turn_number=self.lifecycle.get_turn_number(),
+                                iteration=iteration,
+                            )
+                        )
+                    )
                     break
 
                 if self._stop_condition and self._stop_condition():
                     self.spec.complete()
+                    self.lifecycle.emit(
+                        TurnEndEvent(
+                            turn_context=TurnContext(
+                                turn_number=self.lifecycle.get_turn_number(),
+                                iteration=iteration,
+                            )
+                        )
+                    )
                     break
 
                 # 调用 LLM
@@ -195,6 +226,14 @@ class NanoAgent:
                 except Exception as e:
                     self.spec.add_error(f"LLM 错误: {e}")
                     self.spec.fail(f"LLM 调用失败: {e}")
+                    self.lifecycle.emit(
+                        TurnEndEvent(
+                            turn_context=TurnContext(
+                                turn_number=self.lifecycle.get_turn_number(),
+                                iteration=iteration,
+                            )
+                        )
+                    )
                     break
 
                 # 保存 assistant 响应到对话
@@ -209,10 +248,27 @@ class NanoAgent:
                     # 没有工具调用，任务完成
                     print(f"\n🤖 {assistant_response}")
                     self.spec.complete()
+                    self.lifecycle.emit(
+                        TurnEndEvent(
+                            turn_context=TurnContext(
+                                turn_number=self.lifecycle.get_turn_number(),
+                                iteration=iteration,
+                            )
+                        )
+                    )
                     break
 
                 # 执行工具调用
                 self._execute_tool_invocations(tool_invocations)
+
+                self.lifecycle.emit(
+                    TurnEndEvent(
+                        turn_context=TurnContext(
+                            turn_number=self.lifecycle.get_turn_number(),
+                            iteration=iteration,
+                        )
+                    )
+                )
 
             # 保存任务规范
             spec_file = self.spec.save()
