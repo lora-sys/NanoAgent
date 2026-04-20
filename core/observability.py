@@ -97,34 +97,20 @@ class LLMRecord:
     input_messages: str = ""
     output_message: str = ""
 
-    def save(self) -> None:
-        """保存到数据库"""
-        db_path = _get_db_path()
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO llm_calls
-            (id, trace_id, model, input_tokens, output_tokens, total_tokens,
-             cost, duration_ms, created_at, input_messages, output_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                self.id,
-                self.trace_id,
-                self.model,
-                self.input_tokens,
-                self.output_tokens,
-                self.total_tokens,
-                self.cost,
-                self.duration_ms,
-                self.created_at,
-                self.input_messages,
-                self.output_message,
-            ),
+    def to_tuple(self):
+        return (
+            self.id,
+            self.trace_id,
+            self.model,
+            self.input_tokens,
+            self.output_tokens,
+            self.total_tokens,
+            self.cost,
+            self.duration_ms,
+            self.created_at,
+            self.input_messages,
+            self.output_message,
         )
-        conn.commit()
-        conn.close()
 
 
 @dataclass
@@ -140,30 +126,18 @@ class ToolRecord:
     created_at: str = ""
     error: str = ""
 
-    def save(self) -> None:
-        """保存到数据库"""
-        db_path = _get_db_path()
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO tool_calls
-            (id, trace_id, tool_name, args, result, duration_ms, created_at, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                self.id,
-                self.trace_id,
-                self.tool_name,
-                self.args,
-                self.result,
-                self.duration_ms,
-                self.created_at,
-                self.error,
-            ),
+    def to_tuple(self):
+        """返回批量插入用的 tuple。"""
+        return (
+            self.id,
+            self.trace_id,
+            self.tool_name,
+            self.args,
+            self.result,
+            self.duration_ms,
+            self.created_at,
+            self.error,
         )
-        conn.commit()
-        conn.close()
 
 
 @dataclass
@@ -330,56 +304,37 @@ class Tracer:
         return record
 
     def flush(self) -> None:
-        """批量保存当前会话的所有记录到数据库"""
+        """批量保存当前会话的所有记录到数据库（事务保护）。"""
         if not self._current_session:
             return
         db_path = _get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         try:
-            # 保存所有 llm_calls
-            for record in self._current_session.llm_records:
-                cursor.execute(
+            cursor.execute("BEGIN")
+            if self._current_session.llm_records:
+                cursor.executemany(
                     """
                     INSERT INTO llm_calls
                     (id, trace_id, model, input_tokens, output_tokens, total_tokens,
                      cost, duration_ms, created_at, input_messages, output_message)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                    (
-                        record.id,
-                        record.trace_id,
-                        record.model,
-                        record.input_tokens,
-                        record.output_tokens,
-                        record.total_tokens,
-                        record.cost,
-                        record.duration_ms,
-                        record.created_at,
-                        record.input_messages,
-                        record.output_message,
-                    ),
+                    [r.to_tuple() for r in self._current_session.llm_records],
                 )
-            # 保存所有 tool_calls
-            for record in self._current_session.tool_records:
-                cursor.execute(
+            if self._current_session.tool_records:
+                cursor.executemany(
                     """
                     INSERT INTO tool_calls
                     (id, trace_id, tool_name, args, result, duration_ms, created_at, error)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                    (
-                        record.id,
-                        record.trace_id,
-                        record.tool_name,
-                        record.args,
-                        record.result,
-                        record.duration_ms,
-                        record.created_at,
-                        record.error,
-                    ),
+                    [r.to_tuple() for r in self._current_session.tool_records],
                 )
-            conn.commit()
+            cursor.execute("COMMIT")
+        except Exception:
+            cursor.execute("ROLLBACK")
+            raise
         finally:
             conn.close()
 
