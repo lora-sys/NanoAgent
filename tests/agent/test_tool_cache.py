@@ -1,8 +1,11 @@
 """tool_cache 单元测试"""
 
+import pytest
+
 from core.tool_cache import ToolResultCache
 
 
+@pytest.mark.unit
 class TestToolResultCache:
     """ToolResultCache 核心功能测试"""
 
@@ -17,9 +20,10 @@ class TestToolResultCache:
         """超出容量时淘汰最旧"""
         cache = ToolResultCache(max_size=3)
         keys = [cache.store({"v": i}) for i in range(5)]
-        assert keys[0] not in cache._cache  # 第一条被淘汰
+        assert cache.retrieve(keys[0]) is None  # 第一条被淘汰
         assert cache.size == 3
 
+    @pytest.mark.unit
     def test_grep_summarize(self):
         """grep 工具：摘要只保留 stats，不保留 matches"""
         cache = ToolResultCache()
@@ -36,6 +40,7 @@ class TestToolResultCache:
         assert summary["stats"] == {"total_matches": 100, "files_with_matches": 5}
         assert "100 matches in 5 files" in summary["message"]
 
+    @pytest.mark.unit
     def test_read_file_summarize(self):
         """read_file 工具：摘要不包含内容"""
         cache = ToolResultCache()
@@ -49,6 +54,7 @@ class TestToolResultCache:
         assert "cache_ref" in summary
         assert summary["message"] == "文件共 201 行，1000 字符"
 
+    @pytest.mark.unit
     def test_run_bash_summarize(self):
         """run_bash 工具：output 截断"""
         cache = ToolResultCache()
@@ -62,6 +68,7 @@ class TestToolResultCache:
         assert "cache_ref" in summary
         assert summary["message"].startswith("exit=0")
 
+    @pytest.mark.unit
     def test_error_summarize(self):
         """错误结果直接返回"""
         cache = ToolResultCache()
@@ -72,6 +79,7 @@ class TestToolResultCache:
         assert summary["error"] == "file not found"
         assert "cache_ref" not in summary
 
+    @pytest.mark.unit
     def test_unknown_tool_fallback(self):
         """未知工具走通用摘要"""
         cache = ToolResultCache()
@@ -81,6 +89,7 @@ class TestToolResultCache:
         assert "cache_ref" in summary
         assert summary["status"] == "ok"
 
+    @pytest.mark.unit
     def test_clear(self):
         """清空缓存"""
         cache = ToolResultCache()

@@ -44,7 +44,7 @@ class NanoAgent:
         if "提示链" in task:
             return True
 
-        # 工具调用意图检测（case-insensitive）
+        # 工具调用意图检测(case-insensitive)
         task_lower = task.lower()
         tool_intent_keywords = {
             "读取",
@@ -68,7 +68,7 @@ class NanoAgent:
         if any(kw.lower() in task_lower for kw in tool_intent_keywords):
             return False
 
-        # 复杂分析任务才使用链模式（明确排除工具导向任务）
+        # 复杂分析任务才使用链模式(明确排除工具导向任务)
         complex_keywords = {
             "分析",
             "设计",
@@ -139,8 +139,8 @@ class NanoAgent:
 
         Args:
             task: 任务描述
-            max_iterations: 最大迭代次数（可选，默认无限制）
-            stop_condition: 停止条件函数（可选）
+            max_iterations: 最大迭代次数(可选，默认无限制)
+            stop_condition: 停止条件函数(可选)
 
         Returns:
             任务执行结果
@@ -310,11 +310,11 @@ class NanoAgent:
                 result = self.tools.execute(tool_name, args)
                 print(f"👁️ {result}")
 
-                # 记录产物（仅在任务模式下）
+                # 记录产物(仅在任务模式下)
                 if self.spec and isinstance(result, dict) and "file_path" in result:
                     self._record_artifact(result["file_path"])
 
-                # 摘要后加入 context（减少 token 消耗）
+                # 摘要后加入 context(减少 token 消耗)
                 cache = get_tool_cache()
                 summarized = cache.summarize(tool_name, result)
                 self.conversation.append(
@@ -341,7 +341,7 @@ class NanoAgent:
         """记录产物文件
 
         Args:
-            file_path: 文件路径（可能是绝对路径或相对路径）
+            file_path: 文件路径(可能是绝对路径或相对路径)
         """
         try:
             from pathlib import Path
@@ -366,9 +366,9 @@ class NanoAgent:
 
         支持两种格式：
 
-        1. 新格式（推荐）：<tool name="xxx" args='{"key":"value"}'/>
+        1. 新格式(推荐)：<tool name="xxx" args='{"key":"value"}'/>
 
-        2. 旧格式（兼容）：tool: name({"key":"value"})
+        2. 旧格式(兼容)：tool: name({"key":"value"})
 
         """
 
@@ -395,7 +395,7 @@ class NanoAgent:
 
                 invocations.append(error_invocation)
 
-        # 如果没有找到 XML 格式，尝试旧格式（向后兼容）
+        # 如果没有找到 XML 格式，尝试旧格式(向后兼容)
 
         if not invocations:
             for line in text.splitlines():
@@ -471,7 +471,7 @@ class NanoAgent:
             "### 何时使用工具\n"
             "1. 用户明确要求读取文件、列出目录、运行命令时\n"
             "2. 需要获取项目信息、代码内容时\n"
-            "3. 需要搜索文件内容、代码模式时（使用 grep）\n"
+            "3. 需要搜索文件内容、代码模式时(使用 grep)\n"
             "4. 需要执行系统操作时\n\n"
             "### 工具调用格式\n"
             '<tool name="工具名" args=\'{"参数名": "参数值"}\'/>\n\n'

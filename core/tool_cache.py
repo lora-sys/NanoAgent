@@ -1,6 +1,5 @@
 """Tool Result Cache — 减少 context token 开销"""
 
-import time
 from collections import OrderedDict
 from typing import Any, Dict, Optional
 
@@ -17,23 +16,40 @@ class ToolResultCache:
     def __init__(self, max_size: int = 50):
         self._cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
         self._max_size = max_size
+        self._next_id = 0
 
     def store(self, result: Dict[str, Any]) -> str:
         """存入缓存，返回 cache_key。"""
-        key = f"tc_{len(self._cache)}_{int(time.time() * 1000)}"
+        key = f"tc_{self._next_id}"
+        self._next_id += 1
         self._cache[key] = result
         if len(self._cache) > self._max_size:
             self._cache.popitem(last=False)  # 淘汰最旧
         return key
 
     def retrieve(self, key: str) -> Optional[Dict[str, Any]]:
-        """取出完整结果，不存在返回 None。"""
-        return self._cache.get(key)
+        """取出完整结果并刷新 LRU 顺序。"""
+        val = self._cache.get(key)
+        if val is not None:
+            self._cache.move_to_end(key)
+        return val
 
     def summarize(self, tool_name: str, result: Dict[str, Any]) -> Dict[str, Any]:
         """将完整结果转换为摘要，不含 matches/content 等大字段。"""
-        if "error" in result:
-            return {"tool": tool_name, "status": "error", "error": result["error"]}
+        if result.get("status") == "error" or (
+            result.get("error")
+            and not any(k in result for k in ("output", "exit_code", "cache_ref"))
+        ):
+            summary = {
+                "tool": tool_name,
+                "status": "error",
+                "error": result.get("error"),
+            }
+            if "output" in result:
+                summary["output"] = result["output"]
+            if "exit_code" in result:
+                summary["exit_code"] = result["exit_code"]
+            return summary
 
         summary: Dict[str, Any] = {"tool": tool_name, "status": "ok"}
 
@@ -106,3 +122,9 @@ def get_tool_cache() -> ToolResultCache:
         max_size = cache_cfg.get("cache_size", 50)
         _cache = ToolResultCache(max_size=max_size)
     return _cache
+
+
+def reset_tool_cache(cache: Optional[ToolResultCache] = None) -> None:
+    """重置全局 cache，支持替换实例或清空后重建。"""
+    global _cache
+    _cache = cache

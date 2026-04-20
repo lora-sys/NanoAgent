@@ -10,9 +10,11 @@ from tests.agent.fixtures import get_task
 def test_grep_tool_exists():
     """验证 grep 工具已注册"""
     harness = AgentTestHarness(mode="mock")
-    harness.load_mock_responses([
-        '{"action": "complete", "reason": "mock done"}',
-    ])
+    harness.load_mock_responses(
+        [
+            '{"action": "complete", "reason": "mock done"}',
+        ]
+    )
     harness.run_agent("随便什么任务", max_iterations=1)
     # mock 模式不走工具链，只验证不崩溃
     assert harness.last_result is not None
@@ -27,7 +29,9 @@ def test_grep_search_with_real_api():
 
     # grep 工具成功调用，或 agent 以文字描述响应（均算通过）
     grep_called = "grep" in harness.tools_used
-    response_has_content = bool(harness.last_result and harness.last_result.get("response"))
+    response_has_content = bool(
+        harness.last_result and harness.last_result.get("response")
+    )
     assert grep_called or response_has_content, "Agent 既没有调用 grep 也没有返回内容"
     if grep_called:
         # 缓存摘要替换原文，检查 stats 或匹配数
@@ -57,10 +61,12 @@ def test_grep_unit_mock():
     # 1. LLM 第一次响应 → 调用 grep
     # 2. LLM 第二次响应 → 完成任务
     harness = AgentTestHarness(mode="mock")
-    harness.load_mock_responses([
-        '<tool name="grep" args=\'{"pattern": "def run", "path": "core", "max_count": 10}\'/>',
-        "<response>找到 def run 定义</response>",
-    ])
+    harness.load_mock_responses(
+        [
+            '<tool name="grep" args=\'{"pattern": "def run", "path": "core", "max_count": 10}\'/>',
+            "<response>找到 def run 定义</response>",
+        ]
+    )
 
     harness.run_agent(get_task("grep_search"), max_iterations=3)
 
@@ -72,9 +78,11 @@ def test_grep_unit_mock():
 def test_grep_unit_no_tool_call():
     """Mock 模式测试：简单任务不需要 grep"""
     harness = AgentTestHarness(mode="mock")
-    harness.load_mock_responses([
-        "<response>Python 是一种高级编程语言。</response>",
-    ])
+    harness.load_mock_responses(
+        [
+            "<response>Python 是一种高级编程语言。</response>",
+        ]
+    )
 
     harness.run_agent(get_task("simple_chat"), max_iterations=2)
 
@@ -85,11 +93,13 @@ def test_grep_unit_no_tool_call():
 def test_grep_call_count():
     """Mock 模式测试：验证工具调用次数"""
     harness = AgentTestHarness(mode="mock")
-    harness.load_mock_responses([
-        '<tool name="grep" args=\'{"pattern": "def", "path": "core"}\'/>',
-        '<tool name="grep" args=\'{"pattern": "class", "path": "core"}\'/>',
-        "<response>搜索完成</response>",
-    ])
+    harness.load_mock_responses(
+        [
+            '<tool name="grep" args=\'{"pattern": "def", "path": "core"}\'/>',
+            '<tool name="grep" args=\'{"pattern": "class", "path": "core"}\'/>',
+            "<response>搜索完成</response>",
+        ]
+    )
 
     harness.run_agent("搜索函数和类定义", max_iterations=3)
 
