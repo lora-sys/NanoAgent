@@ -232,6 +232,12 @@ class NanoAgent:
                 )
                 try:
                     assistant_response = self.llm.chat(self.conversation)
+                    self.lifecycle.emit(
+                        MessageUpdateEvent(
+                            turn_number=self.lifecycle.get_turn_number(),
+                            delta=assistant_response,
+                        )
+                    )
                 except Exception as e:
                     self.spec.add_error(f"LLM 错误: {e}")
                     self.spec.fail(f"LLM 调用失败: {e}")
@@ -411,6 +417,15 @@ class NanoAgent:
             try:
                 result = self.tools.execute(tool_name, args)
                 print(f"👁️ {result}")
+
+                self.lifecycle.emit(
+                    ToolUpdateEvent(
+                        turn_number=self.lifecycle.get_turn_number(),
+                        tool_call_id=f"tc_{self.lifecycle._total_tools}",
+                        tool_name=tool_name,
+                        partial_result=result,
+                    )
+                )
 
                 # 记录产物(仅在任务模式下)
                 if self.spec and isinstance(result, dict) and "file_path" in result:
