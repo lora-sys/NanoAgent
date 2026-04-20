@@ -237,6 +237,23 @@ class Tracer:
             self._current_session.save()
             self._current_session = None
 
+    def __call__(self, event: "AgentEvent") -> None:
+        """Lifecycle 事件处理器 — 实现 Callable[[AgentEvent], None] 接口。"""
+        from core.lifecycle import (
+            AgentStartEvent,
+            AgentEndEvent,
+            MessageStartEvent,
+            MessageEndEvent,
+            ToolStartEvent,
+            ToolEndEvent,
+        )
+
+        if isinstance(event, AgentStartEvent):
+            self.start_session(event.task)
+
+        elif isinstance(event, AgentEndEvent):
+            self.end_session(event.status)
+
     def get_current_session(self) -> Optional[TraceSession]:
         """获取当前会话"""
         return self._current_session

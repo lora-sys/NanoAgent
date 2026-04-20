@@ -36,6 +36,8 @@ class NanoAgent:
         self.llm = llm_client or NanoLLMClient()
         self.tools = tool_registry or get_tool_registry()
         self.lifecycle = Lifecycle()
+        if _HAS_OBSERVABILITY:
+            self.lifecycle.subscribe(get_tracer())
         self.spec: Optional[TaskSpec] = None
         self.conversation: List[Dict[str, str]] = []
         self._stop_condition: Optional[Callable[[], bool]] = None
