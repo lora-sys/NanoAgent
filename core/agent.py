@@ -161,6 +161,9 @@ class NanoAgent:
             MessageStartEvent,
             MessageUpdateEvent,
             MessageEndEvent,
+            ToolStartEvent,
+            ToolUpdateEvent,
+            ToolEndEvent,
         )
 
         self.lifecycle.emit(AgentStartEvent(task=task))
@@ -232,6 +235,13 @@ class NanoAgent:
                 except Exception as e:
                     self.spec.add_error(f"LLM 错误: {e}")
                     self.spec.fail(f"LLM 调用失败: {e}")
+                    self.lifecycle.emit(
+                        MessageEndEvent(
+                            turn_number=self.lifecycle.get_turn_number(),
+                            content="",
+                            tool_calls=[],
+                        )
+                    )
                     self.lifecycle.emit(
                         TurnEndEvent(
                             turn_context=TurnContext(
@@ -389,6 +399,15 @@ class NanoAgent:
             if self.spec:
                 self.spec.add_tool_call(tool_name)
 
+            self.lifecycle.emit(
+                ToolStartEvent(
+                    turn_number=self.lifecycle.get_turn_number(),
+                    tool_call_id=f"tc_{self.lifecycle._total_tools}",
+                    tool_name=tool_name,
+                    args=args,
+                )
+            )
+
             try:
                 result = self.tools.execute(tool_name, args)
                 print(f"👁️ {result}")
@@ -406,6 +425,16 @@ class NanoAgent:
                         "content": f"tool_result({json.dumps(summarized, ensure_ascii=False)})",
                     }
                 )
+
+                self.lifecycle.emit(
+                    ToolEndEvent(
+                        turn_number=self.lifecycle.get_turn_number(),
+                        tool_call_id=f"tc_{self.lifecycle._total_tools}",
+                        tool_name=tool_name,
+                        result=result,
+                        is_error=False,
+                    )
+                )
             except Exception as e:
                 error_msg = f"工具执行失败: {e}"
                 print(f"❌ {error_msg}")
@@ -418,6 +447,16 @@ class NanoAgent:
                         "role": "user",
                         "content": f"tool_result({json.dumps({'tool': tool_name, 'status': 'error', 'error': error_msg}, ensure_ascii=False)})",
                     }
+                )
+
+                self.lifecycle.emit(
+                    ToolEndEvent(
+                        turn_number=self.lifecycle.get_turn_number(),
+                        tool_call_id=f"tc_{self.lifecycle._total_tools}",
+                        tool_name=tool_name,
+                        result=str(e),
+                        is_error=True,
+                    )
                 )
 
     def _record_artifact(self, file_path: str) -> None:
