@@ -42,6 +42,22 @@ NanoAgent
 - `list_files` - 列出目录
 - `edit_file` - 编辑文件
 - `run_bash` - 执行命令
+- `grep` - ripgrep 搜索
+
+## 测试
+
+```bash
+# 单元测试（mock 模式）
+uv run pytest tests/agent/ -m unit -v
+
+# 集成测试（real API）
+uv run pytest tests/agent/ -m integration -v
+
+# 全部测试
+uv run pytest tests/agent/ -v
+```
+
+新增工具测试：`tests/agent/test_<tool>.py`，使用 `AgentTestHarness` 框架。
 
 自定义工具：
 ```python

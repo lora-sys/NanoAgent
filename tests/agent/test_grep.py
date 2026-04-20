@@ -30,7 +30,10 @@ def test_grep_search_with_real_api():
     response_has_content = bool(harness.last_result and harness.last_result.get("response"))
     assert grep_called or response_has_content, "Agent 既没有调用 grep 也没有返回内容"
     if grep_called:
-        harness.assert_response_contains("def run")
+        # 缓存摘要替换原文，检查 stats 或匹配数
+        response = harness.last_result.get("response", "")
+        has_stats = any(k in response for k in ["matches", "文件", "cache_ref"])
+        assert has_stats, f"摘要应含 stats 或 cache_ref，实际: {response[:200]}"
     print(f"工具调用: {harness.tools_used}")
 
 
