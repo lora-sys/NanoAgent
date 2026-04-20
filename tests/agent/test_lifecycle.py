@@ -4,7 +4,6 @@ import pytest
 
 from core.lifecycle import (
     Lifecycle,
-    EventType,
     event_to_dict,
     AgentStartEvent,
     AgentEndEvent,
@@ -33,9 +32,21 @@ class TestLifecycle:
         assert lc._depth == 3
         lc.emit(MessageEndEvent(turn_number=1, content="hi", tool_calls=[]))
         assert lc._depth == 2
-        lc.emit(ToolStartEvent(turn_number=1, tool_call_id="tc_0", tool_name="grep", args={}))
+        lc.emit(
+            ToolStartEvent(
+                turn_number=1, tool_call_id="tc_0", tool_name="grep", args={}
+            )
+        )
         assert lc._depth == 3
-        lc.emit(ToolEndEvent(turn_number=1, tool_call_id="tc_0", tool_name="grep", result={}, is_error=False))
+        lc.emit(
+            ToolEndEvent(
+                turn_number=1,
+                tool_call_id="tc_0",
+                tool_name="grep",
+                result={},
+                is_error=False,
+            )
+        )
         assert lc._depth == 2
         lc.emit(TurnEndEvent(turn_context=TurnContext(1, 1)))
         assert lc._depth == 1
@@ -60,10 +71,26 @@ class TestLifecycle:
         lc.emit(AgentStartEvent(task="test"))
         lc.emit(TurnStartEvent(turn_context=TurnContext(1, 1)))
         lc.emit(MessageStartEvent(turn_number=1))
-        lc.emit(MessageEndEvent(turn_number=1, content="", tool_calls=[("grep", {}), ("read_file", {})]))
+        lc.emit(
+            MessageEndEvent(
+                turn_number=1, content="", tool_calls=[("grep", {}), ("read_file", {})]
+            )
+        )
         for i, name in enumerate(["grep", "read_file"]):
-            lc.emit(ToolStartEvent(turn_number=1, tool_call_id=f"tc_{i}", tool_name=name, args={}))
-            lc.emit(ToolEndEvent(turn_number=1, tool_call_id=f"tc_{i}", tool_name=name, result={}, is_error=False))
+            lc.emit(
+                ToolStartEvent(
+                    turn_number=1, tool_call_id=f"tc_{i}", tool_name=name, args={}
+                )
+            )
+            lc.emit(
+                ToolEndEvent(
+                    turn_number=1,
+                    tool_call_id=f"tc_{i}",
+                    tool_name=name,
+                    result={},
+                    is_error=False,
+                )
+            )
         lc.emit(TurnEndEvent(turn_context=TurnContext(1, 1)))
         lc.emit(AgentEndEvent(status="completed", total_turns=1, total_tools=2))
         assert lc._depth == 0
@@ -107,6 +134,7 @@ class TestLifecycle:
         def make_handler(idx):
             def h(e):
                 counts[idx] += 1
+
             return h
 
         lc.subscribe(make_handler(0))
@@ -125,8 +153,20 @@ class TestLifecycle:
 
         lc.emit(MessageStartEvent(turn_number=1))
         lc.emit(MessageEndEvent(turn_number=1, content="", tool_calls=[]))
-        lc.emit(ToolStartEvent(turn_number=1, tool_call_id="tc_0", tool_name="grep", args={}))
-        lc.emit(ToolEndEvent(turn_number=1, tool_call_id="tc_0", tool_name="grep", result={}, is_error=False))
+        lc.emit(
+            ToolStartEvent(
+                turn_number=1, tool_call_id="tc_0", tool_name="grep", args={}
+            )
+        )
+        lc.emit(
+            ToolEndEvent(
+                turn_number=1,
+                tool_call_id="tc_0",
+                tool_name="grep",
+                result={},
+                is_error=False,
+            )
+        )
         assert lc.get_totals() == (1, 1)
 
         lc.emit(TurnEndEvent(turn_context=TurnContext(1, 1)))
@@ -155,7 +195,11 @@ class TestLifecycle:
         assert d["task"] == "read README"
 
         e2 = ToolEndEvent(
-            turn_number=1, tool_call_id="tc_0", tool_name="grep", result={}, is_error=False
+            turn_number=1,
+            tool_call_id="tc_0",
+            tool_name="grep",
+            result={},
+            is_error=False,
         )
         d2 = event_to_dict(e2)
         assert d2["type"] == "TOOL_EXECUTION_END"

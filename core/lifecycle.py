@@ -222,4 +222,3 @@ class Lifecycle:
 
     def get_totals(self) -> tuple[int, int]:
         return self._total_turns, self._total_tools
-

@@ -4,7 +4,20 @@ import json
 import re
 from typing import Any, Dict, List, Tuple, Callable, Optional
 
-from core.lifecycle import Lifecycle, event_to_dict
+from core.lifecycle import (
+    Lifecycle,
+    AgentStartEvent,
+    AgentEndEvent,
+    TurnStartEvent,
+    TurnEndEvent,
+    TurnContext,
+    MessageStartEvent,
+    MessageUpdateEvent,
+    MessageEndEvent,
+    ToolStartEvent,
+    ToolUpdateEvent,
+    ToolEndEvent,
+)
 from core.spec import TaskSpec
 from core.tool_cache import get_tool_cache
 from llm.client import NanoLLMClient
@@ -153,20 +166,6 @@ class NanoAgent:
         if _HAS_OBSERVABILITY:
             tracer = get_tracer()
             tracer.start_session(task)
-
-        from core.lifecycle import (
-            AgentStartEvent,
-            AgentEndEvent,
-            TurnStartEvent,
-            TurnEndEvent,
-            TurnContext,
-            MessageStartEvent,
-            MessageUpdateEvent,
-            MessageEndEvent,
-            ToolStartEvent,
-            ToolUpdateEvent,
-            ToolEndEvent,
-        )
 
         self.lifecycle.emit(AgentStartEvent(task=task))
 
