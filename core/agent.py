@@ -4,6 +4,20 @@ import json
 import re
 from typing import Any, Dict, List, Tuple, Callable, Optional
 
+from core.lifecycle import (
+    Lifecycle,
+    AgentStartEvent,
+    AgentEndEvent,
+    TurnStartEvent,
+    TurnEndEvent,
+    TurnContext,
+    MessageStartEvent,
+    MessageUpdateEvent,
+    MessageEndEvent,
+    ToolStartEvent,
+    ToolUpdateEvent,
+    ToolEndEvent,
+)
 from core.spec import TaskSpec
 from core.tool_cache import get_tool_cache
 from llm.client import NanoLLMClient
@@ -34,6 +48,9 @@ class NanoAgent:
         """
         self.llm = llm_client or NanoLLMClient()
         self.tools = tool_registry or get_tool_registry()
+        self.lifecycle = Lifecycle()
+        if _HAS_OBSERVABILITY:
+            self.lifecycle.subscribe(get_tracer())
         self.spec: Optional[TaskSpec] = None
         self.conversation: List[Dict[str, str]] = []
         self._stop_condition: Optional[Callable[[], bool]] = None
@@ -150,6 +167,8 @@ class NanoAgent:
             tracer = get_tracer()
             tracer.start_session(task)
 
+        self.lifecycle.emit(AgentStartEvent(task=task))
+
         try:
             # 智能选择执行模式
             if self._should_use_chain(task):
@@ -174,21 +193,70 @@ class NanoAgent:
             while True:
                 iteration += 1
 
+                self.lifecycle.emit(
+                    TurnStartEvent(
+                        turn_context=TurnContext(
+                            turn_number=self.lifecycle.get_turn_number() + 1,
+                            iteration=iteration,
+                        )
+                    )
+                )
+
                 # 检查停止条件
                 if max_iterations and iteration > max_iterations:
                     self.spec.fail(f"达到最大迭代次数 ({max_iterations})")
+                    self.lifecycle.emit(
+                        TurnEndEvent(
+                            turn_context=TurnContext(
+                                turn_number=self.lifecycle.get_turn_number(),
+                                iteration=iteration,
+                            )
+                        )
+                    )
                     break
 
                 if self._stop_condition and self._stop_condition():
                     self.spec.complete()
+                    self.lifecycle.emit(
+                        TurnEndEvent(
+                            turn_context=TurnContext(
+                                turn_number=self.lifecycle.get_turn_number(),
+                                iteration=iteration,
+                            )
+                        )
+                    )
                     break
 
                 # 调用 LLM
+                self.lifecycle.emit(
+                    MessageStartEvent(turn_number=self.lifecycle.get_turn_number())
+                )
                 try:
                     assistant_response = self.llm.chat(self.conversation)
+                    self.lifecycle.emit(
+                        MessageUpdateEvent(
+                            turn_number=self.lifecycle.get_turn_number(),
+                            delta=assistant_response,
+                        )
+                    )
                 except Exception as e:
                     self.spec.add_error(f"LLM 错误: {e}")
                     self.spec.fail(f"LLM 调用失败: {e}")
+                    self.lifecycle.emit(
+                        MessageEndEvent(
+                            turn_number=self.lifecycle.get_turn_number(),
+                            content="",
+                            tool_calls=[],
+                        )
+                    )
+                    self.lifecycle.emit(
+                        TurnEndEvent(
+                            turn_context=TurnContext(
+                                turn_number=self.lifecycle.get_turn_number(),
+                                iteration=iteration,
+                            )
+                        )
+                    )
                     break
 
                 # 保存 assistant 响应到对话
@@ -199,14 +267,39 @@ class NanoAgent:
                 # 提取工具调用
                 tool_invocations = self._extract_tool_invocations(assistant_response)
 
+                self.lifecycle.emit(
+                    MessageEndEvent(
+                        turn_number=self.lifecycle.get_turn_number(),
+                        content=assistant_response,
+                        tool_calls=tool_invocations,
+                    )
+                )
+
                 if not tool_invocations:
                     # 没有工具调用，任务完成
                     print(f"\n🤖 {assistant_response}")
                     self.spec.complete()
+                    self.lifecycle.emit(
+                        TurnEndEvent(
+                            turn_context=TurnContext(
+                                turn_number=self.lifecycle.get_turn_number(),
+                                iteration=iteration,
+                            )
+                        )
+                    )
                     break
 
                 # 执行工具调用
                 self._execute_tool_invocations(tool_invocations)
+
+                self.lifecycle.emit(
+                    TurnEndEvent(
+                        turn_context=TurnContext(
+                            turn_number=self.lifecycle.get_turn_number(),
+                            iteration=iteration,
+                        )
+                    )
+                )
 
             # 保存任务规范
             spec_file = self.spec.save()
@@ -230,7 +323,14 @@ class NanoAgent:
                 "response": last_response,
             }
         finally:
-            # 结束追踪会话
+            total_turns, total_tools = self.lifecycle.get_totals()
+            self.lifecycle.emit(
+                AgentEndEvent(
+                    status=self.spec.status if self.spec else "completed",
+                    total_turns=total_turns,
+                    total_tools=total_tools,
+                )
+            )
             if _HAS_OBSERVABILITY:
                 tracer = get_tracer()
                 tracer.end_session(self.spec.status if self.spec else "completed")
@@ -306,9 +406,27 @@ class NanoAgent:
             if self.spec:
                 self.spec.add_tool_call(tool_name)
 
+            self.lifecycle.emit(
+                ToolStartEvent(
+                    turn_number=self.lifecycle.get_turn_number(),
+                    tool_call_id=f"tc_{self.lifecycle._total_tools}",
+                    tool_name=tool_name,
+                    args=args,
+                )
+            )
+
             try:
                 result = self.tools.execute(tool_name, args)
                 print(f"👁️ {result}")
+
+                self.lifecycle.emit(
+                    ToolUpdateEvent(
+                        turn_number=self.lifecycle.get_turn_number(),
+                        tool_call_id=f"tc_{self.lifecycle._total_tools}",
+                        tool_name=tool_name,
+                        partial_result=result,
+                    )
+                )
 
                 # 记录产物(仅在任务模式下)
                 if self.spec and isinstance(result, dict) and "file_path" in result:
@@ -323,6 +441,16 @@ class NanoAgent:
                         "content": f"tool_result({json.dumps(summarized, ensure_ascii=False)})",
                     }
                 )
+
+                self.lifecycle.emit(
+                    ToolEndEvent(
+                        turn_number=self.lifecycle.get_turn_number(),
+                        tool_call_id=f"tc_{self.lifecycle._total_tools}",
+                        tool_name=tool_name,
+                        result=result,
+                        is_error=False,
+                    )
+                )
             except Exception as e:
                 error_msg = f"工具执行失败: {e}"
                 print(f"❌ {error_msg}")
@@ -335,6 +463,16 @@ class NanoAgent:
                         "role": "user",
                         "content": f"tool_result({json.dumps({'tool': tool_name, 'status': 'error', 'error': error_msg}, ensure_ascii=False)})",
                     }
+                )
+
+                self.lifecycle.emit(
+                    ToolEndEvent(
+                        turn_number=self.lifecycle.get_turn_number(),
+                        tool_call_id=f"tc_{self.lifecycle._total_tools}",
+                        tool_name=tool_name,
+                        result=str(e),
+                        is_error=True,
+                    )
                 )
 
     def _record_artifact(self, file_path: str) -> None:

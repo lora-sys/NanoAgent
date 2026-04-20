@@ -1,5 +1,7 @@
 """NanoAgent 可观测性模块 - 追踪 AI 调用、工具调用、成本统计"""
 
+from __future__ import annotations
+
 import json
 import sqlite3
 import uuid
@@ -236,6 +238,18 @@ class Tracer:
             self.flush()  # 批量保存所有记录
             self._current_session.save()
             self._current_session = None
+
+    def __call__(self, event: Any) -> None:
+        """Lifecycle 事件处理器。"""
+        from core.lifecycle import (
+            AgentStartEvent,
+            AgentEndEvent,
+        )
+
+        if isinstance(event, AgentStartEvent):
+            self.start_session(event.task)
+        elif isinstance(event, AgentEndEvent):
+            self.end_session(event.status)
 
     def get_current_session(self) -> Optional[TraceSession]:
         """获取当前会话"""

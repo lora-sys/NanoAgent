@@ -9,6 +9,7 @@
 - **高性能**：使用 Python 内置函数，最小化开销
 - **易扩展**：简单的工具注册机制
 - **灵活控制**：无步数限制，自定义停止条件
+- **完整生命周期**：三层事件追踪 — agent > turn > message/tool
 
 ## 快速开始
 
@@ -27,12 +28,81 @@ uv run main.py chat
 
 ```
 NanoAgent
-├── LLM 客户端    # 统一的 LLM 接口
-├── 工具注册表    # 简单的工具管理
-├── 任务跟踪      # 轻量级 spec 系统
-├── 提示链       # 复杂任务拆解
-├── 路由器       # 智能任务分发
-└── 主循环        # 简单的 LLM + 工具箱循环
+├── LLM 客户端          统一的 LLM 接口
+├── 工具注册表          简单的工具管理
+├── 任务跟踪            轻量级 spec 系统
+├── 提示链             复杂任务拆解
+├── 路由器             智能任务分发
+├── 可观测性            追踪 AI 调用、工具调用、成本统计
+├── 生命周期            三层事件系统 (agent > turn > message/tool)
+└── 主循环              LLM + 工具箱循环
+```
+
+## 生命周期事件
+
+NanoAgent 通过 `Lifecycle` 管理器实现严格的三层嵌套事件系统：
+
+```
+Agent Start
+ └── Turn 1 Start
+      ├── Message Start ── LLM 调用 ── Message Update ── Message End
+      └── Tool Execution Start ── 工具执行 ── Tool Execution End
+      └── Turn 1 End
+ └── Agent End
+```
+
+### 事件类型
+
+| 事件 | 嵌套深度 | 说明 |
+|------|---------|------|
+| `AGENT_START` | 0 | 任务开始 |
+| `TURN_START` | 1 | 迭代循环开始 |
+| `MESSAGE_START` | 2 | LLM 调用开始 |
+| `MESSAGE_UPDATE` | 2 | LLM 响应增量 |
+| `MESSAGE_END` | 3 | LLM 响应完成 |
+| `TOOL_EXECUTION_START` | 2 | 工具调用开始 |
+| `TOOL_EXECUTION_UPDATE` | 2 | 工具结果增量 |
+| `TOOL_EXECUTION_END` | 3 | 工具调用完成 |
+| `TURN_END` | 2 | 迭代循环结束 |
+| `AGENT_END` | 1 | 任务结束 |
+
+### 事件订阅
+
+```python
+from core.lifecycle import Lifecycle, AgentEvent, event_to_dict
+
+lc = Lifecycle()
+
+def my_handler(event: AgentEvent) -> None:
+    d = event_to_dict(event)
+    print(f"{d['type']}: {d}")
+
+lc.subscribe(my_handler)
+
+# 事件自动验证嵌套合法性，深度错误时抛出 RuntimeError
+agent = NanoAgent()
+agent.lifecycle = lc
+agent.run("任务描述")
+```
+
+`Tracer` 已作为内置订阅者集成，自动管理追踪会话。
+
+### 追踪存储
+
+事件数据持久化到 `~/.nanoagent/traces.db`：
+
+```bash
+# 查看追踪列表
+nanoagent trace list
+
+# 查看追踪详情
+nanoagent trace get <trace_id>
+
+# 统计信息
+nanoagent trace stats
+
+# 删除追踪
+nanoagent trace delete <trace_id>
 ```
 
 ## 工具系统
@@ -43,6 +113,8 @@ NanoAgent
 - `edit_file` - 编辑文件
 - `run_bash` - 执行命令
 - `grep` - ripgrep 搜索
+
+工具结果通过 `ToolResultCache` 缓存并摘要，减少 context token 开销。
 
 ## 测试
 
