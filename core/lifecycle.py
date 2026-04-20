@@ -156,8 +156,8 @@ class Lifecycle:
         EventType.TOOL_EXECUTION_START: 2,
         EventType.MESSAGE_UPDATE: 2,
         EventType.TOOL_EXECUTION_UPDATE: 2,
-        EventType.MESSAGE_END: 2,
-        EventType.TOOL_EXECUTION_END: 2,
+        EventType.MESSAGE_END: 3,
+        EventType.TOOL_EXECUTION_END: 3,
         EventType.TURN_END: 2,
         EventType.AGENT_END: 1,
     }

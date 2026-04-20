@@ -158,6 +158,9 @@ class NanoAgent:
             TurnStartEvent,
             TurnEndEvent,
             TurnContext,
+            MessageStartEvent,
+            MessageUpdateEvent,
+            MessageEndEvent,
         )
 
         self.lifecycle.emit(AgentStartEvent(task=task))
@@ -221,6 +224,9 @@ class NanoAgent:
                     break
 
                 # 调用 LLM
+                self.lifecycle.emit(
+                    MessageStartEvent(turn_number=self.lifecycle.get_turn_number())
+                )
                 try:
                     assistant_response = self.llm.chat(self.conversation)
                 except Exception as e:
@@ -243,6 +249,14 @@ class NanoAgent:
 
                 # 提取工具调用
                 tool_invocations = self._extract_tool_invocations(assistant_response)
+
+                self.lifecycle.emit(
+                    MessageEndEvent(
+                        turn_number=self.lifecycle.get_turn_number(),
+                        content=assistant_response,
+                        tool_calls=tool_invocations,
+                    )
+                )
 
                 if not tool_invocations:
                     # 没有工具调用，任务完成
