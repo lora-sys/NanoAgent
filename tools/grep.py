@@ -58,7 +58,11 @@ def grep(
             timeout=30,
         )
     except subprocess.TimeoutExpired:
-        return {"error": "Search timeout (30s)", "matches": [], "path": str(resolved_path)}
+        return {
+            "error": "Search timeout (30s)",
+            "matches": [],
+            "path": str(resolved_path),
+        }
     except FileNotFoundError:
         return {
             "error": "ripgrep (rg) not found. Install: brew install ripgrep | apt install ripgrep | cargo install ripgrep",
@@ -76,6 +80,7 @@ def grep(
             continue
         try:
             import json
+
             entry = json.loads(line)
         except json.JSONDecodeError:
             continue
@@ -86,11 +91,13 @@ def grep(
             line_num = match_data.get("line_number", 0)
             content = match_data.get("lines", {}).get("text", "").rstrip("\n")
 
-            matches.append({
-                "file": abs_path,
-                "line": line_num,
-                "content": content,
-            })
+            matches.append(
+                {
+                    "file": abs_path,
+                    "line": line_num,
+                    "content": content,
+                }
+            )
 
             stats["total_matches"] += 1
             if abs_path not in [m["file"] for m in matches[:-1]]:

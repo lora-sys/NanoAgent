@@ -134,9 +134,7 @@ class AgentTestHarness:
     def assert_response_contains(self, text: str) -> "AgentTestHarness":
         """断言 agent 响应包含指定文本。"""
         response = self._last_result.get("response", "") if self._last_result else ""
-        assert text in response, (
-            f"响应中未找到 '{text}'。\n实际响应: {response[:300]}"
-        )
+        assert text in response, f"响应中未找到 '{text}'。\n实际响应: {response[:300]}"
         return self
 
     def assert_status(self, status: str) -> "AgentTestHarness":
