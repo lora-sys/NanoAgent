@@ -162,11 +162,7 @@ class NanoAgent:
         Returns:
             任务执行结果
         """
-        # 开始追踪会话
-        if _HAS_OBSERVABILITY:
-            tracer = get_tracer()
-            tracer.start_session(task)
-
+        # AgentStartEvent 会通过 lifecycle handler 触发 Tracer.start_session
         self.lifecycle.emit(AgentStartEvent(task=task))
 
         try:
@@ -331,9 +327,7 @@ class NanoAgent:
                     total_tools=total_tools,
                 )
             )
-            if _HAS_OBSERVABILITY:
-                tracer = get_tracer()
-                tracer.end_session(self.spec.status if self.spec else "completed")
+            # AgentEndEvent 会通过 lifecycle handler 触发 Tracer.end_session
 
     def chat(self, max_iterations: Optional[int] = None):
         """交互式对话模式"""
