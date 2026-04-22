@@ -139,11 +139,12 @@ class NanoAgent:
         return {
             "status": "completed" if result.success else "failed",
             "iterations": len(result.context.history),
-            "tools_used": [h["step"] for h in result.context.history],
+            "tools_used": [],  # chain steps are internal, not real tool calls
             "artifacts": [],
             "spec_file": None,
             "execution_mode": "chain",
             "execution_time": result.execution_time,
+            "response": result.final_output,
             "chain_result": result.to_dict(),
         }
 

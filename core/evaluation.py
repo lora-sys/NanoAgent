@@ -7,7 +7,6 @@
 """
 
 import time
-import json
 import re
 from typing import Any, Dict, List
 from dataclasses import dataclass, field
@@ -139,6 +138,9 @@ class Evaluator:
 
     def _extract_response(self, result: Dict[str, Any]) -> str:
         """Extract response text — uses assistant content directly, <response> tag as enhancement."""
+        # Chain mode: response field contains final output directly
+        if "response" in result and result["response"]:
+            return result["response"]
         if "conversation" in result:
             for msg in reversed(result["conversation"]):
                 if msg.get("role") == "assistant":
