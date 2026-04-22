@@ -5,7 +5,6 @@ Usage:
 """
 
 import sys
-import time
 import json
 from pathlib import Path
 
@@ -379,7 +378,8 @@ def main():
     tool_usage = {}
     for r in runner.results:
         for tool in r.get("result", {}).get("tools_used", []):
-            tool_usage[tool] = tool_usage.get(tool, 0) + 1
+            if tool is not None:  # skip None keys from chain steps
+                tool_usage[tool] = tool_usage.get(tool, 0) + 1
     for tool, count in sorted(tool_usage.items(), key=lambda x: -x[1]):
         print(f"  {tool:<20} {count:>3} 次")
 
