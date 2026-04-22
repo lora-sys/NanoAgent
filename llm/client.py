@@ -128,14 +128,22 @@ class NanoLLMClient:
         """Extract structured tool calls. Native litellm tool_calls first, then XML fallback."""
         raw = getattr(message, "tool_calls", None)
         if raw is not None and len(raw) > 0:
-            return [
-                {
-                    "name": getattr(getattr(tc, "function", None), "name", ""),
-                    "arguments": getattr(getattr(tc, "function", None), "arguments", "{}"),
-                }
-                for tc in raw
-                if getattr(tc, "function", None) is not None
-            ]
+            calls = []
+            for tc in raw:
+                fn = getattr(tc, "function", None)
+                if fn is None:
+                    continue
+                name = getattr(fn, "name", None) or ""
+                if not name:  # skip None/empty names
+                    continue
+                calls.append(
+                    {
+                        "name": name,
+                        "arguments": getattr(fn, "arguments", "{}"),
+                    }
+                )
+            if calls:
+                return calls
         return extract_xml_tool_calls(content)
 
     def _get_mock(self) -> str:

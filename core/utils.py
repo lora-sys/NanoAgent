@@ -27,15 +27,18 @@ def normalize_tool_calls(raw_calls: List) -> List[Dict[str, Any]]:
     Accepts:
         - dicts with "name"/"arguments" keys (structured format)
         - tuples of (name, args) (legacy format)
-    Returns a list of normalized dicts.
+    Returns a list of normalized dicts, skipping any with empty/invalid names.
     """
     result = []
     for tc in raw_calls:
         if isinstance(tc, dict):
-            result.append(tc)
+            name = tc.get("name")
+            if name:
+                result.append(tc)
         elif isinstance(tc, tuple):
             name, args = tc
-            result.append({"name": name, "arguments": args})
+            if name:
+                result.append({"name": name, "arguments": args})
     return result
 
 
