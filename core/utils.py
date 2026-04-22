@@ -2,6 +2,41 @@
 
 import json
 import re
+from typing import Any, Dict, List
+
+
+_TOOL_XML_PATTERN = re.compile(r'<tool\s+name="([^"]+)"\s+args=\'([^\']*)\'/>')
+
+
+def extract_xml_tool_calls(text: str) -> List[Dict[str, Any]]:
+    """Parse <tool name="..." args='...'> XML tags from text into structured dicts."""
+    result = []
+    for match in _TOOL_XML_PATTERN.finditer(text):
+        try:
+            name = match.group(1)
+            args = json.loads(match.group(2))
+            result.append({"name": name, "arguments": args})
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return result
+
+
+def normalize_tool_calls(raw_calls: List) -> List[Dict[str, Any]]:
+    """Normalize mixed tool call formats to {"name": ..., "arguments": ...} dicts.
+
+    Accepts:
+        - dicts with "name"/"arguments" keys (structured format)
+        - tuples of (name, args) (legacy format)
+    Returns a list of normalized dicts.
+    """
+    result = []
+    for tc in raw_calls:
+        if isinstance(tc, dict):
+            result.append(tc)
+        elif isinstance(tc, tuple):
+            name, args = tc
+            result.append({"name": name, "arguments": args})
+    return result
 
 
 def extract_json(text: str) -> dict:

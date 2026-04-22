@@ -3,6 +3,8 @@
 import asyncio
 import json
 import os
+
+from core.utils import extract_xml_tool_calls
 import random
 import time
 from typing import Any, Dict, List, Optional, Type, TypeVar  # noqa: E402, F401
@@ -68,8 +70,7 @@ class NanoLLMClient:
         """
         if self.mock_enabled:
             mock_resp = self._get_mock()
-            # Fall back to regex extraction for mock responses
-            invocations = self._extract_tool_invocations_from_text(mock_resp)
+            invocations = extract_xml_tool_calls(mock_resp)
             return mock_resp, invocations
 
         last_error = None
@@ -122,48 +123,20 @@ class NanoLLMClient:
         raise last_error
 
     def _extract_structured_tool_calls(
-        self,
-        message,
-        content: str,
+        self, message, content: str
     ) -> List[Dict[str, Any]]:
-        """Extract structured tool calls from litellm response message.
-
-        Tries resp.tool_calls first (native structured calling), falls back to
-        regex extraction from content for models that don't support tool_calls.
-        """
-        # Native tool_calls from litellm (OpenAI-style)
+        """Extract structured tool calls. Native litellm tool_calls first, then XML fallback."""
         raw = getattr(message, "tool_calls", None)
         if raw is not None and len(raw) > 0:
-            result = []
-            for tc in raw:
-                func = getattr(tc, "function", None)
-                if func:
-                    result.append(
-                        {
-                            "name": getattr(func, "name", ""),
-                            "arguments": getattr(func, "arguments", "{}"),
-                        }
-                    )
-            return result
-
-        # Fallback: regex extraction from content (backward compatibility)
-        return self._extract_tool_invocations_from_text(content)
-
-    def _extract_tool_invocations_from_text(self, text: str) -> List[Dict[str, Any]]:
-        """Parse <tool name="xxx" args='...'> XML tags from text into structured dicts."""
-        import re
-
-        invocations = []
-        xml_pattern = re.compile(r'<tool\s+name="([^"]+)"\s+args=\'([^\']*)\'/>')
-        for match in xml_pattern.finditer(text):
-            try:
-                name = match.group(1)
-                args = json.loads(match.group(2))
-                invocations.append({"name": name, "arguments": args})
-            except Exception:
-                # Skip malformed invocations
-                pass
-        return invocations
+            return [
+                {
+                    "name": getattr(getattr(tc, "function", None), "name", ""),
+                    "arguments": getattr(getattr(tc, "function", None), "arguments", "{}"),
+                }
+                for tc in raw
+                if getattr(tc, "function", None) is not None
+            ]
+        return extract_xml_tool_calls(content)
 
     def _get_mock(self) -> str:
         if not os.path.exists(self.mock_file):

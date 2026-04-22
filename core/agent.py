@@ -4,6 +4,8 @@ import json
 import re
 from typing import Any, Dict, List, Tuple, Callable, Optional
 
+from core.utils import normalize_tool_calls
+
 from core.lifecycle import (
     Lifecycle,
     AgentStartEvent,
@@ -252,16 +254,6 @@ class NanoAgent:
                     )
                     break
 
-                # Normalize tool_calls to list of dicts with 'name' and 'arguments'
-                normalized_tool_calls = []
-                for tc in tool_calls:
-                    if isinstance(tc, dict):
-                        normalized_tool_calls.append(tc)
-                    elif isinstance(tc, tuple):
-                        # Legacy tuple format (from regex extraction)
-                        name, args = tc
-                        normalized_tool_calls.append({"name": name, "arguments": args})
-
                 self.lifecycle.emit(
                     MessageUpdateEvent(
                         turn_number=self.lifecycle.get_turn_number(),
@@ -269,10 +261,10 @@ class NanoAgent:
                     )
                 )
 
-                # 保存 assistant 响应到对话
                 self.conversation.append(
                     {"role": "assistant", "content": assistant_content}
                 )
+                normalized_tool_calls = normalize_tool_calls(tool_calls)
 
                 self.lifecycle.emit(
                     MessageEndEvent(
@@ -385,17 +377,9 @@ class NanoAgent:
                     print(f"\n❌ LLM 错误: {e}")
                     break
 
-                # Normalize tool_calls to list of dicts with 'name' and 'arguments'
-                normalized_tool_calls = []
-                for tc in tool_calls:
-                    if isinstance(tc, dict):
-                        normalized_tool_calls.append(tc)
-                    elif isinstance(tc, tuple):
-                        name, args = tc
-                        normalized_tool_calls.append({"name": name, "arguments": args})
+                normalized_tool_calls = normalize_tool_calls(tool_calls)
 
                 if not normalized_tool_calls:
-                    # 没有工具调用，显示响应
                     print(f"\n🤖 助手: {assistant_content}")
                     self.conversation.append(
                         {"role": "assistant", "content": assistant_content}
@@ -406,31 +390,19 @@ class NanoAgent:
                 self._execute_tool_invocations(normalized_tool_calls)
 
     def _execute_tool_invocations(
-        self, tool_invocations: List
+        self, tool_invocations: List[Dict[str, Any]]
     ) -> None:
-        """Execute tool calls.
-
-        Args:
-            tool_invocations: List of tool calls. Each element is either:
-                - A dict with 'name' and 'arguments' keys (structured format from chat_with_tools)
-                - A tuple of (name, args) (legacy format from _extract_tool_invocations)
-        """
+        """Execute tool calls from normalized {"name", "arguments"} dicts."""
         for tool_call in tool_invocations:
-            # Normalize to (name, args) tuple
-            if isinstance(tool_call, dict):
-                name = tool_call.get("name", "")
-                raw_args = tool_call.get("arguments", "{}")
-                # Parse JSON string arguments if needed
-                if isinstance(raw_args, str):
-                    try:
-                        args = json.loads(raw_args)
-                    except Exception:
-                        args = {}
-                else:
-                    args = raw_args
+            name = tool_call.get("name", "")
+            raw_args = tool_call.get("arguments", "{}")
+            if isinstance(raw_args, str):
+                try:
+                    args = json.loads(raw_args)
+                except Exception:
+                    args = {}
             else:
-                # Legacy tuple format
-                name, args = tool_call
+                args = raw_args
             print(f"\n🔧 {name}({args})")
 
             # 如果在任务模式下，记录工具调用
@@ -661,12 +633,6 @@ class NanoAgent:
             '<tool name="run_bash" args=\'{"command": "ls -la"}\'/>\n\n'
             "#### grep - 搜索文件和代码\n"
             '<tool name="grep" args=\'{"pattern": "def run", "path": "core", "file_type": "py", "max_count": 20}\'/>\n\n'
-            "#### add_documents - 添加文档到知识库\n"
-            '<tool name="add_documents" args=\'{"collection": "my_kb", "documents": ["文档内容1", "文档内容2"]}\'/>\n\n'
-            "#### similarity_search - 搜索知识库\n"
-            '<tool name="similarity_search" args=\'{"query": "搜索关键词", "collection": "my_kb", "n_results": 3}\'/>\n\n'
-            "#### list_collections - 列出所有知识库\n"
-            "<tool name=\"list_collections\" args='{}'/>\n\n"
             "### 响应格式\n"
             "- 正常响应: <response>你的回复内容</response>\n"
             "- 错误响应: <error>错误描述</error>\n\n"
