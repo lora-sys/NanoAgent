@@ -1,12 +1,9 @@
 """可组合模块使用示例 - 展示如何灵活拼装功能"""
 
 import asyncio
-from core import (
-    AgentBuilder,
-    Router,
-    PromptChain,
-    ChainStep,
-)
+from core.composable import AgentBuilder
+from core.router import Router
+from core.chain import PromptChain, ChainStep
 
 
 async def demo_basic_usage():
