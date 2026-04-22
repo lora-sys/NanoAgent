@@ -223,17 +223,14 @@ class NanoAgent:
                     )
                     break
 
-                # 调用 LLM
+                # 调用 LLM with structured function calling
                 self.lifecycle.emit(
                     MessageStartEvent(turn_number=self.lifecycle.get_turn_number())
                 )
+                tools = self.tools.get_tool_list()
                 try:
-                    assistant_response = self.llm.chat(self.conversation)
-                    self.lifecycle.emit(
-                        MessageUpdateEvent(
-                            turn_number=self.lifecycle.get_turn_number(),
-                            delta=assistant_response,
-                        )
+                    assistant_content, tool_calls = self.llm.chat_with_tools(
+                        self.conversation, tools
                     )
                 except Exception as e:
                     self.spec.add_error(f"LLM 错误: {e}")
@@ -255,25 +252,39 @@ class NanoAgent:
                     )
                     break
 
-                # 保存 assistant 响应到对话
-                self.conversation.append(
-                    {"role": "assistant", "content": assistant_response}
+                # Normalize tool_calls to list of dicts with 'name' and 'arguments'
+                normalized_tool_calls = []
+                for tc in tool_calls:
+                    if isinstance(tc, dict):
+                        normalized_tool_calls.append(tc)
+                    elif isinstance(tc, tuple):
+                        # Legacy tuple format (from regex extraction)
+                        name, args = tc
+                        normalized_tool_calls.append({"name": name, "arguments": args})
+
+                self.lifecycle.emit(
+                    MessageUpdateEvent(
+                        turn_number=self.lifecycle.get_turn_number(),
+                        delta=assistant_content,
+                    )
                 )
 
-                # 提取工具调用
-                tool_invocations = self._extract_tool_invocations(assistant_response)
+                # 保存 assistant 响应到对话
+                self.conversation.append(
+                    {"role": "assistant", "content": assistant_content}
+                )
 
                 self.lifecycle.emit(
                     MessageEndEvent(
                         turn_number=self.lifecycle.get_turn_number(),
-                        content=assistant_response,
-                        tool_calls=tool_invocations,
+                        content=assistant_content,
+                        tool_calls=normalized_tool_calls,
                     )
                 )
 
-                if not tool_invocations:
+                if not normalized_tool_calls:
                     # 没有工具调用，任务完成
-                    print(f"\n🤖 {assistant_response}")
+                    print(f"\n🤖 {assistant_content}")
                     self.spec.complete()
                     self.lifecycle.emit(
                         TurnEndEvent(
@@ -286,7 +297,7 @@ class NanoAgent:
                     break
 
                 # 执行工具调用
-                self._execute_tool_invocations(tool_invocations)
+                self._execute_tool_invocations(normalized_tool_calls)
 
                 self.lifecycle.emit(
                     TurnEndEvent(
@@ -364,60 +375,86 @@ class NanoAgent:
                     print("\n⚠️ 达到最大迭代次数")
                     break
 
-                # 调用 LLM
+                # 调用 LLM with structured function calling
                 try:
-                    assistant_response = self.llm.chat(self.conversation)
+                    tools = self.tools.get_tool_list()
+                    assistant_content, tool_calls = self.llm.chat_with_tools(
+                        self.conversation, tools
+                    )
                 except Exception as e:
                     print(f"\n❌ LLM 错误: {e}")
                     break
 
-                # 提取工具调用
-                tool_invocations = self._extract_tool_invocations(assistant_response)
+                # Normalize tool_calls to list of dicts with 'name' and 'arguments'
+                normalized_tool_calls = []
+                for tc in tool_calls:
+                    if isinstance(tc, dict):
+                        normalized_tool_calls.append(tc)
+                    elif isinstance(tc, tuple):
+                        name, args = tc
+                        normalized_tool_calls.append({"name": name, "arguments": args})
 
-                if not tool_invocations:
+                if not normalized_tool_calls:
                     # 没有工具调用，显示响应
-                    print(f"\n🤖 助手: {assistant_response}")
+                    print(f"\n🤖 助手: {assistant_content}")
                     self.conversation.append(
-                        {"role": "assistant", "content": assistant_response}
+                        {"role": "assistant", "content": assistant_content}
                     )
                     break
 
                 # 执行工具调用
-                self._execute_tool_invocations(tool_invocations)
+                self._execute_tool_invocations(normalized_tool_calls)
 
     def _execute_tool_invocations(
-        self, tool_invocations: List[Tuple[str, Dict[str, Any]]]
+        self, tool_invocations: List
     ) -> None:
-        """执行工具调用列表
+        """Execute tool calls.
 
         Args:
-            tool_invocations: 工具调用列表，每个元素是 (工具名, 参数) 元组
+            tool_invocations: List of tool calls. Each element is either:
+                - A dict with 'name' and 'arguments' keys (structured format from chat_with_tools)
+                - A tuple of (name, args) (legacy format from _extract_tool_invocations)
         """
-        for tool_name, args in tool_invocations:
-            print(f"\n🔧 {tool_name}({args})")
+        for tool_call in tool_invocations:
+            # Normalize to (name, args) tuple
+            if isinstance(tool_call, dict):
+                name = tool_call.get("name", "")
+                raw_args = tool_call.get("arguments", "{}")
+                # Parse JSON string arguments if needed
+                if isinstance(raw_args, str):
+                    try:
+                        args = json.loads(raw_args)
+                    except Exception:
+                        args = {}
+                else:
+                    args = raw_args
+            else:
+                # Legacy tuple format
+                name, args = tool_call
+            print(f"\n🔧 {name}({args})")
 
             # 如果在任务模式下，记录工具调用
             if self.spec:
-                self.spec.add_tool_call(tool_name)
+                self.spec.add_tool_call(name)
 
             self.lifecycle.emit(
                 ToolStartEvent(
                     turn_number=self.lifecycle.get_turn_number(),
                     tool_call_id=f"tc_{self.lifecycle._total_tools}",
-                    tool_name=tool_name,
+                    tool_name=name,
                     args=args,
                 )
             )
 
             try:
-                result = self.tools.execute(tool_name, args)
+                result = self.tools.execute(name, args)
                 print(f"👁️ {result}")
 
                 self.lifecycle.emit(
                     ToolUpdateEvent(
                         turn_number=self.lifecycle.get_turn_number(),
                         tool_call_id=f"tc_{self.lifecycle._total_tools}",
-                        tool_name=tool_name,
+                        tool_name=name,
                         partial_result=result,
                     )
                 )
@@ -428,7 +465,7 @@ class NanoAgent:
 
                 # 摘要后加入 context(减少 token 消耗)
                 cache = get_tool_cache()
-                summarized = cache.summarize(tool_name, result)
+                summarized = cache.summarize(name, result)
                 self.conversation.append(
                     {
                         "role": "user",
@@ -440,7 +477,7 @@ class NanoAgent:
                     ToolEndEvent(
                         turn_number=self.lifecycle.get_turn_number(),
                         tool_call_id=f"tc_{self.lifecycle._total_tools}",
-                        tool_name=tool_name,
+                        tool_name=name,
                         result=result,
                         is_error=False,
                     )
@@ -455,7 +492,7 @@ class NanoAgent:
                 self.conversation.append(
                     {
                         "role": "user",
-                        "content": f"tool_result({json.dumps({'tool': tool_name, 'status': 'error', 'error': error_msg}, ensure_ascii=False)})",
+                        "content": f"tool_result({json.dumps({'tool': name, 'status': 'error', 'error': error_msg}, ensure_ascii=False)})",
                     }
                 )
 
@@ -463,7 +500,7 @@ class NanoAgent:
                     ToolEndEvent(
                         turn_number=self.lifecycle.get_turn_number(),
                         tool_call_id=f"tc_{self.lifecycle._total_tools}",
-                        tool_name=tool_name,
+                        tool_name=name,
                         result=str(e),
                         is_error=True,
                     )
@@ -624,6 +661,12 @@ class NanoAgent:
             '<tool name="run_bash" args=\'{"command": "ls -la"}\'/>\n\n'
             "#### grep - 搜索文件和代码\n"
             '<tool name="grep" args=\'{"pattern": "def run", "path": "core", "file_type": "py", "max_count": 20}\'/>\n\n'
+            "#### add_documents - 添加文档到知识库\n"
+            '<tool name="add_documents" args=\'{"collection": "my_kb", "documents": ["文档内容1", "文档内容2"]}\'/>\n\n'
+            "#### similarity_search - 搜索知识库\n"
+            '<tool name="similarity_search" args=\'{"query": "搜索关键词", "collection": "my_kb", "n_results": 3}\'/>\n\n'
+            "#### list_collections - 列出所有知识库\n"
+            "<tool name=\"list_collections\" args='{}'/>\n\n"
             "### 响应格式\n"
             "- 正常响应: <response>你的回复内容</response>\n"
             "- 错误响应: <error>错误描述</error>\n\n"

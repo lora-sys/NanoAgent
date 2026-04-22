@@ -5,7 +5,7 @@ import json
 import os
 import random
 import time
-from typing import Dict, List, Optional, Type, TypeVar  # noqa: E402, F401
+from typing import Any, Dict, List, Optional, Type, TypeVar  # noqa: E402, F401
 
 import litellm
 from dotenv import load_dotenv
@@ -47,6 +47,123 @@ class NanoLLMClient:
             "responses_file", "tests/fixtures/llm_mock_simple.json"
         )
         self._mock_idx = 0
+
+    def chat_with_tools(
+        self,
+        messages: List[Dict[str, str]],
+        tools: List[Dict[str, Any]],
+        temperature: Optional[float] = None,
+    ) -> tuple[str, List[Dict[str, Any]]]:
+        """Chat with structured function calling via litellm's native tools parameter.
+
+        Args:
+            messages: Conversation messages
+            tools: OpenAI-style function schemas from ToolRegistry.get_tool_list()
+            temperature: Optional temperature override
+
+        Returns:
+            Tuple of (content, tool_calls) where tool_calls is a list of
+            structured dicts with 'name' and 'arguments' keys, or empty list
+            if the model returned no tool calls.
+        """
+        if self.mock_enabled:
+            mock_resp = self._get_mock()
+            # Fall back to regex extraction for mock responses
+            invocations = self._extract_tool_invocations_from_text(mock_resp)
+            return mock_resp, invocations
+
+        last_error = None
+        for attempt in range(self.max_attempts):
+            try:
+                start_time = time.time()
+                resp = litellm.completion(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature or self.temperature,
+                    max_tokens=self.max_tokens,
+                    tools=tools,
+                )
+                duration_ms = int((time.time() - start_time) * 1000)
+
+                message = resp.choices[0].message
+                content = message.content or ""
+
+                # Extract structured tool calls if model returned them
+                tool_calls = self._extract_structured_tool_calls(message, content)
+
+                if _HAS_OBSERVABILITY and resp.usage is not None:
+                    tracer = get_tracer()
+                    usage = resp.usage
+                    input_tokens = (
+                        usage.prompt_tokens if hasattr(usage, "prompt_tokens") else 0
+                    )
+                    output_tokens = (
+                        usage.completion_tokens
+                        if hasattr(usage, "completion_tokens")
+                        else 0
+                    )
+                    cost = calculate_cost(self.model, input_tokens, output_tokens)
+                    tracer.record_llm(
+                        model=self.model,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        duration_ms=duration_ms,
+                        input_messages=messages,
+                        output_message=content,
+                        cost=cost,
+                    )
+
+                return content, tool_calls
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_attempts - 1:
+                    time.sleep(min(2**attempt, 8))
+
+        raise last_error
+
+    def _extract_structured_tool_calls(
+        self,
+        message,
+        content: str,
+    ) -> List[Dict[str, Any]]:
+        """Extract structured tool calls from litellm response message.
+
+        Tries resp.tool_calls first (native structured calling), falls back to
+        regex extraction from content for models that don't support tool_calls.
+        """
+        # Native tool_calls from litellm (OpenAI-style)
+        raw = getattr(message, "tool_calls", None)
+        if raw is not None and len(raw) > 0:
+            result = []
+            for tc in raw:
+                func = getattr(tc, "function", None)
+                if func:
+                    result.append(
+                        {
+                            "name": getattr(func, "name", ""),
+                            "arguments": getattr(func, "arguments", "{}"),
+                        }
+                    )
+            return result
+
+        # Fallback: regex extraction from content (backward compatibility)
+        return self._extract_tool_invocations_from_text(content)
+
+    def _extract_tool_invocations_from_text(self, text: str) -> List[Dict[str, Any]]:
+        """Parse <tool name="xxx" args='...'> XML tags from text into structured dicts."""
+        import re
+
+        invocations = []
+        xml_pattern = re.compile(r'<tool\s+name="([^"]+)"\s+args=\'([^\']*)\'/>')
+        for match in xml_pattern.finditer(text):
+            try:
+                name = match.group(1)
+                args = json.loads(match.group(2))
+                invocations.append({"name": name, "arguments": args})
+            except Exception:
+                # Skip malformed invocations
+                pass
+        return invocations
 
     def _get_mock(self) -> str:
         if not os.path.exists(self.mock_file):

@@ -138,35 +138,19 @@ class Evaluator:
         }
 
     def _extract_response(self, result: Dict[str, Any]) -> str:
-        """提取响应文本"""
-        # 从 conversation 中提取最后的 assistant 响应
+        """提取响应文本 — 直接用 assistant content，<response> 标签仅作增强"""
+        # 从 conversation 提取最后的 assistant 响应
         if "conversation" in result:
             for msg in reversed(result["conversation"]):
                 if msg.get("role") == "assistant":
-                    content = msg.get("content", "")
-                    # 提取 <response> 标签内容
+                    content = msg.get("content", "") or ""
+                    # 优先提取 <response> 标签，但允许标签缺失
                     match = re.search(r"<response>(.*?)</response>", content, re.DOTALL)
                     if match:
                         return match.group(1).strip()
-                    return content
-
-        # 尝试从 spec 文件读取
-        if "spec_file" in result and result["spec_file"]:
-            try:
-                with open(result["spec_file"], "r", encoding="utf-8") as f:
-                    spec_data = json.load(f)
-                    for msg in reversed(spec_data.get("conversation", [])):
-                        if msg.get("role") == "assistant":
-                            content = msg.get("content", "")
-                            match = re.search(
-                                r"<response>(.*?)</response>", content, re.DOTALL
-                            )
-                            if match:
-                                return match.group(1).strip()
-                            return content
-            except Exception:
-                pass
-
+                    if content.strip():
+                        return content.strip()
+                    # assistant 返回了工具调用但无 content：跳过继续找
         return ""
 
     def compress_response(self, tool_name: str, response: Any) -> Any:
