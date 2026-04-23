@@ -7,7 +7,6 @@
 """
 
 import time
-import json
 import re
 from typing import Any, Dict, List
 from dataclasses import dataclass, field
@@ -138,35 +137,19 @@ class Evaluator:
         }
 
     def _extract_response(self, result: Dict[str, Any]) -> str:
-        """提取响应文本"""
-        # 从 conversation 中提取最后的 assistant 响应
+        """Extract response text — uses assistant content directly, <response> tag as enhancement."""
+        # Chain mode: response field contains final output directly
+        if "response" in result and result["response"]:
+            return result["response"]
         if "conversation" in result:
             for msg in reversed(result["conversation"]):
                 if msg.get("role") == "assistant":
-                    content = msg.get("content", "")
-                    # 提取 <response> 标签内容
+                    content = msg.get("content", "") or ""
                     match = re.search(r"<response>(.*?)</response>", content, re.DOTALL)
                     if match:
                         return match.group(1).strip()
-                    return content
-
-        # 尝试从 spec 文件读取
-        if "spec_file" in result and result["spec_file"]:
-            try:
-                with open(result["spec_file"], "r", encoding="utf-8") as f:
-                    spec_data = json.load(f)
-                    for msg in reversed(spec_data.get("conversation", [])):
-                        if msg.get("role") == "assistant":
-                            content = msg.get("content", "")
-                            match = re.search(
-                                r"<response>(.*?)</response>", content, re.DOTALL
-                            )
-                            if match:
-                                return match.group(1).strip()
-                            return content
-            except Exception:
-                pass
-
+                    if content.strip():
+                        return content.strip()
         return ""
 
     def compress_response(self, tool_name: str, response: Any) -> Any:

@@ -1,1 +1,8 @@
-["tool: list_files({\"path\": \".\"})", "tool: read_file({\"filename\": \"README.md\"})", "这是一个极简的 Agent 框架，包含 LLM 客户端、工具注册表和主循环。"]
+[
+  "<tool name=\"list_files\" args='{\"path\": \".\"}'/>",
+  "<tool name=\"read_file\" args='{\"path\": \"README.md\"}'/>",
+  "这是一个极简的 Agent 框架，包含 LLM 客户端、工具注册表和主循环。",
+  "<response>NanoAgent 是一个极简的 Agent 框架</response>",
+  "<tool name=\"grep\" args='{\"pattern\": \"def \", \"path\": \"core\", \"file_type\": \"py\"}'/>",
+  "<tool name=\"run_bash\" args='{\"command\": \"ls -la\"}'/>"
+]

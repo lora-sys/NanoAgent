@@ -67,9 +67,14 @@ class ToolResultCache:
             content = result.get("content", "")
             lines = content.count("\n") + 1
             size = len(content)
-            summary["message"] = f"文件共 {lines} 行，{size} 字符"
+            # 包含前 200 字符，避免模型幻觉（只看元数据会编造内容）
+            preview = content[:200] + ("..." if len(content) > 200 else "")
+            summary["message"] = (
+                f"文件共 {lines} 行，{size} 字符。前 200 字符: {preview}"
+            )
             summary["path"] = result.get("file_path", result.get("path", ""))
-            # 内容不进摘要，直接缓存
+            summary["content_preview"] = preview
+            # 内容缓存，外置
             summary["cache_ref"] = self.store(result)
 
         elif tool_name == "list_files":

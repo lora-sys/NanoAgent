@@ -3,9 +3,11 @@
 import asyncio
 import json
 import os
+
+from core.utils import extract_xml_tool_calls
 import random
 import time
-from typing import Dict, List, Optional, Type, TypeVar  # noqa: E402, F401
+from typing import Any, Dict, List, Optional, Type, TypeVar  # noqa: E402, F401
 
 import litellm
 from dotenv import load_dotenv
@@ -47,6 +49,102 @@ class NanoLLMClient:
             "responses_file", "tests/fixtures/llm_mock_simple.json"
         )
         self._mock_idx = 0
+
+    def chat_with_tools(
+        self,
+        messages: List[Dict[str, str]],
+        tools: List[Dict[str, Any]],
+        temperature: Optional[float] = None,
+    ) -> tuple[str, List[Dict[str, Any]]]:
+        """Chat with structured function calling via litellm's native tools parameter.
+
+        Args:
+            messages: Conversation messages
+            tools: OpenAI-style function schemas from ToolRegistry.get_tool_list()
+            temperature: Optional temperature override
+
+        Returns:
+            Tuple of (content, tool_calls) where tool_calls is a list of
+            structured dicts with 'name' and 'arguments' keys, or empty list
+            if the model returned no tool calls.
+        """
+        if self.mock_enabled:
+            mock_resp = self._get_mock()
+            invocations = extract_xml_tool_calls(mock_resp)
+            return mock_resp, invocations
+
+        last_error = None
+        for attempt in range(self.max_attempts):
+            try:
+                start_time = time.time()
+                resp = litellm.completion(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature or self.temperature,
+                    max_tokens=self.max_tokens,
+                    tools=tools,
+                )
+                duration_ms = int((time.time() - start_time) * 1000)
+
+                message = resp.choices[0].message
+                content = message.content or ""
+
+                # Extract structured tool calls if model returned them
+                tool_calls = self._extract_structured_tool_calls(message, content)
+
+                if _HAS_OBSERVABILITY and resp.usage is not None:
+                    tracer = get_tracer()
+                    usage = resp.usage
+                    input_tokens = (
+                        usage.prompt_tokens if hasattr(usage, "prompt_tokens") else 0
+                    )
+                    output_tokens = (
+                        usage.completion_tokens
+                        if hasattr(usage, "completion_tokens")
+                        else 0
+                    )
+                    cost = calculate_cost(self.model, input_tokens, output_tokens)
+                    tracer.record_llm(
+                        model=self.model,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        duration_ms=duration_ms,
+                        input_messages=messages,
+                        output_message=content,
+                        cost=cost,
+                    )
+
+                return content, tool_calls
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_attempts - 1:
+                    time.sleep(min(2**attempt, 8))
+
+        raise last_error
+
+    def _extract_structured_tool_calls(
+        self, message, content: str
+    ) -> List[Dict[str, Any]]:
+        """Extract structured tool calls. Native litellm tool_calls first, then XML fallback."""
+        raw = getattr(message, "tool_calls", None)
+        if raw is not None and len(raw) > 0:
+            calls = []
+            for tc in raw:
+                fn = getattr(tc, "function", None)
+                if fn is None:
+                    continue
+                name = getattr(fn, "name", None) or ""
+                if not name:  # skip None/empty names
+                    continue
+                calls.append(
+                    {
+                        "name": name,
+                        "arguments": getattr(fn, "arguments", "{}"),
+                    }
+                )
+            if calls:
+                return calls
+        return extract_xml_tool_calls(content)
 
     def _get_mock(self) -> str:
         if not os.path.exists(self.mock_file):

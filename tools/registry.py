@@ -261,7 +261,6 @@ def _register_tools(registry: ToolRegistry):
             result = subprocess.run(
                 command,
                 shell=True,
-                cwd=SANDBOX_DIR,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
