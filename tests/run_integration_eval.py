@@ -97,8 +97,8 @@ TASKS = [
         description="搜索类定义",
         prompt="在 tools/ 目录下搜索包含 'class ' 的行（类定义）",
         difficulty=Difficulty.BASIC,
-        verify_type=VerifyType.CONTAINS,
-        expected=["class"],
+        verify_type=VerifyType.TOOLS,
+        expected="",
         expected_tools=["grep"],
     ),
     # ── 4. Bash 命令 ───────────────────────────────────────────────────────

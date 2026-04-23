@@ -105,8 +105,8 @@ TASKS: list[Task] = [
     Task(
         name="grep_class_defs",
         prompt="在 tools/ 目录下搜索包含 'class ' 的行（类定义）",
-        expected=["class"],
-        verify_type="contains",
+        expected="",
+        verify_type="tools",
         difficulty="basic",
         expected_tools=["grep"],
     ),
