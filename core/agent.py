@@ -390,9 +390,7 @@ class NanoAgent:
                 # 执行工具调用
                 self._execute_tool_invocations(normalized_tool_calls)
 
-    def _execute_tool_invocations(
-        self, tool_invocations: List[Dict[str, Any]]
-    ) -> None:
+    def _execute_tool_invocations(self, tool_invocations: List[Dict[str, Any]]) -> None:
         """Execute tool calls from normalized {"name", "arguments"} dicts."""
         for tool_call in tool_invocations:
             name = tool_call.get("name", "")

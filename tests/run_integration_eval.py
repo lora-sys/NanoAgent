@@ -17,7 +17,6 @@ from core.evaluation import Task, Runner, Difficulty, VerifyType
 # ─── 评估任务定义 ───────────────────────────────────────────────────────────
 
 TASKS = [
-
     # ── 1. 文件读取 ────────────────────────────────────────────────────────
     Task(
         name="read_file_readme",
@@ -46,7 +45,6 @@ TASKS = [
         expected=["NanoAgent"],
         expected_tools=["read_file"],
     ),
-
     # ── 2. 目录列表 ────────────────────────────────────────────────────────
     Task(
         name="list_files_project",
@@ -75,7 +73,6 @@ TASKS = [
         expected=["tests"],
         expected_tools=["list_files"],
     ),
-
     # ── 3. Grep 搜索 ──────────────────────────────────────────────────────
     Task(
         name="grep_function_defs",
@@ -104,7 +101,6 @@ TASKS = [
         expected=["class"],
         expected_tools=["grep"],
     ),
-
     # ── 4. Bash 命令 ───────────────────────────────────────────────────────
     Task(
         name="run_bash_pwd",
@@ -133,7 +129,6 @@ TASKS = [
         expected="",
         expected_tools=["run_bash"],
     ),
-
     # ── 5. 多工具组合 ───────────────────────────────────────────────────────
     Task(
         name="multi_read_and_list",
@@ -162,7 +157,6 @@ TASKS = [
         expected="",
         expected_tools=["list_files", "grep"],
     ),
-
     # ── 6. 生命周期 ───────────────────────────────────────────────────────
     Task(
         name="lifecycle_single_turn",
@@ -191,7 +185,6 @@ TASKS = [
         expected="",
         expected_tools=["list_files", "read_file"],
     ),
-
     # ── 7. Chain 模式 ───────────────────────────────────────────────────────
     Task(
         name="chain_mode_analysis",
@@ -220,7 +213,6 @@ TASKS = [
         expected=["core", "模块", "代码"],
         expected_tools=[],
     ),
-
     # ── 8. 可观测性 / 追踪 ──────────────────────────────────────────────────
     Task(
         name="observability_basic",
@@ -249,7 +241,6 @@ TASKS = [
         expected=["NanoAgent"],
         expected_tools=["read_file"],
     ),
-
     # ── 9. Tool Result Cache ───────────────────────────────────────────────
     Task(
         name="cache_grep_result",
@@ -314,6 +305,7 @@ def check_trace_created(trace_path: Path) -> bool:
     if not trace_path.exists():
         return False
     import sqlite3
+
     try:
         conn = sqlite3.connect(trace_path)
         cur = conn.cursor()
@@ -338,6 +330,7 @@ def main():
     traces_before = 0
     if trace_path.exists():
         import sqlite3
+
         conn = sqlite3.connect(trace_path)
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM traces")
@@ -362,8 +355,12 @@ def main():
     groups = group_by_feature(TASKS)
     print("─── 功能维度 ───")
     for feat, feat_tasks in groups.items():
-        feat_results = [r for r in runner.results for t in feat_tasks if t.name == r["task"]["name"]]
-        passed = sum(1 for r in feat_results if r.get("verification", {}).get("passed", False))
+        feat_results = [
+            r for r in runner.results for t in feat_tasks if t.name == r["task"]["name"]
+        ]
+        passed = sum(
+            1 for r in feat_results if r.get("verification", {}).get("passed", False)
+        )
         total = len(feat_results)
         bar = "█" * passed + "░" * (total - passed)
         print(f"  {feat:<40} {passed}/{total} {bar}")
@@ -387,6 +384,7 @@ def main():
     print("\n─── 追踪验证 ───")
     if trace_path.exists():
         import sqlite3
+
         conn = sqlite3.connect(trace_path)
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM traces")
@@ -396,7 +394,9 @@ def main():
         cur.execute("SELECT COUNT(*) FROM tool_calls")
         tool_count = cur.fetchone()[0]
         conn.close()
-        print(f"  traces: {traces_before} → {traces_after} (+{traces_after - traces_before})")
+        print(
+            f"  traces: {traces_before} → {traces_after} (+{traces_after - traces_before})"
+        )
         print(f"  llm_calls: {llm_count}")
         print(f"  tool_calls: {tool_count}")
     else:
@@ -413,19 +413,24 @@ def main():
     out_file = Path(".spec/integration_eval_results.json")
     out_file.parent.mkdir(exist_ok=True)
     with open(out_file, "w", encoding="utf-8") as f:
-        json.dump({
-            "summary": summary,
-            "results": [
-                {
-                    "task": r["task"],
-                    "passed": r.get("verification", {}).get("passed", False),
-                    "tools_used": r.get("result", {}).get("tools_used", []),
-                    "status": r.get("result", {}).get("status", ""),
-                    "error": r.get("error", ""),
-                }
-                for r in runner.results
-            ],
-        }, f, ensure_ascii=False, indent=2)
+        json.dump(
+            {
+                "summary": summary,
+                "results": [
+                    {
+                        "task": r["task"],
+                        "passed": r.get("verification", {}).get("passed", False),
+                        "tools_used": r.get("result", {}).get("tools_used", []),
+                        "status": r.get("result", {}).get("status", ""),
+                        "error": r.get("error", ""),
+                    }
+                    for r in runner.results
+                ],
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
     print(f"\n💾 详细结果已保存: {out_file}")
 
 

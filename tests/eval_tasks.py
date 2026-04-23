@@ -12,29 +12,29 @@ verify_type:
 """
 
 from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass
 class Task:
     prompt: str
-    expected: list[str] | str = ""          # contains: list[str]; tools: ""
-    verify_type: str = "contains"            # contains | tools | semantic | exact
+    expected: list[str] | str = ""  # contains: list[str]; tools: ""
+    verify_type: str = "contains"  # contains | tools | semantic | exact
     name: str = ""
-    difficulty: str = "basic"               # basic | intermediate
+    difficulty: str = "basic"  # basic | intermediate
     expected_tools: list[str] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.name:
             import re
-            words = re.findall(r'\w+', self.prompt)[:3]
+
+            words = re.findall(r"\w+", self.prompt)[:3]
             self.name = "_".join(words).lower()
+
 
 # ─── 任务库 ──────────────────────────────────────────────────────────────────
 
 TASKS: list[Task] = [
-
     # ══ 文件读写 ══════════════════════════════════════════════════════════════
     Task(
         name="read_file_readme",
@@ -60,7 +60,6 @@ TASKS: list[Task] = [
         difficulty="basic",
         expected_tools=["read_file"],
     ),
-
     # ══ 目录列表 ═══════════════════════════════════════════════════════════════
     Task(
         name="list_files_project",
@@ -86,7 +85,6 @@ TASKS: list[Task] = [
         difficulty="basic",
         expected_tools=["list_files"],
     ),
-
     # ══ 代码搜索 ══════════════════════════════════════════════════════════════
     Task(
         name="grep_function_defs",
@@ -112,7 +110,6 @@ TASKS: list[Task] = [
         difficulty="basic",
         expected_tools=["grep"],
     ),
-
     # ══ Bash 命令 ═════════════════════════════════════════════════════════════
     Task(
         name="run_bash_pwd",
@@ -138,7 +135,6 @@ TASKS: list[Task] = [
         difficulty="basic",
         expected_tools=["run_bash"],
     ),
-
     # ══ 多工具组合 ═══════════════════════════════════════════════════════════
     Task(
         name="multi_read_and_list",
@@ -164,7 +160,6 @@ TASKS: list[Task] = [
         difficulty="intermediate",
         expected_tools=["list_files", "grep"],
     ),
-
     # ══ 生命周期 ══════════════════════════════════════════════════════════════
     Task(
         name="lifecycle_single_turn",
@@ -190,7 +185,6 @@ TASKS: list[Task] = [
         difficulty="intermediate",
         expected_tools=["list_files", "read_file"],
     ),
-
     # ══ Chain 提示链 ═════════════════════════════════════════════════════════
     Task(
         name="chain_mode_analysis",
@@ -216,7 +210,6 @@ TASKS: list[Task] = [
         difficulty="intermediate",
         expected_tools=[],
     ),
-
     # ══ 可观测性 ════════════════════════════════════════════════════════════
     Task(
         name="observability_basic",
@@ -242,7 +235,6 @@ TASKS: list[Task] = [
         difficulty="basic",
         expected_tools=["read_file"],
     ),
-
     # ══ Tool Result Cache ════════════════════════════════════════════════════
     Task(
         name="cache_grep_result",

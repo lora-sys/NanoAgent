@@ -69,7 +69,9 @@ class ToolResultCache:
             size = len(content)
             # 包含前 200 字符，避免模型幻觉（只看元数据会编造内容）
             preview = content[:200] + ("..." if len(content) > 200 else "")
-            summary["message"] = f"文件共 {lines} 行，{size} 字符。前 200 字符: {preview}"
+            summary["message"] = (
+                f"文件共 {lines} 行，{size} 字符。前 200 字符: {preview}"
+            )
             summary["path"] = result.get("file_path", result.get("path", ""))
             summary["content_preview"] = preview
             # 内容缓存，外置

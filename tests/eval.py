@@ -23,9 +23,11 @@ from tests.eval_tasks import TASKS, Task
 
 # ─── 验证器 ───────────────────────────────────────────────────────────────────
 
+
 def verify_contains(response: str, expected: list[str]) -> bool:
     r = response.lower()
     return all(kw.lower() in r for kw in expected)
+
 
 def verify_tools(result: dict, expected_tools: list[str]) -> bool:
     used = result.get("tools_used", [])
@@ -33,6 +35,7 @@ def verify_tools(result: dict, expected_tools: list[str]) -> bool:
         return True
     # 每个期望工具都被用过
     return all(t in used for t in expected_tools)
+
 
 def run_task(agent: NanoAgent, task: Task, verbose: bool = False) -> dict:
     cache = get_tool_cache()
@@ -77,6 +80,7 @@ def run_task(agent: NanoAgent, task: Task, verbose: bool = False) -> dict:
 
 
 # ─── 报告 ─────────────────────────────────────────────────────────────────────
+
 
 def print_report(results: list[dict], total_time: float):
     total = len(results)
@@ -130,17 +134,23 @@ def save_results(results: list[dict], total_time: float, out: Path):
     out.parent.mkdir(parents=True, exist_ok=True)
     total = len(results)
     passed = sum(1 for r in results if r["passed"])
-    json.dump({
-        "accuracy": round(100 * passed / total, 1) if total else 0,
-        "passed": passed,
-        "total": total,
-        "total_time_s": round(total_time, 1),
-        "results": results,
-    }, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    json.dump(
+        {
+            "accuracy": round(100 * passed / total, 1) if total else 0,
+            "passed": passed,
+            "total": total,
+            "total_time_s": round(total_time, 1),
+            "results": results,
+        },
+        open(out, "w", encoding="utf-8"),
+        ensure_ascii=False,
+        indent=2,
+    )
     print(f"\n💾 结果: {out}")
 
 
 # ─── 主入口 ───────────────────────────────────────────────────────────────────
+
 
 def main():
     parser = argparse.ArgumentParser(description="NanoAgent 评估器")
@@ -167,7 +177,7 @@ def main():
     start = time.time()
 
     for i, task in enumerate(tasks):
-        print(f"[{i+1}/{len(tasks)}] {task.name}...", end=" ", flush=True)
+        print(f"[{i + 1}/{len(tasks)}] {task.name}...", end=" ", flush=True)
         r = run_task(agent, task, args.verbose)
         results.append(r)
         print(f"{'✅' if r['passed'] else '❌'} {r['time']}s")
