@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NanoAgent RAG Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; max-width: 900px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.5rem; margin-bottom: 20px; color: #1a1a1a; }
+
+    .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .card h2 { font-size: 1rem; color: #555; margin-bottom: 12px; }
+
+    /* Upload zone */
+    .drop-zone { border: 2px dashed #ccc; border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; transition: border-color .2s; }
+    .drop-zone.dragover, .drop-zone:hover { border-color: #007bff; }
+    .drop-zone input[type="file"] { display: none; }
+    .drop-zone p { color: #888; font-size: .9rem; }
+    .btn { background: #007bff; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: .9rem; }
+    .btn:hover { background: #0056b3; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* Upload status */
+    .upload-status { margin-top: 10px; font-size: .85rem; color: #28a745; }
+
+    /* Docs list */
+    .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; font-size: .85rem; }
+    .doc-item:last-child { border-bottom: none; }
+    .doc-name { font-weight: 500; }
+    .doc-meta { color: #888; }
+    .delete-btn { color: #dc3545; background: none; border: none; cursor: pointer; font-size: .8rem; }
+
+    /* Query */
+    textarea { width: 100%; height: 80px; border: 1px solid #ccc; border-radius: 6px; padding: 10px; font-size: .9rem; resize: vertical; }
+    .query-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+
+    /* Results */
+    .answer-box { background: #f8f9fa; border-radius: 6px; padding: 16px; line-height: 1.6; white-space: pre-wrap; }
+    .answer-box .citation { color: #007bff; font-weight: 500; }
+
+    .citations { margin-top: 16px; }
+    .citation-item { background: #fff; border: 1px solid #e9ecef; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-size: .82rem; }
+    .citation-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .citation-source { color: #555; font-weight: 600; }
+    .citation-score { color: #888; font-size: .75rem; }
+    .citation-preview { color: #666; line-height: 1.4; word-break: break-word; }
+    .citation-preview mark { background: #fff3cd; padding: 0 2px; border-radius: 2px; }
+
+    .loading { color: #888; font-size: .85rem; margin-top: 10px; }
+    .error { color: #dc3545; font-size: .85rem; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>NanoAgent RAG Demo</h1>
+
+<!-- Upload -->
+<div class="card">
+  <h2>上传文档</h2>
+  <div class="drop-zone" id="dropZone">
+    <p>拖拽文件到这里，或 <label style="color:#007bff;cursor:pointer">点击选择<input type="file" accept=".txt,.pdf" id="fileInput"></label></p>
+    <p style="margin-top:6px;font-size:.75rem;color:#aaa">支持 .txt 和 .pdf 文件</p>
+  </div>
+  <div class="upload-status" id="uploadStatus"></div>
+</div>
+
+<!-- Doc list -->
+<div class="card">
+  <h2>已上传文档</h2>
+  <div id="docList">加载中…</div>
+</div>
+
+<!-- Query -->
+<div class="card">
+  <h2>提问</h2>
+  <textarea id="queryInput" placeholder="输入你的问题，例如：这个项目叫什么名字？"></textarea>
+  <div class="query-row">
+    <button class="btn" id="askBtn" onclick="doAsk()">提问</button>
+    <span style="font-size:.8rem;color:#888">Top-K:
+      <select id="topk" style="font-size:.8rem">
+        <option value="3">3</option>
+        <option value="5" selected>5</option>
+        <option value="10">10</option>
+      </select>
+    </span>
+  </div>
+  <div class="loading" id="loading" style="display:none">思考中…</div>
+  <div class="error" id="queryError"></div>
+</div>
+
+<!-- Results -->
+<div class="card" id="resultsCard" style="display:none">
+  <h2>回答</h2>
+  <div class="answer-box" id="answerBox"></div>
+  <div class="citations" id="citationsBox"></div>
+</div>
+
+<script>
+const API = "http://localhost:8765";
+
+// ── Upload ────────────────────────────────────────────────────────────────
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+  if (e.dataTransfer.files.length) fileInput.files = e.dataTransfer.files;
+  if (fileInput.files.length) doUpload(fileInput.files[0]);
+});
+
+dropZone.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => { if (fileInput.files.length) doUpload(fileInput.files[0]); });
+
+async function doUpload(file) {
+  const status = document.getElementById("uploadStatus");
+  status.textContent = `上传中: ${file.name}…`;
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${API}/upload`, { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "上传失败");
+    status.textContent = `✅ 已上传 ${file.name}，生成 ${data.chunks} 个 chunk`;
+    loadDocs();
+  } catch(e) {
+    status.textContent = `❌ ${e.message}`;
+  }
+}
+
+// ── Doc list ───────────────────────────────────────────────────────────────
+async function loadDocs() {
+  const box = document.getElementById("docList");
+  try {
+    const res = await fetch(`${API}/files`);
+    const data = await res.json();
+    if (!data.docs || data.docs.length === 0) {
+      box.innerHTML = '<p style="color:#888;font-size:.85rem">暂无文档</p>';
+      return;
+    }
+    box.innerHTML = data.docs.map(d => `
+      <div class="doc-item">
+        <div>
+          <div class="doc-name">${esc(d.filename)}</div>
+          <div class="doc-meta">${d.chunk_count} chunks · ${(d.size_bytes/1024).toFixed(1)} KB · ${d.uploaded_at.split("T")[0]}</div>
+        </div>
+        <button class="delete-btn" onclick="doDelete('${esc(d.filename)}')">删除</button>
+      </div>
+    `).join("");
+  } catch(e) {
+    box.innerHTML = `<p style="color:#dc3545;font-size:.85rem">加载失败: ${e.message}</p>`;
+  }
+}
+
+async function doDelete(filename) {
+  if (!confirm(`确认删除 ${filename}？`)) return;
+  try {
+    const res = await fetch(`${API}/files/${encodeURIComponent(filename)}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("删除失败");
+    loadDocs();
+  } catch(e) { alert(e.message); }
+}
+
+// ── Query ────────────────────────────────────────────────────────────────────
+async function doAsk() {
+  const btn = document.getElementById("askBtn");
+  const query = document.getElementById("queryInput").value.trim();
+  const topk = parseInt(document.getElementById("topk").value);
+
+  if (!query) return;
+
+  btn.disabled = true;
+  document.getElementById("loading").style.display = "block";
+  document.getElementById("queryError").textContent = "";
+  document.getElementById("resultsCard").style.display = "none";
+
+  try {
+    const res = await fetch(`${API}/query?question=${encodeURIComponent(query)}&top_k=${topk}`, {
+      method: "POST",
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "查询失败");
+
+    // Show answer with citation markers highlighted
+    const answerHtml = highlightCitations(esc(data.answer));
+    document.getElementById("answerBox").innerHTML = answerHtml;
+
+    // Show citations
+    const citationsBox = document.getElementById("citationsBox");
+    if (data.citations && data.citations.length > 0) {
+      citationsBox.innerHTML = "<h3 style='font-size:.9rem;color:#555;margin-bottom:8px'>引用溯源</h3>" +
+        data.citations.map(c => `
+          <div class="citation-item">
+            <div class="citation-header">
+              <span class="citation-source">[${c.index}] ${esc(c.file)}: lines ${c.line_start}–${c.line_end}</span>
+              <span class="citation-score">score: ${(c.score*100).toFixed(1)}%</span>
+            </div>
+            <div class="citation-preview">${esc(c.text_preview)}…</div>
+          </div>
+        `).join("");
+    } else {
+      citationsBox.innerHTML = "";
+    }
+
+    document.getElementById("resultsCard").style.display = "block";
+  } catch(e) {
+    document.getElementById("queryError").textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    document.getElementById("loading").style.display = "none";
+  }
+}
+
+// Highlight [N] citation markers in answer text
+function highlightCitations(text) {
+  return text.replace(/\[(\d+)\]/g, '<span class="citation">[$1]</span>');
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Load docs on start
+loadDocs();
+</script>
+</body>
+</html>

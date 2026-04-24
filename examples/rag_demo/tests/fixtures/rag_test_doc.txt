@@ -1,0 +1,121 @@
+NanoAgent 项目技术规格书
+================================================================================
+
+1. 项目概述
+
+NanoAgent 是一个极简 Agent 框架，旨在提供轻量级、高性能的智能助手能力。
+核心设计理念是"零魔法"——所有逻辑都是显式的，不依赖复杂的抽象层或隐式的
+自动机制。框架追求代码可读性和可维护性，使用纯 Python 内置函数实现核心功能，
+最小化外部依赖。
+
+2. 架构设计
+
+NanoAgent 采用模块化架构，主要包含以下核心组件：
+
+2.1 NanoAgent 主循环 (core/agent.py)
+
+主循环采用 LLM + Tools 的经典 Agent 模式：
+- 接收用户任务描述
+- 构建系统提示（包含工具描述）
+- 调用 LLM 生成回复和工具调用
+- 执行工具调用获取结果
+- 将结果摘要后反馈给 LLM
+- 循环直到任务完成
+
+核心类：NanoAgent
+- __init__: 初始化 LLM 客户端和工具注册表
+- run: 执行单次任务
+- chat: 交互式对话模式
+- _execute_tool_invocations: 执行工具调用
+- _get_system_prompt: 生成系统提示
+
+2.2 LLM 客户端 (llm/client.py)
+
+基于 litellm 的统一 LLM 接口：
+- 支持 OpenAI、Anthropic、OpenRouter 等多种后端
+- 结构化函数调用（Structured Function Calling）
+- 支持同步和异步调用
+- 支持流式输出
+- 内置 Mock 模式用于测试
+
+关键方法：
+- chat_with_tools: 带工具调用的对话
+- _extract_structured_tool_calls: 提取结构化工具调用
+- stream_chat: 流式聊天
+
+2.3 工具注册表 (tools/registry.py)
+
+动态工具注册和管理：
+- read_file: 读取文件内容
+- list_files: 列出目录内容
+- edit_file: 编辑文件内容
+- run_bash: 执行系统命令
+- grep: Ripgrep 搜索
+- plan: 生成执行计划
+
+工具格式：XML 风格 <tool name="xxx" args='{"key":"value"}/>
+
+2.4 任务跟踪 (core/spec.py)
+
+TaskSpec 类管理任务状态：
+- task: 任务描述
+- status: pending/running/completed/failed
+- tools_used: 已使用的工具列表
+- artifacts: 生成的产物文件
+
+3. 生命周期事件系统
+
+NanoAgent 实现三层嵌套事件系统：
+
+第一层（Agent）：AGENT_START → AGENT_END
+第二层（Turn）：TURN_START → TURN_END
+第三层（Message/Tool）：MESSAGE_START/END, TOOL_EXECUTION_START/END
+
+事件通过 Lifecycle 管理器管理，支持订阅和深度验证。
+
+4. 可观测性 (core/observability.py)
+
+Tracer 类实现完整的可观测性：
+- 追踪 LLM 调用（输入/输出/Token 消耗/成本）
+- 追踪工具调用（名称/参数/结果/耗时）
+- 存储到 SQLite 数据库（~/.nanoagent/traces.db）
+
+5. 提示链模式 (core/chain.py)
+
+用于处理复杂任务的链式执行：
+- PromptChain: 链式执行多个步骤
+- ChainStep: 单个步骤定义
+- ChainContext: 步骤间共享上下文
+- 支持同步和异步执行
+
+预定义链：
+- create_analysis_chain: 分析任务链
+- create_design_chain: 设计任务链
+
+6. 路由模块 (core/router.py)
+
+智能路由器支持多种路由策略：
+- 关键词路由：快速匹配关键词
+- 函数路由：自定义路由逻辑
+- 智能路由：使用 LLM 决策
+
+7. 工具结果缓存 (core/tool_cache.py)
+
+ToolResultCache 减少 context token 开销：
+- 按工具名 + 参数哈希缓存结果
+- 摘要策略（grep: 统计信息，read_file: 行数+内容预览）
+- LRU 淘汰策略
+
+8. 测试框架 (tests/)
+
+三层测试体系：
+- 单元测试（Mock 模式）：tests/agent/ -m unit
+- 集成测试（Real API）：tests/agent/ -m integration
+- 端到端测试：tests/eval.py
+
+9. 评估框架
+
+轻量评估框架：uv run python tests/eval.py
+- 支持 contains/tools/semantic/exact 四种验证类型
+- 27 个基准任务覆盖 9 个功能维度
+- 当前准确率：96.3%（26/27 通过）

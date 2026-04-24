@@ -83,3 +83,11 @@ build/
 
 .qwen
 .spec
+
+# RAG demo
+.chromadb/
+.chromadb_test/
+.rag_docs.json
+examples/rag_demo/.chromadb/
+examples/rag_demo/.rag_docs.json
+examples/rag_demo/tests/.chromadb_test/
