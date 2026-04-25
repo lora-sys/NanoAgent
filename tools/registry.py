@@ -329,3 +329,11 @@ def _register_tools(registry: ToolRegistry):
         registry.register("rag_reset", rag_reset, "Clear all RAG documents. Use with caution.")
     except Exception:
         pass  # RAG tools optional — NanoAgent works without them
+
+    # 注册 Memory 工具
+    try:
+        from core.memory import register_memory_tools
+
+        register_memory_tools(registry)
+    except Exception:
+        pass  # Memory tools optional

@@ -40,6 +40,7 @@ class NanoAgent:
         self,
         llm_client: Optional[NanoLLMClient] = None,
         tool_registry: Optional[ToolRegistry] = None,
+        memory_integrator=None,
     ):
         """
         初始化 Agent
@@ -47,6 +48,7 @@ class NanoAgent:
         Args:
             llm_client: LLM 客户端，默认自动创建
             tool_registry: 工具注册表，默认自动创建
+            memory_integrator: 可选，内存集成器（来自 core.memory）
         """
         self.llm = llm_client or NanoLLMClient()
         self.tools = tool_registry or get_tool_registry()
@@ -56,6 +58,7 @@ class NanoAgent:
         self.spec: Optional[TaskSpec] = None
         self.conversation: List[Dict[str, str]] = []
         self._stop_condition: Optional[Callable[[], bool]] = None
+        self._memory_integrator = memory_integrator
 
     def _should_use_chain(self, task: str) -> bool:
         """判断是否应该使用提示链模式"""
@@ -184,6 +187,16 @@ class NanoAgent:
                 {"role": "user", "content": task},
             ]
 
+            # Memory context injection
+            if self._memory_integrator:
+                self._memory_integrator.on_agent_start(task)
+                # If integrator modified conversation[0] (system), we're good
+                # Otherwise inject memory via dedicated call
+                if self._memory_integrator.mm:
+                    mem_ctx = self._memory_integrator.mm.build_context_for_prompt(max_tokens=1500)
+                    if mem_ctx:
+                        self.conversation[0]["content"] += f"\n\n## Memory Context\n{mem_ctx}\n"
+
             print("🤖 NanoAgent - 极简 Agent 框架")
             print(f"📋 任务: {task}")
 
@@ -311,6 +324,10 @@ class NanoAgent:
                 if msg.get("role") == "assistant":
                     last_response = msg.get("content", "")
                     break
+
+            # Save session summary to cross-session memory
+            if self._memory_integrator:
+                self._memory_integrator.on_agent_end(task, last_response)
 
             return {
                 "status": self.spec.status,
@@ -443,6 +460,11 @@ class NanoAgent:
                         "content": f"tool_result({json.dumps(summarized, ensure_ascii=False)})",
                     }
                 )
+
+                # Track tool usage in memory integrator
+                if self._memory_integrator:
+                    self._memory_integrator.on_tool_call(name)
+                    self._memory_integrator.on_turn_end(name, result)
 
                 self.lifecycle.emit(
                     ToolEndEvent(
