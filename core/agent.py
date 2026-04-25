@@ -646,17 +646,6 @@ class NanoAgent:
             "3. **参数格式**: JSON 参数必须使用单引号包裹，内部使用双引号\n"
             "4. **路径处理**: 支持相对路径和绝对路径，相对路径相对于当前工作目录\n"
             "5. **错误处理**: 如果工具返回错误，使用 <error> 标记描述问题\n\n"
-            "### 工具示例\n\n"
-            "#### read_file - 读取文件内容\n"
-            '<tool name="read_file" args=\'{"path": "README.md"}\'/>\n\n'
-            "#### list_files - 列出目录文件\n"
-            '<tool name="list_files" args=\'{"path": "."}\'/>\n\n'
-            "#### edit_file - 编辑文件内容\n"
-            '<tool name="edit_file" args=\'{"path": "test.txt", "old_str": "hello", "new_str": "world"}\'/>\n\n'
-            "#### run_bash - 执行系统命令\n"
-            '<tool name="run_bash" args=\'{"command": "ls -la"}\'/>\n\n'
-            "#### grep - 搜索文件和代码\n"
-            '<tool name="grep" args=\'{"pattern": "def run", "path": "core", "file_type": "py", "max_count": 20}\'/>\n\n'
             "### 响应格式\n"
             "- 正常响应: <response>你的回复内容</response>\n"
             "- 错误响应: <error>错误描述</error>\n\n"
