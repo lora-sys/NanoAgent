@@ -299,3 +299,40 @@ class CrossSessionStore(SQLiteMemoryStore):
     @property
     def memory_type(self) -> str:
         return "cross_session"
+
+    def to_context_string(self, max_tokens: int = 1000) -> str:
+        """
+        Convert cross-session context to natural language format.
+
+        Format: "Session: task summary | Tools: tool1, tool2 | Result: outcome"
+        """
+        conn = self._conn()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, task, summary, tools_used FROM sessions ORDER BY ended_at DESC LIMIT 5"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            return ""
+
+        # Build natural language context
+        parts = []
+        for i, (sid, task, summary, tools_used) in enumerate(rows, 1):
+            # Parse tools_used JSON
+            tool_list = ""
+            if tools_used:
+                try:
+                    tools = json.loads(tools_used)
+                    if tools:
+                        tool_list = f" | Tools: {', '.join(tools[:5])}"  # Limit to 5 tools
+                except json.JSONDecodeError:
+                    pass
+
+            # Build sentence: "Session 1: completed analysis task | Tools: read_file, grep"
+            task_short = (task or summary or "unknown task")[:50]
+            entry = f"Session {i}: {task_short}{tool_list}"
+            parts.append(entry)
+
+        return "\n".join(parts)

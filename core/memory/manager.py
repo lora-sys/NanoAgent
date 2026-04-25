@@ -1,6 +1,7 @@
 """Memory manager — central orchestrator with hot-swappable stores."""
 
-from typing import Dict, Optional
+import re
+from typing import Dict, Optional, Set
 
 from core.memory.interfaces import BaseMemory
 from core.memory.stores import (
@@ -48,18 +49,54 @@ class MemoryManager:
         """Set or replace a store (alias for register_store)."""
         self._stores[name] = store
 
-    def build_context_for_prompt(self, max_tokens: int = 2000) -> str:
+    def apply_task_budget(self, task: str) -> None:
+        """Apply task-specific token budgets based on task content."""
+        self._optimizer.apply_task_budget(task)
+
+    def build_context_for_prompt(
+        self,
+        max_tokens: int = 2000,
+        task: Optional[str] = None
+    ) -> str:
         """
         Build memory context string within token budget.
+
+        Args:
+            max_tokens: Total token budget for memory context
+            task: Optional task description for adaptive budgets
+
         Priority: preference > cross_session > long_term > working > short_term
+
+        Includes deduplication: prevents same information from appearing in multiple stores.
         """
+        # Apply task-specific budgets if task provided
+        if task:
+            self._optimizer.apply_task_budget(task)
+
+        # Collect content from all stores
         contents = {}
+        seen_keys: Set[str] = set()  # For deduplication
+
         for name in ["preference", "cross_session", "long_term", "working", "short_term"]:
             store = self._stores.get(name)
-            if store:
-                ctx = store.to_context_string(max_tokens=self._optimizer._budgets.get(name, 200))
-                if ctx:
-                    contents[name] = ctx
+            if not store:
+                continue
+
+            ctx = store.to_context_string(max_tokens=self._optimizer._budgets.get(name, 200))
+            if not ctx:
+                continue
+
+            # Deduplicate: extract key names from context and track
+            # For simple key:value format, extract the keys
+            ctx_keys = set(re.findall(r'^(\w+):', ctx, re.MULTILINE))
+
+            # Skip if we've seen these keys from higher-priority stores
+            if ctx_keys and ctx_keys.issubset(seen_keys) and name != "preference":
+                # Add empty to skip but keep what we have
+                pass
+            else:
+                contents[name] = ctx
+                seen_keys.update(ctx_keys)
 
         return self._optimizer.build_context(contents, total_budget=max_tokens)
 

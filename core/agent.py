@@ -193,7 +193,10 @@ class NanoAgent:
                 # If integrator modified conversation[0] (system), we're good
                 # Otherwise inject memory via dedicated call
                 if self._memory_integrator.mm:
-                    mem_ctx = self._memory_integrator.mm.build_context_for_prompt(max_tokens=1500)
+                    # Pass task for adaptive token budgets
+                    mem_ctx = self._memory_integrator.mm.build_context_for_prompt(
+                        max_tokens=1500, task=task
+                    )
                     if mem_ctx:
                         self.conversation[0]["content"] += f"\n\n## Memory Context\n{mem_ctx}\n"
 
