@@ -41,6 +41,7 @@ class NanoAgent:
         llm_client: Optional[NanoLLMClient] = None,
         tool_registry: Optional[ToolRegistry] = None,
         memory_integrator=None,
+        executor=None,
     ):
         """
         初始化 Agent
@@ -49,6 +50,7 @@ class NanoAgent:
             llm_client: LLM 客户端，默认自动创建
             tool_registry: 工具注册表，默认自动创建
             memory_integrator: 可选，内存集成器（来自 core.memory）
+            executor: 可选，并行执行器（来自 core.executor）
         """
         self.llm = llm_client or NanoLLMClient()
         self.tools = tool_registry or get_tool_registry()
@@ -59,6 +61,116 @@ class NanoAgent:
         self.conversation: List[Dict[str, str]] = []
         self._stop_condition: Optional[Callable[[], bool]] = None
         self._memory_integrator = memory_integrator
+        self._executor = executor
+
+    def _should_use_executor(self, task: str) -> bool:
+        """判断是否应该使用并行执行器模式"""
+        if not self._executor:
+            return False
+
+        # 检测并行任务关键词
+        parallel_keywords = {
+            "并行",
+            "parallel",
+            "同时",
+            "一起",
+            "全部",
+            "多个",
+            "分别",
+        }
+
+        # 多目标分隔符
+        separators = ["和", "与", "以及", ",", "，", "、"]
+
+        # 有明确的并行指示词
+        if any(kw in task for kw in parallel_keywords):
+            return True
+
+        # 检测多目标模式 (逗号、或列表分隔)
+        for sep in separators:
+            if sep in task and task.count(sep) >= 1:
+                return True
+
+        return False
+
+    def _run_with_executor(self, task: str) -> Dict[str, Any]:
+        """使用并行执行器模式执行任务"""
+        from core.executor import ExecutionGraph, TaskNode, SerialExecutor
+        import time
+
+        print("⚡ 使用并行执行器模式执行任务")
+
+        try:
+            # 构建执行图 - 将任务分解为多个步骤
+            steps = self._decompose_task(task)
+            if not steps:
+                return self._run_with_chain(task)
+
+            # 创建执行图
+            graph = ExecutionGraph(name="agent_executor")
+
+            for i, step in enumerate(steps):
+                node = TaskNode(
+                    id=f"step_{i}",
+                    name=step.get("name", f"Step {i}"),
+                    prompt=step.get("prompt", task),
+                    handler=None,  # Will use LLM
+                )
+                if i > 0:
+                    node.depends_on = [f"step_{i-1}"]
+                graph.add_node(node)
+
+            graph.entry_point = "step_0"
+
+            # 使用串行执行器（与 agent 循环相同）
+            executor = SerialExecutor(llm_client=self.llm)
+
+            start_time = time.time()
+            status = executor.run_sync(graph, initial_input=task)
+            duration = time.time() - start_time
+
+            print(f"✅ 执行器模式执行完成")
+            print(f"⏱️ 执行时间: {duration:.2f}秒")
+            print(f"📋 执行步骤: {list(status.results.keys())}")
+
+            return {
+                "status": "completed" if all(
+                    r.status.value == "completed" for r in status.results.values()
+                ) else "failed",
+                "iterations": len(steps),
+                "tools_used": [],
+                "artifacts": [],
+                "spec_file": None,
+                "execution_mode": "executor",
+                "execution_time": duration,
+                "response": list(status.results.values())[-1].output if status.results else None,
+                "executor_results": {k: v.to_dict() for k, v in status.results.items()},
+            }
+
+        except Exception as e:
+            print(f"❌ 执行器模式执行失败: {e}")
+            # Fallback to chain mode
+            return self._run_with_chain(task)
+
+    def _decompose_task(self, task: str) -> List[Dict[str, str]]:
+        """将任务分解为多个步骤"""
+        # 简单的基于关键词的分解
+        # 实际应用中可使用 LLM 来分解
+        separators = ["和", "与", "以及", ",", "，", "、"]
+
+        parts = [task]
+        for sep in separators:
+            new_parts = []
+            for part in parts:
+                new_parts.extend(part.split(sep))
+            if len(new_parts) > len(parts):
+                parts = new_parts
+                break
+
+        if len(parts) > 1:
+            return [{"name": f"subtask_{i}", "prompt": p.strip()} for i, p in enumerate(parts) if p.strip()]
+
+        return []
 
     def _should_use_chain(self, task: str) -> bool:
         """判断是否应该使用提示链模式"""
@@ -173,6 +285,9 @@ class NanoAgent:
 
         try:
             # 智能选择执行模式
+            if self._should_use_executor(task):
+                return self._run_with_executor(task)
+
             if self._should_use_chain(task):
                 return self._run_with_chain(task)
 

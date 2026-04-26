@@ -66,6 +66,7 @@ Data flow: User Task → NanoAgent.run() → LLM + Tools Loop → TaskSpec → J
 | `core/agent.py` | Main agent loop | `NanoAgent` |
 | `core/chain.py` | Task decomposition | `PromptChain`, `ChainStep`, `ChainContext` |
 | `core/router.py` | Task routing | `Router`, `Route`, `RouteContext` |
+| `core/executor/` | Parallel/serial execution | `ParallelExecutor`, `SerialExecutor`, `FlowController`, `ExecutionGraph` |
 | `core/model_interface.py` | Multi-model support | `ModelRegistry`, `ModelSelector` |
 | `core/composable.py` | Feature composition | `ComposableAgent`, `AgentBuilder` |
 | `core/observability.py` | Tracing + stats | `Tracer`, `TraceSession` |
