@@ -19,7 +19,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+.specify
 # Virtual environments
 .venv
 env/
@@ -34,7 +34,7 @@ venv.bak/
 *.swo
 *~
 .DS_Store
-
+/plans
 # Environment variables
 .env
 .env.local

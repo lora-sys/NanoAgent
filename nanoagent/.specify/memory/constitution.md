@@ -1,50 +1,86 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# NanoAgent Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Clean & Zero Magic
+Code must be readable without magic. No hidden control flow, no implicit state. Explicit logic over clever tricks. Every abstraction must earn its weight.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Minimal Dependencies
+Every dependency is a liability. Prefer stdlib > single lib > new lib. When adding deps: justify cost vs. benefit. No organizational-only libraries.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Test-First (Non-Negotiable)
+TDD mandatory for new features: Tests written first, user approves, tests fail, then implement. Red-Green-Refactor strictly enforced. Coverage ≥ 80% for new code.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Hot-Swap Architecture
+All core components (memory, LLM, tools) must be pluggable at runtime. No hardcoded implementations. Registry pattern for extensibility.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Token Efficiency
+Context is expensive. Optimize for minimal tokens, maximum effectiveness. Language-aware token estimation. Truncate intelligently, preserve meaning.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Testing Standards
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### Unit Tests
+- All tools require `@unit` mock-mode tests
+- harness.py provides mock/real toggle, tool interception, assertions
+- Each new tool: minimum 3 unit tests (happy path, error, edge case)
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+### Integration Tests
+- `@integration` tests run against real API
+- Marked clearly, skipped in CI unless explicitly triggered
+- Use real_agent fixture for end-to-end flows
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### Eval Framework
+- Every feature needs eval tasks in eval_tasks.py
+- verify_type="tools" preferred over verify_type="contains"
+- Eval runner: `uv run python tests/eval.py`
+
+## User Experience Consistency
+
+### Tool Interface Contract
+- Tools return dict with status field: `{"status": "ok"}` or `{"status": "error", "message": "..."}`
+- XML-style tool call format: `<tool name="xxx" args='{"key":"value"}'/>`
+- Response format: `<response>...</response>` or `<error>...</error>`
+
+### Memory Tool Semantics
+- `remember` defaults to long_term, persists across sessions
+- `recall` defaults to cross_session, searches session history
+- `forget` removes from specified memory store
+- `preference` manages user settings (get/set/list)
+
+### Agent Response Contract
+- Always use tools for file/system queries, never guess
+- Memory context injected at agent start (max 1500 tokens default)
+- Task results saved to .spec/*.json
+
+## Performance Requirements
+
+### Token Budgets
+| Memory Type | Tool-Heavy | Analysis | Creative |
+|-------------|------------|----------|----------|
+| preference  | 150        | 100      | 200      |
+| cross_session | 200     | 500      | 300      |
+| long_term   | 200        | 500      | 400      |
+| working     | 350        | 150      | 200      |
+| short_term  | 150        | 50       | 200      |
+
+### Optimization Rules
+- Language-aware token estimation (Chinese ~1.8 chars/token, English ~4 chars/token)
+- Sentence-aware truncation preserves complete sentences
+- Deduplicate across memory stores before context injection
+- Hard tokens limits never exceeded
+
+### Memory Hot-Swap
+- Register new stores at runtime via MemoryManager.register_store()
+- Stores must implement BaseMemory ABC
+- No restart required for memory system changes
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+Constitution supersedes all other practices. Amendments require:
+1. Documentation of proposed change
+2. Migration plan for existing code
+3. Approval from project lead
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+All PRs must verify compliance with these principles.
+
+**Version**: 1.0.0 | **Ratified**: 2026-04-25 | **Last Amended**: 2026-04-25

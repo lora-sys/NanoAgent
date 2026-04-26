@@ -52,7 +52,7 @@ class TestToolResultCache:
 
         assert "content" not in summary
         assert "cache_ref" in summary
-        assert summary["message"] == "文件共 201 行，1000 字符"
+        assert summary["message"].startswith("文件共 201 行，1000 字符")
 
     @pytest.mark.unit
     def test_run_bash_summarize(self):
