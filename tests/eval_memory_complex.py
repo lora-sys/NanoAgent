@@ -12,10 +12,11 @@ Run: uv run python tests/eval_memory_complex.py
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.agent import NanoAgent
-from core.memory import get_memory_manager, reset_memory_manager, InMemoryStore, SQLiteMemoryStore
+from core.memory import get_memory_manager, reset_memory_manager, InMemoryStore
 
 
 def test_multi_step_memory():
@@ -38,7 +39,10 @@ def test_multi_step_memory():
     agent1 = NanoAgent()
     for key, value in stores:
         print(f"\n→ Storing: {key}={value}")
-        result = agent1.run(f"用remember工具记住key={key}, value={value}, mem_type=long_term", max_iterations=3)
+        result = agent1.run(
+            f"用remember工具记住key={key}, value={value}, mem_type=long_term",
+            max_iterations=3,
+        )
         stored = mm.get_store("long_term").get(key)
         print(f"  Stored: {stored}")
         # Agent may store with slight variations - check value exists
@@ -49,7 +53,9 @@ def test_multi_step_memory():
     agent2 = NanoAgent()
     for key, expected in stores:
         print(f"\n→ Recalling: {key}")
-        result = agent2.run(f"用recall工具查询query={key}, mem_type=long_term", max_iterations=3)
+        result = agent2.run(
+            f"用recall工具查询query={key}, mem_type=long_term", max_iterations=3
+        )
         response = result.get("response", "")
         print(f"  Response: {response[:100]}")
         # Each should recall its specific value
@@ -76,14 +82,19 @@ def test_similar_keys():
 
     agent1 = NanoAgent()
     for key, value in similar_keys:
-        result = agent1.run(f"用remember工具记住key={key}, value={value}, mem_type=long_term", max_iterations=3)
+        result = agent1.run(
+            f"用remember工具记住key={key}, value={value}, mem_type=long_term",
+            max_iterations=3,
+        )
         stored = mm.get_store("long_term").get(key)
         assert stored == value, f"Expected {value}, got {stored}"
 
     # Recall each and verify exact match
     agent2 = NanoAgent()
     for key, expected in similar_keys:
-        result = agent2.run(f"用recall工具查询key={key}, mem_type=long_term", max_iterations=3)
+        result = agent2.run(
+            f"用recall工具查询key={key}, mem_type=long_term", max_iterations=3
+        )
         response = result.get("response", "")
         print(f"  {key} → {response[:60]}...")
         assert expected in response, f"Failed to recall exact {key}"
@@ -124,7 +135,9 @@ def test_context_injection():
 
     # Context should be injected
     modified_content = MockAgent.conversation[0]["content"]
-    print(f"\nModified system prompt contains memory: {'Memory Context' in modified_content}")
+    print(
+        f"\nModified system prompt contains memory: {'Memory Context' in modified_content}"
+    )
     assert "Memory Context" in modified_content or "nanoagent" in modified_content
 
     print("✅ Memory context injection test passed!")
@@ -179,7 +192,10 @@ def test_complex_query():
     ]
 
     for key, value in memories:
-        result = agent1.run(f"用remember工具记住key={key}, value={value}, mem_type=long_term", max_iterations=3)
+        result = agent1.run(
+            f"用remember工具记住key={key}, value={value}, mem_type=long_term",
+            max_iterations=3,
+        )
         stored = mm.get_store("long_term").get(key)
         print(f"  Stored {key}: {stored}")
 
@@ -187,15 +203,15 @@ def test_complex_query():
     # Key insight: query the KEY, not natural language, for best results
     agent2 = NanoAgent()
     result = agent2.run(
-        "查询languages这个key在long_term里的值是什么？用recall工具",
-        max_iterations=5
+        "查询languages这个key在long_term里的值是什么？用recall工具", max_iterations=5
     )
     response = result.get("response", "")
     print(f"\nComplex query response:\n{response[:200]}")
 
     # Should find Python in the languages field
-    assert "Python" in response or "python" in response.lower(), \
-        f"Expected 'Python' in complex query response"
+    assert "Python" in response or "python" in response.lower(), (
+        "Expected 'Python' in complex query response"
+    )
 
     print("✅ Complex query reasoning test passed!")
 
@@ -224,15 +240,15 @@ def test_cross_session_search():
     # Search for Python-related work
     agent = NanoAgent()
     result = agent.run(
-        "搜索我之前关于Python的会话经验，用recall工具查询",
-        max_iterations=3
+        "搜索我之前关于Python的会话经验，用recall工具查询", max_iterations=3
     )
     response = result.get("response", "")
     print(f"\nSearch response:\n{response[:200]}")
 
     # Should find session_2 about Python bug fix
-    assert "Python" in response or "python" in response.lower() or "bug" in response, \
-        f"Expected Python-related content in cross-session search"
+    assert "Python" in response or "python" in response.lower() or "bug" in response, (
+        "Expected Python-related content in cross-session search"
+    )
 
     print("✅ Cross-session search test passed!")
 
@@ -244,6 +260,7 @@ def run_all_tests():
     print("=" * 60)
 
     from llm.client import NanoLLMClient
+
     client = NanoLLMClient()
 
     if client.mock_enabled:

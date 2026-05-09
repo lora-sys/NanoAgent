@@ -26,7 +26,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from tests.eval_tasks_rag import TASKS_RAG, RAGTask
 
 SERVER = "http://localhost:8765"
-FIXTURE = Path(__file__).parent.parent / "examples/rag_demo/tests/fixtures/rag_test_doc.txt"
+FIXTURE = (
+    Path(__file__).parent.parent / "examples/rag_demo/tests/fixtures/rag_test_doc.txt"
+)
 RESULTS_OUT = Path(".spec/rag_eval_results.json")
 
 
@@ -61,10 +63,15 @@ def verify_grounded(response_json: dict, task: RAGTask) -> tuple[bool, str]:
         parts = kw_lower.split()
         if kw_lower in answer_lower or any(p in answer_lower for p in parts):
             matched.append(kw)
-    match_rate = len(matched) / len(task.expected_keywords) if task.expected_keywords else 1.0
+    match_rate = (
+        len(matched) / len(task.expected_keywords) if task.expected_keywords else 1.0
+    )
 
     if match_rate < 0.5:  # 至少 50% 关键词匹配
-        return False, f"关键词匹配率不足: {match_rate:.0%} ({len(matched)}/{len(task.expected_keywords)})"
+        return (
+            False,
+            f"关键词匹配率不足: {match_rate:.0%} ({len(matched)}/{len(task.expected_keywords)})",
+        )
     reasons.append(f"keyword_match={match_rate:.0%}({matched})")
 
     return True, " | ".join(reasons)
@@ -94,7 +101,10 @@ def verify_no_citation(response_json: dict, task: RAGTask) -> tuple[bool, str]:
     # 如果有有效引用和高分 → 失败（幻觉）
     high_score_citations = [c for c in citations if c["score"] >= task.rag_min_score]
     if high_score_citations:
-        return False, f"幻觉检测！文档中不存在但有 {len(high_score_citations)} 个有效引用"
+        return (
+            False,
+            f"幻觉检测！文档中不存在但有 {len(high_score_citations)} 个有效引用",
+        )
 
     return True, "无有效引用"
 
@@ -182,7 +192,9 @@ def run_task(task: RAGTask, verbose: bool = False) -> dict:
     if verbose:
         citations = response.get("citations", [])
         print(f"  → {reason}")
-        print(f"  → citations: {len(citations)}, answer: {response.get('answer', '')[:80]}")
+        print(
+            f"  → citations: {len(citations)}, answer: {response.get('answer', '')[:80]}"
+        )
 
     return {
         "task": task.name,
@@ -209,7 +221,16 @@ def print_report(results: list[dict], total_time: float):
     print("=" * 60)
 
     # 按类型分组
-    grounded = [r for r in results if "nanoagent" in r["task"] or "core" in r["task"] or "llm" in r["task"] or "tool" in r["task"] or "lifecycle" in r["task"] or "observability" in r["task"]]
+    grounded = [
+        r
+        for r in results
+        if "nanoagent" in r["task"]
+        or "core" in r["task"]
+        or "llm" in r["task"]
+        or "tool" in r["task"]
+        or "lifecycle" in r["task"]
+        or "observability" in r["task"]
+    ]
     halluc = [r for r in results if "hallucination" in r["task"]]
     partial = [r for r in results if "partial" in r["task"]]
 
@@ -230,7 +251,12 @@ def print_report(results: list[dict], total_time: float):
         print(f"  partial    {p}/{len(partial)} {'█' * p}{'░' * (len(partial) - p)}")
 
     # 额外指标
-    citation_scores = [c for r in results if r.get("citations_count", 0) > 0 for c in [r["citations_count"]]]
+    citation_scores = [
+        c
+        for r in results
+        if r.get("citations_count", 0) > 0
+        for c in [r["citations_count"]]
+    ]
     halluc_false = sum(1 for r in halluc if not r["passed"])
 
     print()
@@ -267,7 +293,9 @@ def main():
     parser = argparse.ArgumentParser(description="NanoAgent RAG 评测器")
     parser.add_argument("--task", help="只跑指定任务")
     parser.add_argument("--verbose", "-v", action="store_true")
-    parser.add_argument("--reset", action="store_true", help="重置 RAG 状态并重新上传文档")
+    parser.add_argument(
+        "--reset", action="store_true", help="重置 RAG 状态并重新上传文档"
+    )
     args = parser.parse_args()
 
     # 检查 server 是否运行

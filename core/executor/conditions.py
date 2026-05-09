@@ -14,7 +14,11 @@ class ConditionContext:
         """Get a value from the result dict or return default."""
         if isinstance(self._result, dict):
             return self._result.get(key, default)
-        return getattr(self._result, key, default) if hasattr(self._result, key) else default
+        return (
+            getattr(self._result, key, default)
+            if hasattr(self._result, key)
+            else default
+        )
 
     def contains(self, substring: str) -> bool:
         """Check if result contains a substring."""
@@ -117,13 +121,21 @@ def eval_condition(expression: str, context: Any) -> bool:
         # Handle "result is None" / "result is not None" specially
         # Python's 'is' cannot be overloaded, so we transform it
         if re.search(r"\bresult\s+is\s+None\b", normalized):
-            normalized = re.sub(r"\bresult\s+is\s+None\b", "ctx._result is None", normalized)
+            normalized = re.sub(
+                r"\bresult\s+is\s+None\b", "ctx._result is None", normalized
+            )
         if re.search(r"\bresult\s+is\s+not\s+None\b", normalized):
-            normalized = re.sub(r"\bresult\s+is\s+not\s+None\b", "ctx._result is not None", normalized)
+            normalized = re.sub(
+                r"\bresult\s+is\s+not\s+None\b", "ctx._result is not None", normalized
+            )
         if re.search(r"\bresult\s+is\s+True\b", normalized):
-            normalized = re.sub(r"\bresult\s+is\s+True\b", "ctx._result is True", normalized)
+            normalized = re.sub(
+                r"\bresult\s+is\s+True\b", "ctx._result is True", normalized
+            )
         if re.search(r"\bresult\s+is\s+False\b", normalized):
-            normalized = re.sub(r"\bresult\s+is\s+False\b", "ctx._result is False", normalized)
+            normalized = re.sub(
+                r"\bresult\s+is\s+False\b", "ctx._result is False", normalized
+            )
 
         result = eval(normalized, eval_globals, {"ctx": ctx})
         return bool(result)
@@ -140,7 +152,11 @@ def parse_condition_expression(expression: str) -> Optional[Dict[str, str]]:
     Returns dict with 'then_node' and 'else_node' if valid, None otherwise.
     """
     # Simple parsing - for complex expressions, just return None
-    if not expression or "then" not in expression.lower() or "else" not in expression.lower():
+    if (
+        not expression
+        or "then" not in expression.lower()
+        or "else" not in expression.lower()
+    ):
         return None
 
     return {"expression": expression}

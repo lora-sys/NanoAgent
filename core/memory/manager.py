@@ -54,9 +54,7 @@ class MemoryManager:
         self._optimizer.apply_task_budget(task)
 
     def build_context_for_prompt(
-        self,
-        max_tokens: int = 2000,
-        task: Optional[str] = None
+        self, max_tokens: int = 2000, task: Optional[str] = None
     ) -> str:
         """
         Build memory context string within token budget.
@@ -77,18 +75,26 @@ class MemoryManager:
         contents = {}
         seen_keys: Set[str] = set()  # For deduplication
 
-        for name in ["preference", "cross_session", "long_term", "working", "short_term"]:
+        for name in [
+            "preference",
+            "cross_session",
+            "long_term",
+            "working",
+            "short_term",
+        ]:
             store = self._stores.get(name)
             if not store:
                 continue
 
-            ctx = store.to_context_string(max_tokens=self._optimizer._budgets.get(name, 200))
+            ctx = store.to_context_string(
+                max_tokens=self._optimizer._budgets.get(name, 200)
+            )
             if not ctx:
                 continue
 
             # Deduplicate: extract key names from context and track
             # For simple key:value format, extract the keys
-            ctx_keys = set(re.findall(r'^(\w+):', ctx, re.MULTILINE))
+            ctx_keys = set(re.findall(r"^(\w+):", ctx, re.MULTILINE))
 
             # Skip if we've seen these keys from higher-priority stores
             if ctx_keys and ctx_keys.issubset(seen_keys) and name != "preference":

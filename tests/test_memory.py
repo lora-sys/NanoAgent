@@ -3,7 +3,6 @@
 import pytest
 from core.memory import (
     get_memory_manager,
-    reset_memory_manager,
     InMemoryStore,
     WorkingMemoryStore,
     SQLiteMemoryStore,
@@ -11,7 +10,6 @@ from core.memory import (
     FileBackedMemoryStore,
     MemoryOptimizer,
 )
-from core.memory.stores import InMemoryStore as IMS
 
 
 class TestInMemoryStore:

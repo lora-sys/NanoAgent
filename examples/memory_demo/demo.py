@@ -10,17 +10,10 @@ from pathlib import Path
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-import json
 from core.memory import (
     get_memory_manager,
     reset_memory_manager,
-    MemoryManager,
-    MemoryOptimizer,
     InMemoryStore,
-    WorkingMemoryStore,
-    SQLiteMemoryStore,
-    CrossSessionStore,
-    FileBackedMemoryStore,
 )
 
 
@@ -98,15 +91,21 @@ def demo_cross_session():
     cross = mm.get_store("cross_session")
 
     # 保存多个会话摘要
-    cross.save_summarized_context("session_1", "完成了项目架构设计 | Tools: read_file, grep")
-    cross.save_summarized_context("session_2", "实现了记忆系统模块 | Tools: edit_file, run_bash")
+    cross.save_summarized_context(
+        "session_1", "完成了项目架构设计 | Tools: read_file, grep"
+    )
+    cross.save_summarized_context(
+        "session_2", "实现了记忆系统模块 | Tools: edit_file, run_bash"
+    )
     cross.save_summarized_context("session_3", "优化了 token 使用 | Tools: grep")
 
     # 获取最近的会话
     recent = cross.get_recent_context(3)
-    print(f"\n最近 3 个会话:")
+    print("\n最近 3 个会话:")
     for ctx in recent:
-        print(f"  - {ctx.get('session_id', 'unknown')}: {ctx.get('summary', '')[:50]}...")
+        print(
+            f"  - {ctx.get('session_id', 'unknown')}: {ctx.get('summary', '')[:50]}..."
+        )
 
     # 搜索相关会话
     related = cross.find_related_context("记忆", limit=3)
@@ -154,11 +153,13 @@ def demo_custom_store():
 
         def set_with_ttl(self, key: str, value: str, ttl_seconds: float) -> None:
             import time
+
             self.set(key, value)
             self._ttl[key] = time.time() + ttl_seconds
 
         def get_with_ttl(self, key: str, default=None):
             import time
+
             if key in self._ttl and time.time() > self._ttl[key]:
                 self.delete(key)
                 return default
@@ -174,7 +175,9 @@ def demo_custom_store():
 
     # 热插拔到 memory manager
     mm.register_store("custom", redis_store)
-    print(f"\nCustom store registered as 'custom' type: {mm.get_store('custom').memory_type}")
+    print(
+        f"\nCustom store registered as 'custom' type: {mm.get_store('custom').memory_type}"
+    )
 
 
 def demo_summarizer():
@@ -192,7 +195,7 @@ def demo_summarizer():
         task="分析项目架构",
         tools_used=["read_file", "grep", "list_files"],
         artifacts=["架构图.png", "设计文档.md"],
-        response="完成了架构分析，推荐使用模块化设计..."
+        response="完成了架构分析，推荐使用模块化设计...",
     )
 
     print(f"\n保存的会话 ID: {session_id}")

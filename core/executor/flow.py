@@ -1,10 +1,10 @@
 """FlowController - handles conditional branching logic."""
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from core.executor.conditions import eval_condition
-from core.executor.graph import ExecutionGraph, TaskNode, Condition
+from core.executor.graph import ExecutionGraph, TaskNode
 from core.executor.result import ExecutionResult, ExecutionStatus, TaskStatus
 from core.executor.executor import SerialExecutor
 
@@ -65,7 +65,9 @@ class FlowController:
         status.total_duration = status.completed_at - status.started_at
         return status
 
-    def _evaluate_conditions(self, node: TaskNode, result: ExecutionResult) -> Optional[str]:
+    def _evaluate_conditions(
+        self, node: TaskNode, result: ExecutionResult
+    ) -> Optional[str]:
         """Evaluate conditions and return next node ID."""
         for condition in node.conditions:
             condition_met = eval_condition(condition.expression, result.output)
@@ -96,6 +98,8 @@ class FlowController:
                     return other_id
         return None
 
-    async def _execute_node(self, node: TaskNode, context: Dict[str, Any]) -> ExecutionResult:
+    async def _execute_node(
+        self, node: TaskNode, context: Dict[str, Any]
+    ) -> ExecutionResult:
         """Execute a single node using the executor."""
         return await self.executor._execute_node(node, context)

@@ -20,7 +20,7 @@ class SessionSummarizer:
         tools_used: List[str],
         artifacts: List[str],
         response: str,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ) -> str:
         """
         Summarize session and save to cross-session store.
@@ -35,22 +35,21 @@ class SessionSummarizer:
         self._store.save_summarized_context(session_id, summary)
 
         # Also save full session data
-        self._store.save_session(session_id, {
-            "task": task,
-            "tools_used": tools_used,
-            "artifacts": artifacts,
-            "summary": summary,
-            "started_at": "",  # Will be set by store
-        })
+        self._store.save_session(
+            session_id,
+            {
+                "task": task,
+                "tools_used": tools_used,
+                "artifacts": artifacts,
+                "summary": summary,
+                "started_at": "",  # Will be set by store
+            },
+        )
 
         return session_id
 
     def _generate_summary(
-        self,
-        task: str,
-        tools_used: List[str],
-        artifacts: List[str],
-        response: str
+        self, task: str, tools_used: List[str], artifacts: List[str], response: str
     ) -> str:
         """Generate a summary string from session data."""
         parts = [f"Task: {task}"]

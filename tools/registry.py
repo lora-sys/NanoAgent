@@ -312,7 +312,12 @@ def _register_tools(registry: ToolRegistry):
 
     # 注册 RAG 工具（可选，需 RAG server 运行在 localhost:8765）
     try:
-        from examples.rag_demo.tools.rag_tool import rag_query, rag_ingest_file, rag_status, rag_reset
+        from examples.rag_demo.tools.rag_tool import (
+            rag_query,
+            rag_ingest_file,
+            rag_status,
+            rag_reset,
+        )
 
         registry.register(
             "rag_query",
@@ -325,8 +330,12 @@ def _register_tools(registry: ToolRegistry):
             rag_ingest_file,
             "Ingest a file into the RAG system. Returns chunk count.",
         )
-        registry.register("rag_status", rag_status, "Check RAG index status (document count).")
-        registry.register("rag_reset", rag_reset, "Clear all RAG documents. Use with caution.")
+        registry.register(
+            "rag_status", rag_status, "Check RAG index status (document count)."
+        )
+        registry.register(
+            "rag_reset", rag_reset, "Clear all RAG documents. Use with caution."
+        )
     except Exception:
         pass  # RAG tools optional — NanoAgent works without them
 

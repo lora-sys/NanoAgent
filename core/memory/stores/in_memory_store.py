@@ -1,6 +1,6 @@
 """In-memory store — ephemeral, dict-based."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from core.memory.interfaces import BaseMemory, MemoryStats
 
@@ -52,7 +52,7 @@ class InMemoryStore(BaseMemory):
         sorted_items = sorted(
             self._store.items(),
             key=lambda x: self._access_count.get(x[0], 0),
-            reverse=True
+            reverse=True,
         )
 
         for key, value in sorted_items:
@@ -84,11 +84,9 @@ class WorkingMemoryStore(InMemoryStore):
 
     def add_tool_result(self, tool_name: str, result: Any) -> None:
         """Record tool execution result."""
-        self._tool_results.append({
-            "tool": tool_name,
-            "result": result,
-            "ts": len(self._tool_results)
-        })
+        self._tool_results.append(
+            {"tool": tool_name, "result": result, "ts": len(self._tool_results)}
+        )
         # Keep last 10 results
         if len(self._tool_results) > 10:
             self._tool_results = self._tool_results[-10:]

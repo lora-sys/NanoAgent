@@ -45,7 +45,6 @@ def _get_chroma() -> ChromaStore:
     return _chroma_store
 
 
-
 def retrieval(
     query: str,
     top_k: int = TOP_K,
@@ -88,11 +87,13 @@ def retrieval(
     scored = []
     for r in raw_results:
         score = 1 - r["distance"]  # cosine distance → similarity
-        scored.append({
-            "text": r["text"],
-            "score": round(score, 4),
-            "metadata": r["metadata"],
-        })
+        scored.append(
+            {
+                "text": r["text"],
+                "score": round(score, 4),
+                "metadata": r["metadata"],
+            }
+        )
 
     # Sort by score descending
     scored.sort(key=lambda x: -x["score"])

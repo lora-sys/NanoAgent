@@ -1,7 +1,7 @@
 """Memory interfaces — ABCs for all memory types."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, TypeVar
 
@@ -13,6 +13,7 @@ V = TypeVar("V")
 @dataclass
 class MemoryConfig:
     """Configuration for memory stores."""
+
     max_tokens: int = 2000
     ttl_seconds: Optional[int] = None  # None = forever
 
@@ -20,6 +21,7 @@ class MemoryConfig:
 @dataclass
 class MemoryStats:
     """Statistics for memory store."""
+
     hits: int = 0
     misses: int = 0
     total_tokens: int = 0

@@ -29,8 +29,7 @@ def verify_result(task: MemoryTask, response: str, tools_used: list[str]) -> boo
 
 def run_memory_eval(mock: bool = False, verbose: bool = False) -> dict:
     """运行记忆系统评估。"""
-    from core.memory import get_memory_manager, reset_memory_manager, MemoryManager
-    from core.memory.stores import InMemoryStore
+    from core.memory import get_memory_manager, reset_memory_manager
 
     results = []
     tasks = get_memory_tasks()
@@ -63,25 +62,29 @@ def run_memory_eval(mock: bool = False, verbose: bool = False) -> dict:
             tools_used = []
             passed = verify_result(task, str(result), tools_used)
 
-            results.append({
-                "task": task.name,
-                "passed": passed,
-                "result": str(result)[:100],
-                "expected": str(task.expected)[:50],
-                "difficulty": task.difficulty,
-            })
+            results.append(
+                {
+                    "task": task.name,
+                    "passed": passed,
+                    "result": str(result)[:100],
+                    "expected": str(task.expected)[:50],
+                    "difficulty": task.difficulty,
+                }
+            )
 
             if verbose:
                 status = "✅" if passed else "❌"
                 print(f"{status} {task.name} ({task.difficulty})")
 
         except Exception as e:
-            results.append({
-                "task": task.name,
-                "passed": False,
-                "error": str(e),
-                "difficulty": task.difficulty,
-            })
+            results.append(
+                {
+                    "task": task.name,
+                    "passed": False,
+                    "error": str(e),
+                    "difficulty": task.difficulty,
+                }
+            )
             if verbose:
                 print(f"❌ {task.name}: {e}")
 
@@ -124,7 +127,9 @@ def _execute_task(mm, task) -> str:
         cross = mm.get_store("cross_session")
         if hasattr(cross, "save_summarized_context"):
             cross.save_summarized_context("test_session_1", "完成了nanoagent项目分析")
-        ctx = cross.get_recent_context(1) if hasattr(cross, "get_recent_context") else []
+        ctx = (
+            cross.get_recent_context(1) if hasattr(cross, "get_recent_context") else []
+        )
         return json.dumps(ctx)
     elif task.name == "memory_search":
         cross = mm.get_store("cross_session")
@@ -135,7 +140,13 @@ def _execute_task(mm, task) -> str:
             return "[]"
     elif task.name == "memory_status":
         stores = {}
-        for name in ["short_term", "working", "long_term", "cross_session", "preference"]:
+        for name in [
+            "short_term",
+            "working",
+            "long_term",
+            "cross_session",
+            "preference",
+        ]:
             store = mm.get_store(name)
             if store:
                 stores[name] = store.memory_type
@@ -163,13 +174,16 @@ if __name__ == "__main__":
 
     if args.reset:
         from core.memory import reset_memory_manager
+
         reset_memory_manager()
         print("Memory reset.")
 
     result = run_memory_eval(mock=args.mock, verbose=args.verbose)
 
     print("\n" + "=" * 60)
-    print(f"  准确率: {result['passed']}/{result['total']} ({100*result['passed']/max(result['total'],1):.1f}%)")
+    print(
+        f"  准确率: {result['passed']}/{result['total']} ({100 * result['passed'] / max(result['total'], 1):.1f}%)"
+    )
     print("=" * 60)
 
     for r in result["results"]:

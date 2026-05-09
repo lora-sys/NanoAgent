@@ -117,7 +117,7 @@ class NanoAgent:
                     handler=None,  # Will use LLM
                 )
                 if i > 0:
-                    node.depends_on = [f"step_{i-1}"]
+                    node.depends_on = [f"step_{i - 1}"]
                 graph.add_node(node)
 
             graph.entry_point = "step_0"
@@ -129,21 +129,23 @@ class NanoAgent:
             status = executor.run_sync(graph, initial_input=task)
             duration = time.time() - start_time
 
-            print(f"✅ 执行器模式执行完成")
+            print("✅ 执行器模式执行完成")
             print(f"⏱️ 执行时间: {duration:.2f}秒")
             print(f"📋 执行步骤: {list(status.results.keys())}")
 
             return {
-                "status": "completed" if all(
-                    r.status.value == "completed" for r in status.results.values()
-                ) else "failed",
+                "status": "completed"
+                if all(r.status.value == "completed" for r in status.results.values())
+                else "failed",
                 "iterations": len(steps),
                 "tools_used": [],
                 "artifacts": [],
                 "spec_file": None,
                 "execution_mode": "executor",
                 "execution_time": duration,
-                "response": list(status.results.values())[-1].output if status.results else None,
+                "response": list(status.results.values())[-1].output
+                if status.results
+                else None,
                 "executor_results": {k: v.to_dict() for k, v in status.results.items()},
             }
 
@@ -168,7 +170,11 @@ class NanoAgent:
                 break
 
         if len(parts) > 1:
-            return [{"name": f"subtask_{i}", "prompt": p.strip()} for i, p in enumerate(parts) if p.strip()]
+            return [
+                {"name": f"subtask_{i}", "prompt": p.strip()}
+                for i, p in enumerate(parts)
+                if p.strip()
+            ]
 
         return []
 
@@ -313,7 +319,9 @@ class NanoAgent:
                         max_tokens=1500, task=task
                     )
                     if mem_ctx:
-                        self.conversation[0]["content"] += f"\n\n## Memory Context\n{mem_ctx}\n"
+                        self.conversation[0]["content"] += (
+                            f"\n\n## Memory Context\n{mem_ctx}\n"
+                        )
 
             print("🤖 NanoAgent - 极简 Agent 框架")
             print(f"📋 任务: {task}")

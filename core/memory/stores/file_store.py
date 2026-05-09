@@ -1,7 +1,6 @@
 """File-backed store — JSON-based preference memory."""
 
 import json
-import uuid
 from pathlib import Path
 from typing import Any, Dict
 
@@ -60,10 +59,11 @@ class FileBackedMemoryStore(PreferenceMemory):
 
     def set_preference(self, key: str, value: Any) -> None:
         import datetime
+
         data = {
             "key": key,
             "value": value,
-            "updated_at": datetime.datetime.now().isoformat()
+            "updated_at": datetime.datetime.now().isoformat(),
         }
         self._cache[key] = data
         path = self._get_path(key)

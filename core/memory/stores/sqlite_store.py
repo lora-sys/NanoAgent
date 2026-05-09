@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.memory.interfaces import BaseMemory, LongTermMemory, CrossSessionMemory, MemoryStats
+from core.memory.interfaces import BaseMemory, MemoryStats
 
 
 def _get_db_path() -> Path:
@@ -85,7 +85,7 @@ class SQLiteMemoryStore(BaseMemory):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT value FROM memory_entries WHERE key = ? ORDER BY last_accessed DESC LIMIT 1",
-            (key,)
+            (key,),
         )
         row = cursor.fetchone()
         conn.close()
@@ -96,7 +96,7 @@ class SQLiteMemoryStore(BaseMemory):
             cursor2 = conn2.cursor()
             cursor2.execute(
                 "UPDATE memory_entries SET access_count = access_count + 1, last_accessed = ? WHERE key = ?",
-                (datetime.now().isoformat(), key)
+                (datetime.now().isoformat(), key),
             )
             conn2.commit()
             conn2.close()
@@ -110,6 +110,7 @@ class SQLiteMemoryStore(BaseMemory):
         conn = self._conn()
         cursor = conn.cursor()
         import uuid
+
         entry_id = str(uuid.uuid4())[:12]
 
         # Serialize value
@@ -127,7 +128,7 @@ class SQLiteMemoryStore(BaseMemory):
                 ?, ?, ?, ?, 1
             )
             """,
-            (key, entry_id, key, value_str, now, now)
+            (key, entry_id, key, value_str, now, now),
         )
         conn.commit()
         conn.close()
@@ -205,7 +206,7 @@ class CrossSessionStore(SQLiteMemoryStore):
             INSERT OR REPLACE INTO sessions (id, summary, ended_at)
             VALUES (?, ?, ?)
             """,
-            (session_id, summary, now)
+            (session_id, summary, now),
         )
         conn.commit()
         conn.close()
@@ -216,7 +217,7 @@ class CrossSessionStore(SQLiteMemoryStore):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, task, summary, ended_at FROM sessions ORDER BY ended_at DESC LIMIT ?",
-            (n,)
+            (n,),
         )
         rows = cursor.fetchall()
         conn.close()
@@ -235,7 +236,7 @@ class CrossSessionStore(SQLiteMemoryStore):
             WHERE summary LIKE ? OR task LIKE ?
             ORDER BY ended_at DESC LIMIT ?
             """,
-            (f"%{query}%", f"%{query}%", limit)
+            (f"%{query}%", f"%{query}%", limit),
         )
         rows = cursor.fetchall()
         conn.close()
@@ -263,8 +264,8 @@ class CrossSessionStore(SQLiteMemoryStore):
                 data.get("summary", ""),
                 json.dumps(data.get("tools_used", [])),
                 json.dumps(data.get("artifacts", [])),
-                json.dumps(data.get("metadata", {}))
-            )
+                json.dumps(data.get("metadata", {})),
+            ),
         )
         conn.commit()
         conn.close()
@@ -275,7 +276,7 @@ class CrossSessionStore(SQLiteMemoryStore):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, task, started_at, ended_at, summary, tools_used, artifacts, metadata FROM sessions WHERE id = ?",
-            (session_id,)
+            (session_id,),
         )
         row = cursor.fetchone()
         conn.close()
@@ -288,7 +289,7 @@ class CrossSessionStore(SQLiteMemoryStore):
                 "summary": row[4],
                 "tools_used": json.loads(row[5]) if row[5] else [],
                 "artifacts": json.loads(row[6]) if row[6] else [],
-                "metadata": json.loads(row[7]) if row[7] else {}
+                "metadata": json.loads(row[7]) if row[7] else {},
             }
         return None
 
@@ -326,7 +327,9 @@ class CrossSessionStore(SQLiteMemoryStore):
                 try:
                     tools = json.loads(tools_used)
                     if tools:
-                        tool_list = f" | Tools: {', '.join(tools[:5])}"  # Limit to 5 tools
+                        tool_list = (
+                            f" | Tools: {', '.join(tools[:5])}"  # Limit to 5 tools
+                        )
                 except json.JSONDecodeError:
                     pass
 

@@ -24,8 +24,12 @@ async def demo_parallel_execution():
 
     graph = ExecutionGraph(name="parallel_demo")
     graph.add_node(TaskNode(id="api", name="API", handler=lambda _: fetch_data("API")))
-    graph.add_node(TaskNode(id="db", name="Database", handler=lambda _: fetch_data("Database")))
-    graph.add_node(TaskNode(id="cache", name="Cache", handler=lambda _: fetch_data("Cache")))
+    graph.add_node(
+        TaskNode(id="db", name="Database", handler=lambda _: fetch_data("Database"))
+    )
+    graph.add_node(
+        TaskNode(id="cache", name="Cache", handler=lambda _: fetch_data("Cache"))
+    )
     graph.entry_point = "api"
 
     executor = ParallelExecutor(max_concurrency=3)
@@ -50,9 +54,21 @@ async def demo_serial_execution():
         return f"Executing: {plan}"
 
     graph = ExecutionGraph(name="serial_demo")
-    graph.add_node(TaskNode(id="analyze", name="Analyze", handler=lambda ctx: analyze(ctx.get("input", ""))))
-    graph.add_node(TaskNode(id="plan", name="Plan", handler=lambda ctx: plan(ctx.get("analyze"))))
-    graph.add_node(TaskNode(id="execute", name="Execute", handler=lambda ctx: execute(ctx.get("plan"))))
+    graph.add_node(
+        TaskNode(
+            id="analyze",
+            name="Analyze",
+            handler=lambda ctx: analyze(ctx.get("input", "")),
+        )
+    )
+    graph.add_node(
+        TaskNode(id="plan", name="Plan", handler=lambda ctx: plan(ctx.get("analyze")))
+    )
+    graph.add_node(
+        TaskNode(
+            id="execute", name="Execute", handler=lambda ctx: execute(ctx.get("plan"))
+        )
+    )
     graph.entry_point = "analyze"
 
     # Set up chain dependencies
@@ -84,7 +100,13 @@ async def demo_conditional_branching():
         return "ERROR: Handling error case"
 
     graph = ExecutionGraph(name="conditional_demo")
-    graph.add_node(TaskNode(id="validate", name="Validate", handler=lambda ctx: validate(ctx.get("input", ""))))
+    graph.add_node(
+        TaskNode(
+            id="validate",
+            name="Validate",
+            handler=lambda ctx: validate(ctx.get("input", "")),
+        )
+    )
     graph.add_node(TaskNode(id="success", name="Success", handler=handle_success))
     graph.add_node(TaskNode(id="error", name="Error", handler=handle_error))
     graph.entry_point = "validate"
@@ -119,7 +141,11 @@ async def demo_error_strategies():
     def other_task(_):
         return "Other task completed"
 
-    for strategy in [ErrorStrategy.STOP, ErrorStrategy.FAIL_FAST, ErrorStrategy.CONTINUE]:
+    for strategy in [
+        ErrorStrategy.STOP,
+        ErrorStrategy.FAIL_FAST,
+        ErrorStrategy.CONTINUE,
+    ]:
         graph = ExecutionGraph(name=f"strategy_{strategy.value}")
         graph.add_node(TaskNode(id="fail", name="Failing", handler=failing_task))
         graph.add_node(TaskNode(id="other", name="Other", handler=other_task))
@@ -129,8 +155,12 @@ async def demo_error_strategies():
         executor = ParallelExecutor(error_strategy=strategy)
         status = await executor.run(graph)
 
-        fail_status = status.results.get("fail", ExecutionResult(node_id="fail", status=TaskStatus.PENDING)).status.value
-        other_status = status.results.get("other", ExecutionResult(node_id="other", status=TaskStatus.PENDING)).status.value
+        fail_status = status.results.get(
+            "fail", ExecutionResult(node_id="fail", status=TaskStatus.PENDING)
+        ).status.value
+        other_status = status.results.get(
+            "other", ExecutionResult(node_id="other", status=TaskStatus.PENDING)
+        ).status.value
         print(f"  {strategy.value}: fail={fail_status}, other={other_status}")
 
 

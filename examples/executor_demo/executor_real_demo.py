@@ -112,35 +112,45 @@ async def demo_graph_execution():
     async def analyze_handler(ctx):
         return await llm_task("What are the key benefits of async/await in Python?")
 
-    graph.add_node(TaskNode(
-        id="analyze",
-        name="Analyze",
-        handler=analyze_handler,
-    ))
+    graph.add_node(
+        TaskNode(
+            id="analyze",
+            name="Analyze",
+            handler=analyze_handler,
+        )
+    )
 
     # 节点2: 详细解释 (依赖节点1)
     async def explain_handler(ctx):
         analyze_result = ctx.get("analyze", "N/A")
-        return await llm_task(f"Based on this summary: {analyze_result}, give 3 concrete examples")
+        return await llm_task(
+            f"Based on this summary: {analyze_result}, give 3 concrete examples"
+        )
 
-    graph.add_node(TaskNode(
-        id="explain",
-        name="Explain",
-        handler=explain_handler,
-        depends_on=["analyze"],
-    ))
+    graph.add_node(
+        TaskNode(
+            id="explain",
+            name="Explain",
+            handler=explain_handler,
+            depends_on=["analyze"],
+        )
+    )
 
     # 节点3: 代码示例 (依赖节点2)
     async def examples_handler(ctx):
         explain_result = ctx.get("explain", "N/A")
-        return await llm_task(f"Based on this explanation: {explain_result}, give 2 code examples demonstrating async/await patterns")
+        return await llm_task(
+            f"Based on this explanation: {explain_result}, give 2 code examples demonstrating async/await patterns"
+        )
 
-    graph.add_node(TaskNode(
-        id="examples",
-        name="Examples",
-        handler=examples_handler,
-        depends_on=["explain"],
-    ))
+    graph.add_node(
+        TaskNode(
+            id="examples",
+            name="Examples",
+            handler=examples_handler,
+            depends_on=["explain"],
+        )
+    )
 
     graph.entry_point = "analyze"
 
@@ -158,7 +168,11 @@ async def demo_graph_execution():
     for node_id, result in status.results.items():
         print(f"\n[{node_id}] Status: {result.status.value}")
         if result.output:
-            print(f"  Output: {result.output[:150]}..." if len(str(result.output)) > 150 else f"  Output: {result.output}")
+            print(
+                f"  Output: {result.output[:150]}..."
+                if len(str(result.output)) > 150
+                else f"  Output: {result.output}"
+            )
 
 
 async def demo_parallel_independent_tasks():
@@ -190,11 +204,13 @@ async def demo_parallel_independent_tasks():
     ]
 
     for task_id, prompt in prompts:
-        graph.add_node(TaskNode(
-            id=task_id,
-            name=task_id,
-            handler=lambda ctx, p=prompt, tid=task_id: llm_call(tid, p),
-        ))
+        graph.add_node(
+            TaskNode(
+                id=task_id,
+                name=task_id,
+                handler=lambda ctx, p=prompt, tid=task_id: llm_call(tid, p),
+            )
+        )
 
     graph.entry_point = "what_is_1"
 

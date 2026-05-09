@@ -1,7 +1,7 @@
 """Memory optimizer — token budget management."""
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 
 class MemoryOptimizer:
@@ -61,7 +61,9 @@ class MemoryOptimizer:
             return 0
 
         # Count Chinese characters (CJK range)
-        chinese_chars = len(re.findall(r'[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]', text))
+        chinese_chars = len(
+            re.findall(r"[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]", text)
+        )
 
         # Count other characters
         other_chars = len(text) - chinese_chars
@@ -89,7 +91,7 @@ class MemoryOptimizer:
             return text
 
         # Split into sentences (preserve delimiter)
-        sentence_pattern = re.compile(r'(?<=[。！？.!?])\s*')
+        sentence_pattern = re.compile(r"(?<=[。！？.!?])\s*")
         sentences = sentence_pattern.split(text)
 
         result = ""
@@ -101,7 +103,7 @@ class MemoryOptimizer:
             else:
                 # If first sentence already too long, head-truncate it
                 if not result:
-                    return text[:budget_chars - 3] + "..."
+                    return text[: budget_chars - 3] + "..."
                 break
 
         return result.strip() + "..."
@@ -115,13 +117,21 @@ class MemoryOptimizer:
         """
         task_lower = task.lower()
 
-        if any(kw in task_lower for kw in ["读取", "搜索", "grep", "read", "list", "文件"]):
+        if any(
+            kw in task_lower for kw in ["读取", "搜索", "grep", "read", "list", "文件"]
+        ):
             self._task_type = "tool_heavy"
             self._budgets = self.TASK_BUDGETS["tool_heavy"].copy()
-        elif any(kw in task_lower for kw in ["分析", "设计", "评估", "analyze", "design", "architect"]):
+        elif any(
+            kw in task_lower
+            for kw in ["分析", "设计", "评估", "analyze", "design", "architect"]
+        ):
             self._task_type = "analysis"
             self._budgets = self.TASK_BUDGETS["analysis"].copy()
-        elif any(kw in task_lower for kw in ["写", "创建", "生成", "write", "create", "generate"]):
+        elif any(
+            kw in task_lower
+            for kw in ["写", "创建", "生成", "write", "create", "generate"]
+        ):
             self._task_type = "creative"
             self._budgets = self.TASK_BUDGETS["creative"].copy()
         else:
@@ -129,9 +139,7 @@ class MemoryOptimizer:
             self._budgets = self.DEFAULT_BUDGETS.copy()
 
     def build_context(
-        self,
-        memory_contents: Dict[str, str],
-        total_budget: int = 2000
+        self, memory_contents: Dict[str, str], total_budget: int = 2000
     ) -> str:
         """
         Build context string from multiple memory sources within total token budget.

@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from core.executor.graph import ExecutionGraph, TaskNode
 from core.executor.result import (
@@ -25,7 +25,9 @@ class BaseExecutor:
         self.error_strategy = error_strategy
         self.llm_client = llm_client
 
-    def _create_result(self, node_id: str, status: TaskStatus = TaskStatus.PENDING) -> ExecutionResult:
+    def _create_result(
+        self, node_id: str, status: TaskStatus = TaskStatus.PENDING
+    ) -> ExecutionResult:
         return ExecutionResult(node_id=node_id, status=status)
 
 
@@ -63,7 +65,9 @@ class ParallelExecutor(BaseExecutor):
         errors = graph.validate()
         if errors:
             for err in errors:
-                result = ExecutionResult(node_id="__validation__", error=err, status=TaskStatus.FAILED)
+                result = ExecutionResult(
+                    node_id="__validation__", error=err, status=TaskStatus.FAILED
+                )
                 status.add_result(result)
             status.completed_at = time.time()
             status.total_duration = status.completed_at - status.started_at
@@ -77,20 +81,30 @@ class ParallelExecutor(BaseExecutor):
 
                 # Check for failures and apply error strategy
                 if self.error_strategy != ErrorStrategy.CONTINUE:
-                    failed = [r for r in status.results.values() if r.status == TaskStatus.FAILED]
+                    failed = [
+                        r
+                        for r in status.results.values()
+                        if r.status == TaskStatus.FAILED
+                    ]
                     if failed:
                         if self.error_strategy == ErrorStrategy.STOP:
                             # Cancel remaining batches
                             break
                         elif self.error_strategy == ErrorStrategy.FAIL_FAST:
                             # Mark remaining as cancelled
-                            remaining_nodes = [nid for nid in graph.nodes if nid not in status.results]
+                            remaining_nodes = [
+                                nid for nid in graph.nodes if nid not in status.results
+                            ]
                             for nid in remaining_nodes:
-                                result = ExecutionResult(node_id=nid, status=TaskStatus.CANCELLED)
+                                result = ExecutionResult(
+                                    node_id=nid, status=TaskStatus.CANCELLED
+                                )
                                 status.add_result(result)
                             break
         except Exception as e:
-            result = ExecutionResult(node_id="__execution__", error=str(e), status=TaskStatus.FAILED)
+            result = ExecutionResult(
+                node_id="__execution__", error=str(e), status=TaskStatus.FAILED
+            )
             status.add_result(result)
 
         status.completed_at = time.time()
@@ -140,7 +154,9 @@ class ParallelExecutor(BaseExecutor):
                 status=TaskStatus.FAILED,
             )
 
-        result = ExecutionResult(node_id=node_id, status=TaskStatus.RUNNING, started_at=time.time())
+        result = ExecutionResult(
+            node_id=node_id, status=TaskStatus.RUNNING, started_at=time.time()
+        )
 
         try:
             # Wait for dependencies
@@ -153,7 +169,9 @@ class ParallelExecutor(BaseExecutor):
                 # Handle both async handlers (coroutine functions) and sync handlers that return coroutines
                 if asyncio.iscoroutine(handler_result):
                     if node.timeout:
-                        result.output = await asyncio.wait_for(handler_result, timeout=node.timeout)
+                        result.output = await asyncio.wait_for(
+                            handler_result, timeout=node.timeout
+                        )
                     else:
                         result.output = await handler_result
                 else:
@@ -219,7 +237,9 @@ class SerialExecutor(BaseExecutor):
         errors = graph.validate()
         if errors:
             for err in errors:
-                result = ExecutionResult(node_id="__validation__", error=err, status=TaskStatus.FAILED)
+                result = ExecutionResult(
+                    node_id="__validation__", error=err, status=TaskStatus.FAILED
+                )
                 status.add_result(result)
             status.completed_at = time.time()
             status.total_duration = status.completed_at - status.started_at
@@ -237,25 +257,36 @@ class SerialExecutor(BaseExecutor):
                 context[node_id] = result.output
 
                 # Stop on error if configured
-                if result.status == TaskStatus.FAILED and self.error_strategy == ErrorStrategy.STOP:
+                if (
+                    result.status == TaskStatus.FAILED
+                    and self.error_strategy == ErrorStrategy.STOP
+                ):
                     break
 
         except Exception as e:
-            result = ExecutionResult(node_id="__execution__", error=str(e), status=TaskStatus.FAILED)
+            result = ExecutionResult(
+                node_id="__execution__", error=str(e), status=TaskStatus.FAILED
+            )
             status.add_result(result)
 
         status.completed_at = time.time()
         status.total_duration = status.completed_at - status.started_at
         return status
 
-    async def _execute_node(self, node: TaskNode, context: Dict[str, Any]) -> ExecutionResult:
+    async def _execute_node(
+        self, node: TaskNode, context: Dict[str, Any]
+    ) -> ExecutionResult:
         """Execute a single node."""
-        result = ExecutionResult(node_id=node.id, status=TaskStatus.RUNNING, started_at=time.time())
+        result = ExecutionResult(
+            node_id=node.id, status=TaskStatus.RUNNING, started_at=time.time()
+        )
 
         try:
             if asyncio.iscoroutinefunction(node.handler) if node.handler else False:
                 if node.timeout:
-                    result.output = await asyncio.wait_for(node.handler(context), timeout=node.timeout)
+                    result.output = await asyncio.wait_for(
+                        node.handler(context), timeout=node.timeout
+                    )
                 else:
                     result.output = await node.handler(context)
             elif node.handler:

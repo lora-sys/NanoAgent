@@ -5,7 +5,6 @@ from core.memory import (
     get_memory_manager,
     reset_memory_manager,
     AgentMemoryIntegrator,
-    CrossSessionStore,
 )
 
 
@@ -29,7 +28,9 @@ class TestCrossSessionPersistence:
         modules = mm2.get_store("long_term").get("core_modules")
 
         assert project == "nanoagent", f"Expected 'nanoagent', got '{project}'"
-        assert modules == "agent, tools, llm", f"Expected 'agent, tools, llm', got '{modules}'"
+        assert modules == "agent, tools, llm", (
+            f"Expected 'agent, tools, llm', got '{modules}'"
+        )
 
     def test_cross_session_store_and_recall(self):
         """Test cross-session store save and recall."""
@@ -74,6 +75,7 @@ class TestCrossSessionPersistence:
 
         # Hot-swap
         from core.memory.stores import InMemoryStore
+
         custom = InMemoryStore()
         custom.set("key", "custom_value")
 
@@ -158,11 +160,16 @@ class TestMemoryTools:
         register_memory_tools(registry)
 
         # Test remember
-        result = registry.execute("remember", {"key": "test_key", "value": "test_value", "mem_type": "long_term"})
+        result = registry.execute(
+            "remember",
+            {"key": "test_key", "value": "test_value", "mem_type": "long_term"},
+        )
         assert result["status"] == "ok"
 
         # Test recall
-        result = registry.execute("recall", {"query": "test_key", "mem_type": "long_term"})
+        result = registry.execute(
+            "recall", {"query": "test_key", "mem_type": "long_term"}
+        )
         assert result["status"] == "ok"
         # Value should be retrievable
         stored = mm.get_store("long_term").get("test_key")

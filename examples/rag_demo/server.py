@@ -83,7 +83,10 @@ async def upload(file: UploadFile = File(...)):
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         content = await file.read()
         if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(413, f"File too large: {len(content)/1024:.0f} KB > {MAX_FILE_SIZE/1024:.0f} KB")
+            raise HTTPException(
+                413,
+                f"File too large: {len(content) / 1024:.0f} KB > {MAX_FILE_SIZE / 1024:.0f} KB",
+            )
         tmp.write(content)
         tmp_path = tmp.name
 

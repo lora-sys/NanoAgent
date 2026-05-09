@@ -191,7 +191,9 @@ def _add_overlap(chunks: list[Chunk], overlap: int) -> list[Chunk]:
         boundary = _find_sentence_boundary(prev_text, overlap)
         prepend = prev_text[boundary:] if boundary > 0 else prev_text[-overlap:]
         if len(prepend) > overlap:
-            prepend = prev_text[-overlap:]  # fallback to char-level if sentence too long
+            prepend = prev_text[
+                -overlap:
+            ]  # fallback to char-level if sentence too long
         new_text = prepend + curr_text
         new_meta = dict(chunks[i].metadata)
         new_meta["overlap_from_prev"] = True

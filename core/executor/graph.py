@@ -8,7 +8,9 @@ from typing import Any, Callable, Dict, List, Optional, Set
 class Condition:
     """Defines a branching decision point."""
 
-    expression: str  # Python-like expression, e.g., `result.get("valid", False) == True`
+    expression: (
+        str  # Python-like expression, e.g., `result.get("valid", False) == True`
+    )
     then_node: str  # Node ID to execute if true
     else_node: str  # Node ID to execute if false
 
@@ -84,7 +86,9 @@ class ExecutionGraph:
         for node_id, node in self.nodes.items():
             for dep_id in node.depends_on:
                 if dep_id not in self.nodes:
-                    errors.append(f"Node '{node_id}' depends on non-existent node '{dep_id}'")
+                    errors.append(
+                        f"Node '{node_id}' depends on non-existent node '{dep_id}'"
+                    )
 
         # Check for cycles
         cycle = self._find_cycle()

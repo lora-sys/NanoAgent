@@ -10,9 +10,6 @@ from core.executor import (
     Condition,
     ParallelExecutor,
     SerialExecutor,
-    ExecutionStatus,
-    ExecutionResult,
-    ErrorStrategy,
     TaskStatus,
     eval_condition,
 )
@@ -42,7 +39,9 @@ class TestGraphValidation:
     def test_missing_dependency(self):
         """Graph with non-existent dependency fails validation."""
         graph = ExecutionGraph(name="test")
-        graph.add_node(TaskNode(id="a", name="A", prompt="", depends_on=["nonexistent"]))
+        graph.add_node(
+            TaskNode(id="a", name="A", prompt="", depends_on=["nonexistent"])
+        )
         graph.entry_point = "a"
         errors = graph.validate()
         assert any("nonexistent" in e for e in errors)
@@ -143,9 +142,15 @@ class TestParallelExecutor:
             return f"completed in {delay}s"
 
         graph = ExecutionGraph(name="timing_test")
-        graph.add_node(TaskNode(id="t1", name="Task 1", handler=lambda _: slow_task(0.1)))
-        graph.add_node(TaskNode(id="t2", name="Task 2", handler=lambda _: slow_task(0.2)))
-        graph.add_node(TaskNode(id="t3", name="Task 3", handler=lambda _: slow_task(0.15)))
+        graph.add_node(
+            TaskNode(id="t1", name="Task 1", handler=lambda _: slow_task(0.1))
+        )
+        graph.add_node(
+            TaskNode(id="t2", name="Task 2", handler=lambda _: slow_task(0.2))
+        )
+        graph.add_node(
+            TaskNode(id="t3", name="Task 3", handler=lambda _: slow_task(0.15))
+        )
         graph.entry_point = "t1"
 
         executor = ParallelExecutor(max_concurrency=3)
@@ -172,9 +177,15 @@ class TestParallelExecutor:
             return counter["value"]
 
         graph = ExecutionGraph(name="counter_test")
-        graph.add_node(TaskNode(id="c1", name="Counter 1", handler=lambda _: increment()))
-        graph.add_node(TaskNode(id="c2", name="Counter 2", handler=lambda _: increment()))
-        graph.add_node(TaskNode(id="c3", name="Counter 3", handler=lambda _: increment()))
+        graph.add_node(
+            TaskNode(id="c1", name="Counter 1", handler=lambda _: increment())
+        )
+        graph.add_node(
+            TaskNode(id="c2", name="Counter 2", handler=lambda _: increment())
+        )
+        graph.add_node(
+            TaskNode(id="c3", name="Counter 3", handler=lambda _: increment())
+        )
         graph.entry_point = "c1"
 
         executor = ParallelExecutor(max_concurrency=3)
@@ -198,9 +209,17 @@ class TestParallelExecutor:
 
         graph = ExecutionGraph(name="dep_test")
         graph.add_node(TaskNode(id="a", name="A", handler=make_handler("a", 0)))
-        graph.add_node(TaskNode(id="b", name="B", handler=make_handler("b", 0), depends_on=["a"]))
-        graph.add_node(TaskNode(id="c", name="C", handler=make_handler("c", 0), depends_on=["a"]))
-        graph.add_node(TaskNode(id="d", name="D", handler=make_handler("d", 0), depends_on=["b", "c"]))
+        graph.add_node(
+            TaskNode(id="b", name="B", handler=make_handler("b", 0), depends_on=["a"])
+        )
+        graph.add_node(
+            TaskNode(id="c", name="C", handler=make_handler("c", 0), depends_on=["a"])
+        )
+        graph.add_node(
+            TaskNode(
+                id="d", name="D", handler=make_handler("d", 0), depends_on=["b", "c"]
+            )
+        )
         graph.entry_point = "a"
 
         executor = ParallelExecutor(max_concurrency=3)
@@ -269,8 +288,12 @@ class TestSerialExecutor:
             return handler
 
         graph = ExecutionGraph(name="context_test")
-        graph.add_node(TaskNode(id="step1", name="Step 1", handler=make_handler("step1")))
-        graph.add_node(TaskNode(id="step2", name="Step 2", handler=make_handler("step2")))
+        graph.add_node(
+            TaskNode(id="step1", name="Step 1", handler=make_handler("step1"))
+        )
+        graph.add_node(
+            TaskNode(id="step2", name="Step 2", handler=make_handler("step2"))
+        )
         graph.entry_point = "step1"
         graph.get_node("step2").depends_on = ["step1"]
 
@@ -311,8 +334,12 @@ class TestConditionalBranching:
             return {"status": "error"}
 
         graph = ExecutionGraph(name="branch_test")
-        graph.add_node(TaskNode(id="check", name="Check", handler=lambda _: {"valid": True}))
-        graph.add_node(TaskNode(id="success", name="Success Path", handler=success_handler))
+        graph.add_node(
+            TaskNode(id="check", name="Check", handler=lambda _: {"valid": True})
+        )
+        graph.add_node(
+            TaskNode(id="success", name="Success Path", handler=success_handler)
+        )
         graph.add_node(TaskNode(id="error", name="Error Path", handler=error_handler))
         graph.entry_point = "check"
         graph.get_node("success").depends_on = ["check"]

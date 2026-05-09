@@ -19,7 +19,7 @@ class AgentMemoryIntegrator:
         self,
         agent,
         memory_manager: Optional[MemoryManager] = None,
-        summarizer: Optional[SessionSummarizer] = None
+        summarizer: Optional[SessionSummarizer] = None,
     ):
         self.agent = agent
         self.mm = memory_manager or get_memory_manager()
@@ -31,13 +31,19 @@ class AgentMemoryIntegrator:
     def on_agent_start(self, task: str) -> None:
         """Initialize session memory and inject context."""
         import uuid
+
         self._current_session_id = str(uuid.uuid4())[:12]
         self._session_tools = []
         self._session_artifacts = []
 
         # Inject memory context into system prompt if agent is available
         mem_context = self.mm.build_context_for_prompt(max_tokens=1500)
-        if mem_context and self.agent and hasattr(self.agent, 'conversation') and self.agent.conversation:
+        if (
+            mem_context
+            and self.agent
+            and hasattr(self.agent, "conversation")
+            and self.agent.conversation
+        ):
             # Prepend memory context to system message
             system_msg = self.agent.conversation[0]
             if system_msg.get("role") == "system":
@@ -66,7 +72,7 @@ class AgentMemoryIntegrator:
             tools_used=self._session_tools,
             artifacts=self._session_artifacts,
             response=response,
-            session_id=self._current_session_id
+            session_id=self._current_session_id,
         )
 
         # Also save key info to long-term memory if important
